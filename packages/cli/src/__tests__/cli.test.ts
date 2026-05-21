@@ -1,5 +1,5 @@
 // Tests for the CLI entry point — verifies help output, version, and unknown command behavior by calling main() directly.
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { main } from '../index.js';
 
 function captureOutput(args: string[]): { stdout: string; exitCode: number } {

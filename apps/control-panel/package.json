@@ -1,6 +1,19 @@
 {
   "name": "@skillgov/control-panel",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
-  "description": "SkillGov local web control panel — button-based UI over @skillgov/core operations."
+  "type": "module",
+  "description": "SkillGov local web control panel — button-based UI over @skillgov/core operations.",
+  "scripts": {
+    "dev": "tsx server.ts",
+    "start": "node server.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@skillgov/core": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "vitest": "^3.2.0"
+  }
 }

@@ -1,0 +1,9 @@
+// TypeScript config for @skillgov/core — extends the shared base config.
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src"]
+}

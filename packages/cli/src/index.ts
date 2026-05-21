@@ -4,9 +4,13 @@ import {
   checkCompatibility,
   generateOverlayTask,
   generateRepairTask,
+  getProjectStatus,
   importSkill,
   initProject,
+  installSkill,
   loadConfig,
+  runDoctor,
+  uninstallSkill,
   validateSkill,
 } from '@skillgov/core';
 
@@ -170,6 +174,112 @@ export function main(args: string[]): void {
 
     console.log('Usage: skillgov task repair <skill> | skillgov task overlay <skill> --target <t>');
     process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'install') {
+    const skillName = args[1];
+    const targetIndex = args.indexOf('--target');
+    const targetName =
+      targetIndex !== -1 && args[targetIndex + 1] ? args[targetIndex + 1] : undefined;
+    if (!skillName || !targetName) {
+      console.log('Usage: skillgov install <skill> --target <target>');
+      process.exitCode = 1;
+      return;
+    }
+    const root = process.cwd();
+    const config = loadConfig();
+    const result = installSkill(skillName, targetName, config.defaultLinkMode, {
+      projectRoot: config.projectRoot,
+      registryPath: `${config.projectRoot}/registry/installs.json`,
+      operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
+    });
+    console.log(result.message);
+    if (result.status !== 'installed') process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'uninstall') {
+    const skillName = args[1];
+    const targetIndex = args.indexOf('--target');
+    const targetName =
+      targetIndex !== -1 && args[targetIndex + 1] ? args[targetIndex + 1] : undefined;
+    if (!skillName || !targetName) {
+      console.log('Usage: skillgov uninstall <skill> --target <target>');
+      process.exitCode = 1;
+      return;
+    }
+    const root = process.cwd();
+    const config = loadConfig();
+    const result = uninstallSkill(skillName, targetName, {
+      projectRoot: config.projectRoot,
+      registryPath: `${config.projectRoot}/registry/installs.json`,
+      operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
+    });
+    console.log(result.message);
+    if (result.status === 'not-found') process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'status') {
+    const root = process.cwd();
+    const config = loadConfig();
+    const status = getProjectStatus(config.projectRoot);
+    console.log(`SkillGov project at: ${status.projectRoot}`);
+    console.log(`\nSkills (${status.skills.length}):`);
+    for (const skill of status.skills) {
+      const overlay = skill.hasOverlay ? ` [overlays: ${skill.overlayTargets.join(', ')}]` : '';
+      console.log(`  - ${skill.name}${overlay}`);
+    }
+    console.log(`\nInstalls (${status.installs.length}):`);
+    for (const inst of status.installs) {
+      console.log(`  - ${inst.skillName} → ${inst.target} (${inst.type}, ${inst.installedAt})`);
+    }
+    console.log(`\nRegistry entries: ${status.registryEntries}`);
+    return;
+  }
+
+  if (command === 'doctor') {
+    const root = process.cwd();
+    const config = loadConfig();
+    const report = runDoctor(config.projectRoot);
+    console.log(`Doctor report for: ${config.projectRoot}`);
+    if (report.issues.length === 0) {
+      console.log('  No issues found.');
+    }
+    for (const issue of report.issues) {
+      console.log(`  [${issue.severity}] [${issue.category}] ${issue.message}`);
+    }
+    console.log(`\nStatus: ${report.healthy ? 'HEALTHY' : 'ISSUES FOUND'}`);
+    if (!report.healthy) process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'rollback') {
+    const targetIndex = args.indexOf('--target');
+    const targetName =
+      targetIndex !== -1 && args[targetIndex + 1] ? args[targetIndex + 1] : undefined;
+    const operationId = args[1];
+    if (!targetName && !operationId) {
+      console.log(
+        'Usage: skillgov rollback --target <target>  |  skillgov rollback <operation-id>',
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const root = process.cwd();
+    const config = loadConfig();
+    const result = rollbackLastInstall(targetName || '', {
+      projectRoot: config.projectRoot,
+      registryPath: `${config.projectRoot}/registry/installs.json`,
+      operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
+    });
+    if (result && result.status === 'not-found') {
+      console.log(result.message);
+      process.exitCode = 1;
+    } else if (result) {
+      console.log(`Rolled back: ${result.message}`);
+    }
     return;
   }
 

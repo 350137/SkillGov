@@ -112,4 +112,22 @@ describe('CLI main()', () => {
     expect(stdout).toContain('Usage: skillgov task repair');
     expect(exitCode).toBe(1);
   });
+
+  it('install prints usage when missing --target', () => {
+    const { stdout, exitCode } = captureOutput(['install', 'some-skill']);
+    expect(stdout).toContain('Usage: skillgov install');
+    expect(exitCode).toBe(1);
+  });
+
+  it('uninstall prints usage when missing --target', () => {
+    const { stdout, exitCode } = captureOutput(['uninstall', 'some-skill']);
+    expect(stdout).toContain('Usage: skillgov uninstall');
+    expect(exitCode).toBe(1);
+  });
+
+  it('rollback prints usage when missing target and id', () => {
+    const { stdout, exitCode } = captureOutput(['rollback']);
+    expect(stdout).toContain('Usage: skillgov rollback');
+    expect(exitCode).toBe(1);
+  });
 });

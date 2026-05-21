@@ -54,6 +54,9 @@ skillgov.config.json
 tasks/repair/
 tasks/overlay/
 
+# Local AI tool project settings
+.claude/
+
 # Local UI/server state
 .skillgov/
 .skillgov-*/

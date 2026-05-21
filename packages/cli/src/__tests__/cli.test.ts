@@ -82,4 +82,34 @@ describe('CLI main()', () => {
       expect(stdout).toContain(cmd);
     }
   });
+
+  it('compat prints usage when missing --target', () => {
+    const { stdout, exitCode } = captureOutput(['compat', 'some-skill']);
+    expect(stdout).toContain('Usage: skillgov compat');
+    expect(exitCode).toBe(1);
+  });
+
+  it('compat prints usage when missing skill', () => {
+    const { stdout, exitCode } = captureOutput(['compat']);
+    expect(stdout).toContain('Usage: skillgov compat');
+    expect(exitCode).toBe(1);
+  });
+
+  it('task repair prints usage when missing skill', () => {
+    const { stdout, exitCode } = captureOutput(['task', 'repair']);
+    expect(stdout).toContain('Usage: skillgov task repair');
+    expect(exitCode).toBe(1);
+  });
+
+  it('task overlay prints usage when missing --target', () => {
+    const { stdout, exitCode } = captureOutput(['task', 'overlay', 'some-skill']);
+    expect(stdout).toContain('Usage: skillgov task overlay');
+    expect(exitCode).toBe(1);
+  });
+
+  it('task with unknown subcommand prints usage', () => {
+    const { stdout, exitCode } = captureOutput(['task', 'bogus']);
+    expect(stdout).toContain('Usage: skillgov task repair');
+    expect(exitCode).toBe(1);
+  });
 });

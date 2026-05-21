@@ -1,5 +1,14 @@
 // CLI entry point for SkillGov — parses subcommands and dispatches to @skillgov/core operations.
-import { VERSION, importSkill, initProject, loadConfig, validateSkill } from '@skillgov/core';
+import {
+  VERSION,
+  checkCompatibility,
+  generateOverlayTask,
+  generateRepairTask,
+  importSkill,
+  initProject,
+  loadConfig,
+  validateSkill,
+} from '@skillgov/core';
 
 const HELP_TEXT = `skillgov v${VERSION}
 
@@ -90,6 +99,77 @@ export function main(args: string[]): void {
       console.error(`Import error: ${(err as Error).message}`);
       process.exitCode = 1;
     }
+    return;
+  }
+
+  if (command === 'compat') {
+    const skillPath = args[1];
+    const targetIndex = args.indexOf('--target');
+    const targetName =
+      targetIndex !== -1 && args[targetIndex + 1] ? args[targetIndex + 1] : undefined;
+    if (!skillPath || !targetName) {
+      console.log('Usage: skillgov compat <skill> --target <target>');
+      process.exitCode = 1;
+      return;
+    }
+    const result = checkCompatibility(skillPath, targetName);
+    console.log(`Compatibility result: ${result.status}`);
+    console.log(`  Skill: ${result.skillName}`);
+    console.log(`  Target: ${result.targetName}`);
+    for (const issue of result.issues) {
+      console.log(`  [${issue.severity}] [${issue.category}] ${issue.message}`);
+    }
+    if (result.status !== 'compatible') process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'task') {
+    const subcommand = args[1];
+    const skillPath = args[2];
+
+    if (subcommand === 'repair') {
+      if (!skillPath) {
+        console.log('Usage: skillgov task repair <skill>');
+        process.exitCode = 1;
+        return;
+      }
+      const validation = validateSkill(skillPath);
+      if (validation.status !== 'fixable') {
+        console.log(
+          `Skill "${validation.skillName || skillPath}" status is "${validation.status}". Repair task requires "fixable" status.`,
+        );
+        process.exitCode = 1;
+        return;
+      }
+      const result = generateRepairTask({ skillPath, validation });
+      console.log(`Repair task written to: ${result.taskPath}`);
+      return;
+    }
+
+    if (subcommand === 'overlay') {
+      const targetIndex = args.indexOf('--target');
+      const targetName =
+        targetIndex !== -1 && args[targetIndex + 1] ? args[targetIndex + 1] : undefined;
+      if (!skillPath || !targetName) {
+        console.log('Usage: skillgov task overlay <skill> --target <target>');
+        process.exitCode = 1;
+        return;
+      }
+      const compatResult = checkCompatibility(skillPath, targetName);
+      if (compatResult.status !== 'needs-overlay') {
+        console.log(
+          `Skill "${compatResult.skillName}" on "${targetName}" is "${compatResult.status}". Overlay task requires "needs-overlay" status.`,
+        );
+        process.exitCode = 1;
+        return;
+      }
+      const result = generateOverlayTask({ skillPath, targetName, compatResult });
+      console.log(`Overlay task written to: ${result.taskPath}`);
+      return;
+    }
+
+    console.log('Usage: skillgov task repair <skill> | skillgov task overlay <skill> --target <t>');
+    process.exitCode = 1;
     return;
   }
 

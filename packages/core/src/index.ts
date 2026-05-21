@@ -1,4 +1,4 @@
-// Re-exports the public API surface of @skillgov/core — config, targets, registry, operations, init, frontmatter, validator, hash, and import modules.
+// Re-exports the public API surface of @skillgov/core — config, targets, registry, operations, init, frontmatter, validator, hash, import, compat, and task modules.
 export { VERSION, version } from './version.js';
 export { defaultConfig, loadConfig, writeConfig, normalizePath } from './config.js';
 export type { SkillGovConfig } from './config.js';
@@ -24,3 +24,7 @@ export type { ValidationResult, ValidationIssue } from './validator.js';
 export { hashFile, hashDirectory } from './hash.js';
 export { importSkill } from './import.js';
 export type { ImportOptions, ImportResult } from './import.js';
+export { checkCompatibility } from './compat.js';
+export type { CompatibilityStatus, CompatibilityIssue, CompatibilityResult } from './compat.js';
+export { generateRepairTask, generateOverlayTask } from './tasks.js';
+export type { RepairTaskOptions, OverlayTaskOptions, TaskResult } from './tasks.js';

@@ -1,0 +1,6 @@
+{
+  "name": "@skillgov/control-panel",
+  "version": "0.0.0",
+  "private": true,
+  "description": "SkillGov local web control panel — button-based UI over @skillgov/core operations."
+}

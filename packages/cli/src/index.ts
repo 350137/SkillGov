@@ -1,5 +1,5 @@
 // CLI entry point for SkillGov — parses subcommands and dispatches to @skillgov/core operations.
-import { VERSION, initProject } from '@skillgov/core';
+import { VERSION, importSkill, initProject, loadConfig, validateSkill } from '@skillgov/core';
 
 const HELP_TEXT = `skillgov v${VERSION}
 
@@ -39,6 +39,57 @@ export function main(args: string[]): void {
     const root = process.cwd();
     initProject(root);
     console.log(`Initialised SkillGov project at ${root}`);
+    return;
+  }
+
+  if (command === 'validate') {
+    const skillPath = args[1];
+    if (!skillPath) {
+      console.log('Usage: skillgov validate <path>');
+      process.exitCode = 1;
+      return;
+    }
+    const result = validateSkill(skillPath);
+    console.log(`Validation result: ${result.status}`);
+    if (result.skillName) console.log(`  Skill name: ${result.skillName}`);
+    for (const issue of result.issues) {
+      console.log(`  [${issue.severity}] ${issue.message}`);
+    }
+    if (result.status !== 'pass') process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'import') {
+    const sourcePath = args[1];
+    if (!sourcePath) {
+      console.log('Usage: skillgov import <path>');
+      process.exitCode = 1;
+      return;
+    }
+    const root = process.cwd();
+    const config = loadConfig();
+    const incoming = `${config.projectRoot}/incoming`;
+    const skills = `${config.projectRoot}/skills`;
+
+    try {
+      const result = importSkill(sourcePath, { incoming, skills });
+      if (result.status === 'pass') {
+        console.log(`Imported "${result.skillName}" — validation passed`);
+      } else if (result.status === 'fixable') {
+        console.log(`Imported "${result.skillName}" — needs fixes`);
+        for (const issue of result.issues) {
+          console.log(`  [fixable] ${issue}`);
+        }
+      } else {
+        console.log(`Failed to import "${result.skillName}" — validation failed`);
+        for (const issue of result.issues) {
+          console.log(`  [error] ${issue}`);
+        }
+      }
+    } catch (err) {
+      console.error(`Import error: ${(err as Error).message}`);
+      process.exitCode = 1;
+    }
     return;
   }
 

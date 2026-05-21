@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // Tests for append-only JSONL operation log — write, read, and empty-file handling.
@@ -56,7 +56,6 @@ describe('readOperations', () => {
 
   it('returns empty array for empty log file', () => {
     const logPath = join(tmpDir, 'operations.jsonl');
-    const { writeFileSync } = require('node:fs');
     writeFileSync(logPath, '', 'utf-8');
     const ops = readOperations(logPath);
     expect(ops).toEqual([]);
@@ -75,7 +74,6 @@ describe('readOperations', () => {
 
   it('skips malformed lines gracefully', () => {
     const logPath = join(tmpDir, 'operations.jsonl');
-    const { writeFileSync } = require('node:fs');
     writeFileSync(logPath, '{"valid": true}\nnot-json\n{"also-valid": 1}\n', 'utf-8');
     const ops = readOperations(logPath);
     expect(ops).toHaveLength(2);

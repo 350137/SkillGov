@@ -1,5 +1,6 @@
 // Config schema, loading, validation, and writing for skillgov.config.json — normalises paths and merges user values with defaults.
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 
 export interface SkillGovConfig {
   projectRoot: string;
@@ -57,5 +58,9 @@ export function loadConfig(configPath?: string): SkillGovConfig {
 
 export function writeConfig(config: SkillGovConfig, configPath: string, dryRun = false): void {
   if (dryRun) return;
+  const dir = dirname(configPath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
   writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
 }

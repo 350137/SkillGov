@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 // Registry read/write operations for JSON state files — skills, compatibility, installs records with automatic directory creation.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';

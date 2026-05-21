@@ -1,5 +1,5 @@
-// CLI entry point for SkillGov — parses subcommands and dispatches to @skillgov/core operations. MVP prints help only.
-import { VERSION } from '@skillgov/core';
+// CLI entry point for SkillGov — parses subcommands and dispatches to @skillgov/core operations.
+import { VERSION, initProject } from '@skillgov/core';
 
 const HELP_TEXT = `skillgov v${VERSION}
 
@@ -32,6 +32,13 @@ export function main(args: string[]): void {
 
   if (command === 'version' || command === '--version' || command === '-v') {
     console.log(`skillgov v${VERSION}`);
+    return;
+  }
+
+  if (command === 'init') {
+    const root = process.cwd();
+    initProject(root);
+    console.log(`Initialised SkillGov project at ${root}`);
     return;
   }
 

@@ -9,6 +9,7 @@ import {
   initProject,
   installSkill,
   loadConfig,
+  rollbackLastInstall,
   runDoctor,
   uninstallSkill,
   validateSkill,

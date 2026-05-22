@@ -141,7 +141,7 @@ are preferred because they preserve a single source of truth.
 - Install, uninstall, status, and rollback operations.
 - JSON registry files for skills, compatibility, installs, and operations.
 - CLI first.
-- A simple button-based local web UI after the core and CLI work.
+- A simple button-based local web UI over the core operations.
 
 ### MVP Does Not Include
 
@@ -249,7 +249,7 @@ skillgov install <skill> --target codex
 skillgov uninstall <skill> --target claude
 skillgov status
 skillgov doctor
-skillgov rollback <operation-id>
+skillgov rollback --target claude
 ```
 
 ## UI Direction
@@ -288,19 +288,29 @@ The UI is a convenience layer over the same core used by the CLI.
 - Do not hide AI costs inside the tool.
 - Make every install decision explainable.
 - Start with Claude Code and Codex, then expand to other targets later.
-- Every project file must start with a first-line comment explaining what the
-  file is for and what functionality it implements. Use the native comment
-  syntax for that file type, such as `//`, `#`, or `<!-- -->`.
+- Every project file that supports comments must start with a first-line comment
+  explaining what the file is for and what functionality it implements. Use the
+  native comment syntax for that file type, such as `//`, `#`, or `<!-- -->`.
+  JSON files, JSONL files, and lockfiles are exempt because standard JSON and
+  lockfile formats do not support comments.
 
 ## Current Status
 
-This repository is currently at the planning and scaffolding stage.
+This repository has moved beyond planning and scaffolding. The MVP core library,
+CLI, and local control panel are implemented and covered by automated tests.
 
-The first implementation milestone should be:
+Implemented areas include:
 
-1. Create the TypeScript project structure.
-2. Implement config and registry loading.
-3. Implement standard skill validation.
-4. Implement Claude and Codex target profiles.
-5. Implement install routing with dry-run support.
-6. Expose the first CLI commands.
+1. TypeScript workspace structure for `@skillgov/core`, `@skillgov/cli`, and the
+   local control panel.
+2. Config, registry, operation log, and project initialization modules.
+3. Standard Agent Skill validation, import, hashing, and reference checks.
+4. Claude Code and Codex target profiles with compatibility review.
+5. Repair and overlay task generation.
+6. Install, uninstall, status, doctor, inventory, and target-based rollback
+   operations.
+7. A button-based local web control panel backed by the same core operations.
+
+The current project registries may still be empty on a fresh checkout. The next
+work should focus on importing real skills, exercising end-to-end workflows, and
+polishing documentation and UI ergonomics around those workflows.

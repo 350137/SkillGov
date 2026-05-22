@@ -1,17 +1,28 @@
-<!-- Documents the purpose and planned scope of the SkillGov local web control panel. -->
+<!-- Documents the purpose, features, and local usage of the SkillGov web control panel. -->
 # SkillGov Control Panel
 
-A local web-based control panel for SkillGov.
+A local button-based web control panel for SkillGov.
 
-This is a placeholder. The control panel will be implemented in Milestone 6.
+The control panel exposes the same deterministic operations as `@skillgov/core`
+through a small HTTP API and a browser UI. It is a convenience layer for local
+use, not a separate source of truth.
 
-## Planned Features
+## Features
 
-- Scan environment and view status
+- View project status
 - Import and validate skills
 - Check Claude Code and Codex compatibility
 - Generate repair and overlay tasks
 - Install, uninstall, and rollback skills
-- Open reports and tasks folders
+- Run doctor diagnostics
 
-All operations go through `@skillgov/core` — the UI is a thin convenience layer.
+## Usage
+
+Run the development server from this package:
+
+```text
+pnpm --filter @skillgov/control-panel dev
+```
+
+The server listens on `http://localhost:4173` by default. Set `PORT` to use a
+different local port.

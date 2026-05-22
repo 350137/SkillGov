@@ -1,5 +1,5 @@
+// Tests for the control panel HTTP server and API endpoint responses.
 import http from 'node:http';
-// Tests for the control panel HTTP server — verifies API endpoints return expected responses.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startServer } from '../server.js';
 

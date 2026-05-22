@@ -1,5 +1,6 @@
 <!-- This file gives Codex project-level operating instructions for working on SkillGov. -->
-- Every project file must start with a first-line comment explaining what the file is for and what functionality it implements.
+- Every project file that supports comments must start with a first-line comment explaining what the file is for and what functionality it implements.
+- JSON files, JSONL files, and lockfiles are exempt from the first-line comment rule because standard JSON and lockfile formats do not support comments.
 - After modifying code and verifying tests pass, commit and push to GitHub; the commit message must clearly describe the specific changes in that commit.
 
 # AGENTS.md

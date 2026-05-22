@@ -1,3 +1,4 @@
+// Tests for config loading, validation, path normalization, and dry-run mode.
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

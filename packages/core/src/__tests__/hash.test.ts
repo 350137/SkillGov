@@ -1,3 +1,4 @@
+// Tests for file and directory SHA-256 hashing — consistency, missing files, and duplicate detection.
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

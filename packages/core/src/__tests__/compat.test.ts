@@ -1,3 +1,4 @@
+// Tests for target compatibility checker — validates skill compatibility with Claude and Codex.
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -1,5 +1,5 @@
+// Tests for target profile resolution — Claude and Codex skill directories and supported features.
 import { homedir } from 'node:os';
-// Tests for target profile definitions — resolves home directories and provides default agent profiles.
 import { describe, expect, it } from 'vitest';
 import { type TargetProfile, getTargetProfile } from '../targets.js';
 

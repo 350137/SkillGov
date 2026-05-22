@@ -1,3 +1,4 @@
+// Tests for project initialisation — directory creation, config writing, and dry-run mode.
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

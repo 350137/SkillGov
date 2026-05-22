@@ -1,3 +1,4 @@
+// Tests for JSON registry read/write — skills, installs, and duplicate detection.
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

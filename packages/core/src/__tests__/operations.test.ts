@@ -1,3 +1,4 @@
+// Tests for append-only JSONL operation log — write, read, and malformed line handling.
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

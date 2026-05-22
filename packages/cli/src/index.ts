@@ -9,11 +9,13 @@ import {
   initProject,
   installSkill,
   loadConfig,
+  readRegistry,
   rollbackLastInstall,
   runDoctor,
   uninstallSkill,
   validateSkill,
 } from '@skillgov/core';
+import type { SkillsRegistry } from '@skillgov/core';
 
 const HELP_TEXT = `skillgov v${VERSION}
 
@@ -31,7 +33,7 @@ Commands:
   uninstall <skill> --target <t> Uninstall a skill from a target agent
   status                        Show current project status
   doctor                        Run diagnostics on the project
-  rollback <operation-id>       Roll back an install operation
+  rollback --target <target>    Roll back the last install for a target
 
 Target agents: claude, codex
 `;
@@ -53,6 +55,25 @@ export function main(args: string[]): void {
     const root = process.cwd();
     initProject(root);
     console.log(`Initialised SkillGov project at ${root}`);
+    return;
+  }
+
+  if (command === 'inventory') {
+    const config = loadConfig();
+    const registryPath = `${config.projectRoot}/registry/skills.json`;
+    const registry = readRegistry<SkillsRegistry>(registryPath, { skills: {} });
+    const entries = Object.values(registry.skills);
+    console.log(`Skills registry: ${registryPath}`);
+    if (entries.length === 0) {
+      console.log('  (empty)');
+      return;
+    }
+    for (const entry of entries) {
+      console.log(`  - ${entry.name}`);
+      console.log(`      origin: ${entry.origin}`);
+      console.log(`      status: ${entry.validationStatus}`);
+      console.log(`      imported: ${entry.importedAt}`);
+    }
     return;
   }
 
@@ -260,17 +281,13 @@ export function main(args: string[]): void {
     const targetIndex = args.indexOf('--target');
     const targetName =
       targetIndex !== -1 && args[targetIndex + 1] ? args[targetIndex + 1] : undefined;
-    const operationId = args[1];
-    if (!targetName && !operationId) {
-      console.log(
-        'Usage: skillgov rollback --target <target>  |  skillgov rollback <operation-id>',
-      );
+    if (!targetName) {
+      console.log('Usage: skillgov rollback --target <target>');
       process.exitCode = 1;
       return;
     }
-    const root = process.cwd();
     const config = loadConfig();
-    const result = rollbackLastInstall(targetName || '', {
+    const result = rollbackLastInstall(targetName, {
       projectRoot: config.projectRoot,
       registryPath: `${config.projectRoot}/registry/installs.json`,
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,

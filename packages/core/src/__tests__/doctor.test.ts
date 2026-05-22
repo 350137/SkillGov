@@ -1,3 +1,4 @@
+// Tests for project diagnostics — checks structure, registry integrity, and install links.
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

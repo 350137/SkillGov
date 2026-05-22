@@ -1,0 +1,8 @@
+// Root TypeScript project reference config — run tsc -b to build all packages.
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/cli" }
+  ]
+}

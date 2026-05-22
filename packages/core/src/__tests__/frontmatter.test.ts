@@ -1,3 +1,4 @@
+// Tests for SKILL.md frontmatter parser — handles valid, missing, and malformed frontmatter.
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
 // Append-only JSONL operation log — records install, uninstall, and rollback actions for traceability and rollback support.
+import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 

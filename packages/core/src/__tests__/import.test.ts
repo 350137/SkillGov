@@ -1,3 +1,4 @@
+// Tests for skill import flow — copies external skill into incoming, validates, and promotes.
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

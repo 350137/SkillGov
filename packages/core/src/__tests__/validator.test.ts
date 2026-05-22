@@ -1,3 +1,4 @@
+// Tests for standard Agent Skill validator — name, description, references, and path safety.
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -178,35 +178,35 @@ Humans or external AI sessions can do semantic work:
 
 This keeps SkillGov usable without API keys and avoids hidden token costs.
 
-## Planned Project Structure
+## Project Structure
 
 ```text
 SkillGov/
-├─ incoming/
-│  └─ <imported-but-not-yet-approved-skills>/
-├─ skills/
-│  └─ <standard-agent-skills>/
-├─ overlays/
-│  ├─ claude/
-│  └─ codex/
-├─ registry/
-│  ├─ skills.json
-│  ├─ compatibility.json
-│  ├─ installs.json
-│  └─ operations.jsonl
-├─ tasks/
-│  ├─ repair/
-│  └─ overlay/
-├─ reports/
-├─ backups/
-├─ packages/
-│  ├─ core/
-│  └─ cli/
-├─ apps/
-│  └─ control-panel/
-├─ scripts/
-│  └─ python/
-└─ skillgov.config.json
+incoming/
+  <imported-but-not-yet-approved-skills>/
+skills/
+  <standard-agent-skills>/
+overlays/
+  claude/
+  codex/
+registry/
+  skills.json
+  compatibility.json
+  installs.json
+  operations.jsonl
+tasks/
+  repair/
+  overlay/
+reports/
+backups/
+packages/
+  core/
+  cli/
+apps/
+  control-panel/
+scripts/
+  python/
+skillgov.config.json
 ```
 
 ## Technical Direction
@@ -231,9 +231,9 @@ Core library
 The core library is the source of truth. The CLI and UI must call the same
 underlying operations.
 
-## CLI Direction
+## CLI
 
-Planned command shape:
+Implemented command shape:
 
 ```text
 skillgov init
@@ -252,16 +252,15 @@ skillgov doctor
 skillgov rollback --target claude
 ```
 
-## UI Direction
+## UI
 
-The UI should be a simple local button-based control panel.
+The UI is a simple local button-based control panel.
 
 It should not expose a free-form command input.
 
-Initial buttons:
+Implemented controls:
 
-- Scan environment
-- View status
+- Refresh status
 - Import skill
 - Validate skill
 - Check Claude compatibility
@@ -272,10 +271,10 @@ Initial buttons:
 - Install to Codex
 - Uninstall
 - Roll back
-- Open reports folder
-- Open tasks folder
+- Run doctor diagnostics
 
-The UI is a convenience layer over the same core used by the CLI.
+The UI is a convenience layer over the same core used by the CLI. It currently
+returns operation results as JSON in the browser.
 
 ## Design Principles
 
@@ -296,21 +295,50 @@ The UI is a convenience layer over the same core used by the CLI.
 
 ## Current Status
 
-This repository has moved beyond planning and scaffolding. The MVP core library,
-CLI, and local control panel are implemented and covered by automated tests.
+As of 2026-05-22, the SkillGov MVP is functionally complete for the main local
+governance workflow: project initialization, skill import, standard validation,
+target compatibility review, repair and overlay task generation, install,
+uninstall, status, doctor, inventory, and target-based rollback are implemented
+in the core library and exposed through the CLI where applicable.
 
-Implemented areas include:
+The project is not complete as a finished product. It still needs end-to-end use
+with real skills, stronger UI polish, and a few remaining acceptance items before
+it should be treated as a mature everyday tool.
+
+Implemented areas:
 
 1. TypeScript workspace structure for `@skillgov/core`, `@skillgov/cli`, and the
    local control panel.
-2. Config, registry, operation log, and project initialization modules.
-3. Standard Agent Skill validation, import, hashing, and reference checks.
+2. Config, registry, operation log, project initialization, and dry-run support
+   for initialization/config writes.
+3. Standard Agent Skill validation, import, hashing, reference checks, and path
+   safety checks.
 4. Claude Code and Codex target profiles with compatibility review.
-5. Repair and overlay task generation.
+5. Repair and overlay task generation for human or external AI follow-up.
 6. Install, uninstall, status, doctor, inventory, and target-based rollback
    operations.
 7. A button-based local web control panel backed by the same core operations.
+8. Automated coverage across core, CLI, and control panel behavior.
 
-The current project registries may still be empty on a fresh checkout. The next
-work should focus on importing real skills, exercising end-to-end workflows, and
-polishing documentation and UI ergonomics around those workflows.
+Known gaps:
+
+1. The current checkout has empty project registries; no real skills have been
+   imported, reviewed, installed, or rolled back in this project state.
+2. The control panel is useful but minimal. It does not yet show an operation
+   log view, open reports/tasks folders, or provide a richer workflow history.
+3. Rollback currently targets the most recent install for a target. It does not
+   roll back an arbitrary operation id.
+4. The CLI tests focus heavily on command routing and usage output; broader
+   end-to-end CLI tests with fixture skills would improve confidence.
+5. The project is not packaged as a standalone command or desktop app.
+6. `docs/mvp-plan.md` is a historical plan and still contains some older command
+   examples and UI acceptance items that are not fully reflected in the current
+   implementation.
+
+Latest verified state:
+
+- Unit and API tests: 18 test files, 130 tests passing.
+- Lint: Biome check passing.
+- TypeScript: project build with `tsc -b` passing.
+- Runtime smoke checks: `skillgov status`, `skillgov inventory`, and
+  `skillgov doctor` run successfully through `tsx`.

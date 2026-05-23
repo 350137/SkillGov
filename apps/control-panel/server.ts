@@ -133,10 +133,13 @@ const HTML = `<!DOCTYPE html>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; padding: 20px; max-width: 960px; margin: 0 auto; }
+.page-header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 36px; }
+.title-block { min-width: 0; }
+.header-actions { display: flex; align-items: center; justify-content: flex-end; padding-top: 4px; }
 h1 { font-size: 1.5rem; margin-bottom: 8px; }
 h2 { font-size: 1.1rem; margin: 20px 0 10px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
-.subtitle { color: #666; font-size: 0.85rem; margin-bottom: 20px; }
-.language-control { display: inline-flex; gap: 8px; align-items: center; margin-bottom: 12px; font-size: 0.85rem; color: #555; }
+.subtitle { color: #666; font-size: 0.85rem; }
+.language-control { display: inline-flex; gap: 8px; align-items: center; font-size: 0.85rem; color: #555; }
 .language-control select { padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 0.85rem; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-bottom: 20px; }
 button { padding: 10px 16px; border: 1px solid #ccc; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.85rem; transition: background 0.15s; }
@@ -157,11 +160,16 @@ th { font-weight: 600; background: #fafafa; }
 .status-pass { background: #d4edda; color: #155724; }
 .status-fail { background: #f8d7da; color: #721c24; }
 .status-fixable { background: #fff3cd; color: #856404; }
+@media (max-width: 640px) { .page-header { flex-direction: column; margin-bottom: 24px; } .header-actions { width: 100%; justify-content: flex-start; padding-top: 0; } }
 </style>
 </head>
 <body>
-<h1 data-i18n="title">SkillGov Control Panel</h1>
-<div class="subtitle">v${VERSION} — <span id="project-path"></span></div>
+<div class="page-header">
+  <div class="title-block">
+    <h1 data-i18n="title">SkillGov Control Panel</h1>
+    <div class="subtitle">v${VERSION} — <span id="project-path"></span></div>
+  </div>
+  <div class="header-actions">
 
 <label class="language-control" for="language-select">
   <span data-i18n="languageLabel">Language</span>
@@ -170,6 +178,8 @@ th { font-weight: 600; background: #fafafa; }
     <option value="en">English</option>
   </select>
 </label>
+  </div>
+</div>
 
 <h2 data-i18n="statusHeading">Status</h2>
 <div class="grid">
@@ -330,9 +340,6 @@ function renderStatusTable(data) {
     .join('');
   table.innerHTML = \`<table><thead><tr><th>\${t('tableSkill')}</th><th>\${t('tableOverlay')}</th><th>\${t('tableTargets')}</th></tr></thead><tbody>\${rows || \`<tr><td colspan="3">\${t('noSkills')}</td></tr>\`}</tbody></table>\`;
 }
-
-let latestStatusData = null;
-
 async function callAPI(endpoint) {
   const output = document.getElementById('output');
   output.textContent = t('loading');

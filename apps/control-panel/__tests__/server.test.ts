@@ -77,6 +77,24 @@ describe('Control Panel API', () => {
     expect(res).toContain('data-i18n="refreshStatus"');
   });
 
+  it('places the language switcher in the top-right header actions area', async () => {
+    const res = await new Promise<string>((resolve, reject) => {
+      http
+        .get(`${BASE}/`, (res) => {
+          let data = '';
+          res.on('data', (chunk: string) => {
+            data += chunk;
+          });
+          res.on('end', () => resolve(data));
+        })
+        .on('error', reject);
+    });
+
+    expect(res).toContain('class="page-header"');
+    expect(res).toContain('class="header-actions"');
+    expect(res).toMatch(/<div class="header-actions">[\s\S]*id="language-select"[\s\S]*<\/div>/);
+  });
+
   it('returns status at POST /api/status', async () => {
     const data = await fetchJson('/api/status');
     expect(data).toHaveProperty('projectRoot');

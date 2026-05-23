@@ -23,17 +23,20 @@ export function defaultConfig(projectRoot?: string): SkillGovConfig {
 }
 
 export function loadConfig(configPath?: string): SkillGovConfig {
+  const resolvedConfigPath = configPath || `${process.cwd()}/skillgov.config.json`;
   const defaults = defaultConfig();
 
-  if (!configPath || !existsSync(configPath)) {
+  if (!existsSync(resolvedConfigPath)) {
     return defaults;
   }
 
   let raw: Record<string, unknown>;
   try {
-    raw = JSON.parse(readFileSync(configPath, 'utf-8'));
+    raw = JSON.parse(readFileSync(resolvedConfigPath, 'utf-8'));
   } catch {
-    throw new Error(`Invalid config file at "${configPath}". Ensure the file contains valid JSON.`);
+    throw new Error(
+      `Invalid config file at "${resolvedConfigPath}". Ensure the file contains valid JSON.`,
+    );
   }
 
   if (raw.defaultLinkMode !== undefined) {

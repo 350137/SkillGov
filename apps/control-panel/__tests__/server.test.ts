@@ -58,6 +58,25 @@ describe('Control Panel API', () => {
     expect(res).toContain('Refresh Status');
   });
 
+  it('serves a language switcher with Chinese and English labels', async () => {
+    const res = await new Promise<string>((resolve, reject) => {
+      http
+        .get(`${BASE}/`, (res) => {
+          let data = '';
+          res.on('data', (chunk: string) => {
+            data += chunk;
+          });
+          res.on('end', () => resolve(data));
+        })
+        .on('error', reject);
+    });
+
+    expect(res).toContain('id="language-select"');
+    expect(res).toContain('中文');
+    expect(res).toContain('English');
+    expect(res).toContain('data-i18n="refreshStatus"');
+  });
+
   it('returns status at POST /api/status', async () => {
     const data = await fetchJson('/api/status');
     expect(data).toHaveProperty('projectRoot');

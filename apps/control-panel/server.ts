@@ -136,6 +136,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 h1 { font-size: 1.5rem; margin-bottom: 8px; }
 h2 { font-size: 1.1rem; margin: 20px 0 10px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
 .subtitle { color: #666; font-size: 0.85rem; margin-bottom: 20px; }
+.language-control { display: inline-flex; gap: 8px; align-items: center; margin-bottom: 12px; font-size: 0.85rem; color: #555; }
+.language-control select { padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 0.85rem; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-bottom: 20px; }
 button { padding: 10px 16px; border: 1px solid #ccc; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.85rem; transition: background 0.15s; }
 button:hover { background: #e8e8e8; }
@@ -158,61 +160,180 @@ th { font-weight: 600; background: #fafafa; }
 </style>
 </head>
 <body>
-<h1>SkillGov Control Panel</h1>
+<h1 data-i18n="title">SkillGov Control Panel</h1>
 <div class="subtitle">v${VERSION} — <span id="project-path"></span></div>
 
-<h2>Status</h2>
+<label class="language-control" for="language-select">
+  <span data-i18n="languageLabel">Language</span>
+  <select id="language-select" aria-label="Language">
+    <option value="zh">中文</option>
+    <option value="en">English</option>
+  </select>
+</label>
+
+<h2 data-i18n="statusHeading">Status</h2>
 <div class="grid">
-  <button onclick="callAPI('status')" class="primary">Refresh Status</button>
+  <button onclick="callAPI('status')" class="primary" data-i18n="refreshStatus">Refresh Status</button>
 </div>
 <div id="status-table"></div>
 
-<h2>Import & Validate</h2>
+<h2 data-i18n="importValidateHeading">Import & Validate</h2>
 <div class="field-row">
-  <input id="import-path" placeholder="Path to skill directory..." />
-  <button onclick="callAPI('import')">Import</button>
+  <input id="import-path" placeholder="Path to skill directory..." data-i18n-placeholder="importPathPlaceholder" />
+  <button onclick="callAPI('import')" data-i18n="importButton">Import</button>
 </div>
 <div class="field-row">
-  <input id="validate-path" placeholder="Path to skill..." />
-  <button onclick="callAPI('validate')">Validate</button>
+  <input id="validate-path" placeholder="Path to skill..." data-i18n-placeholder="skillPathPlaceholder" />
+  <button onclick="callAPI('validate')" data-i18n="validateButton">Validate</button>
 </div>
 
-<h2>Compatibility</h2>
+<h2 data-i18n="compatibilityHeading">Compatibility</h2>
 <div class="field-row">
-  <input id="compat-path" placeholder="Skill path..." />
+  <input id="compat-path" placeholder="Skill path..." data-i18n-placeholder="skillPathPlaceholder" />
   <select id="compat-target"><option value="claude">Claude</option><option value="codex">Codex</option></select>
-  <button onclick="callAPI('compat')">Check</button>
+  <button onclick="callAPI('compat')" data-i18n="checkButton">Check</button>
 </div>
 
-<h2>Install / Uninstall</h2>
+<h2 data-i18n="installHeading">Install / Uninstall</h2>
 <div class="field-row">
-  <input id="install-skill" placeholder="Skill name..." />
+  <input id="install-skill" placeholder="Skill name..." data-i18n-placeholder="skillNamePlaceholder" />
   <select id="install-target"><option value="claude">Claude</option><option value="codex">Codex</option></select>
-  <button onclick="callAPI('install')" class="primary">Install</button>
-  <button onclick="callAPI('uninstall')" class="danger">Uninstall</button>
+  <button onclick="callAPI('install')" class="primary" data-i18n="installButton">Install</button>
+  <button onclick="callAPI('uninstall')" class="danger" data-i18n="uninstallButton">Uninstall</button>
 </div>
 
-<h2>Tasks</h2>
+<h2 data-i18n="tasksHeading">Tasks</h2>
 <div class="field-row">
-  <input id="task-path" placeholder="Skill path..." />
+  <input id="task-path" placeholder="Skill path..." data-i18n-placeholder="skillPathPlaceholder" />
   <select id="task-target"><option value="claude">Claude</option><option value="codex">Codex</option></select>
-  <button onclick="callAPI('task/repair')">Repair Task</button>
-  <button onclick="callAPI('task/overlay')">Overlay Task</button>
+  <button onclick="callAPI('task/repair')" data-i18n="repairTaskButton">Repair Task</button>
+  <button onclick="callAPI('task/overlay')" data-i18n="overlayTaskButton">Overlay Task</button>
 </div>
 
-<h2>Diagnostics</h2>
+<h2 data-i18n="diagnosticsHeading">Diagnostics</h2>
 <div class="grid">
-  <button onclick="callAPI('doctor')">Run Doctor</button>
-  <button onclick="callAPI('rollback')" class="danger">Rollback Last</button>
+  <button onclick="callAPI('doctor')" data-i18n="doctorButton">Run Doctor</button>
+  <button onclick="callAPI('rollback')" class="danger" data-i18n="rollbackButton">Rollback Last</button>
 </div>
 
-<h2>Output</h2>
-<pre id="output">Click a button to see results.</pre>
+<h2 data-i18n="outputHeading">Output</h2>
+<pre id="output" data-i18n="outputEmpty">Click a button to see results.</pre>
 
 <script>
+const translations = {
+  en: {
+    title: 'SkillGov Control Panel',
+    languageLabel: 'Language',
+    statusHeading: 'Status',
+    refreshStatus: 'Refresh Status',
+    importValidateHeading: 'Import & Validate',
+    importPathPlaceholder: 'Path to skill directory...',
+    skillPathPlaceholder: 'Path to skill...',
+    skillNamePlaceholder: 'Skill name...',
+    importButton: 'Import',
+    validateButton: 'Validate',
+    compatibilityHeading: 'Compatibility',
+    checkButton: 'Check',
+    installHeading: 'Install / Uninstall',
+    installButton: 'Install',
+    uninstallButton: 'Uninstall',
+    tasksHeading: 'Tasks',
+    repairTaskButton: 'Repair Task',
+    overlayTaskButton: 'Overlay Task',
+    diagnosticsHeading: 'Diagnostics',
+    doctorButton: 'Run Doctor',
+    rollbackButton: 'Rollback Last',
+    outputHeading: 'Output',
+    outputEmpty: 'Click a button to see results.',
+    loading: 'Loading...',
+    errorPrefix: 'Error: ',
+    tableSkill: 'Skill',
+    tableOverlay: 'Overlay',
+    tableTargets: 'Targets',
+    yes: 'Yes',
+    no: 'No',
+    none: '-',
+    noSkills: 'No skills found.',
+    noProject: '(no project)',
+    statusLoadFailed: 'Could not load status',
+  },
+  zh: {
+    title: 'SkillGov 控制面板',
+    languageLabel: '语言',
+    statusHeading: '状态',
+    refreshStatus: '刷新状态',
+    importValidateHeading: '导入与验证',
+    importPathPlaceholder: '技能目录路径...',
+    skillPathPlaceholder: '技能路径...',
+    skillNamePlaceholder: '技能名称...',
+    importButton: '导入',
+    validateButton: '验证',
+    compatibilityHeading: '兼容性',
+    checkButton: '检查',
+    installHeading: '安装 / 卸载',
+    installButton: '安装',
+    uninstallButton: '卸载',
+    tasksHeading: '任务',
+    repairTaskButton: '修复任务',
+    overlayTaskButton: '覆盖层任务',
+    diagnosticsHeading: '诊断',
+    doctorButton: '运行 Doctor',
+    rollbackButton: '回滚最近安装',
+    outputHeading: '输出',
+    outputEmpty: '点击按钮查看结果。',
+    loading: '加载中...',
+    errorPrefix: '错误：',
+    tableSkill: '技能',
+    tableOverlay: '覆盖层',
+    tableTargets: '目标',
+    yes: '是',
+    no: '否',
+    none: '-',
+    noSkills: '未找到技能。',
+    noProject: '（无项目）',
+    statusLoadFailed: '无法加载状态',
+  },
+};
+
+let currentLanguage = 'en';
+let latestStatusData = null;
+
+function getPreferredLanguage() {
+  const stored = localStorage.getItem('skillgov-language');
+  if (stored === 'zh' || stored === 'en') return stored;
+  return navigator.language && navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+}
+
+function t(key) {
+  return translations[currentLanguage][key] || translations.en[key] || key;
+}
+
+function applyLanguage(language) {
+  currentLanguage = language === 'zh' ? 'zh' : 'en';
+  localStorage.setItem('skillgov-language', currentLanguage);
+  document.documentElement.lang = currentLanguage === 'zh' ? 'zh-CN' : 'en';
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+    el.setAttribute('placeholder', t(el.dataset.i18nPlaceholder));
+  });
+  const select = document.getElementById('language-select');
+  if (select) select.value = currentLanguage;
+}
+
+function renderStatusTable(data) {
+  latestStatusData = data;
+  const table = document.getElementById('status-table');
+  const rows = (data.skills || [])
+    .map((s) => \`<tr><td>\${s.name}</td><td>\${s.hasOverlay ? t('yes') : t('no')}</td><td>\${s.overlayTargets.join(', ') || t('none')}</td></tr>\`)
+    .join('');
+  table.innerHTML = \`<table><thead><tr><th>\${t('tableSkill')}</th><th>\${t('tableOverlay')}</th><th>\${t('tableTargets')}</th></tr></thead><tbody>\${rows || \`<tr><td colspan="3">\${t('noSkills')}</td></tr>\`}</tbody></table>\`;
+}
+
 async function callAPI(endpoint) {
   const output = document.getElementById('output');
-  output.textContent = 'Loading...';
+  output.textContent = t('loading');
 
   const body = {};
   const fields = {
@@ -242,22 +363,25 @@ async function callAPI(endpoint) {
     const data = await res.json();
     output.textContent = JSON.stringify(data, null, 2);
   } catch (err) {
-    output.textContent = 'Error: ' + err.message;
+    output.textContent = t('errorPrefix') + err.message;
   }
 }
 
 // Load initial status
 window.addEventListener('DOMContentLoaded', () => {
+  applyLanguage(getPreferredLanguage());
+  document.getElementById('language-select').addEventListener('change', (event) => {
+    applyLanguage(event.target.value);
+    if (latestStatusData) renderStatusTable(latestStatusData);
+  });
   const pp = document.getElementById('project-path');
   fetch('/api/status')
     .then(r => r.json())
     .then(data => {
-      pp.textContent = data.projectRoot || '(no project)';
-      const table = document.getElementById('status-table');
-      const rows = (data.skills || []).map(s => \`<tr><td>\${s.name}</td><td>\${s.hasOverlay ? 'Yes' : 'No'}</td><td>\${s.overlayTargets.join(', ') || '-'}</td></tr>\`).join('');
-      table.innerHTML = \`<table><thead><tr><th>Skill</th><th>Overlay</th><th>Targets</th></tr></thead><tbody>\${rows || '<tr><td colspan="3">No skills found.</td></tr>'}</tbody></table>\`;
+      pp.textContent = data.projectRoot || t('noProject');
+      renderStatusTable(data);
     })
-    .catch(() => { pp.textContent = 'Could not load status'; });
+    .catch(() => { pp.textContent = t('statusLoadFailed'); });
 });
 </script>
 </body>

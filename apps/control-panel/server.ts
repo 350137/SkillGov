@@ -331,6 +331,8 @@ function renderStatusTable(data) {
   table.innerHTML = \`<table><thead><tr><th>\${t('tableSkill')}</th><th>\${t('tableOverlay')}</th><th>\${t('tableTargets')}</th></tr></thead><tbody>\${rows || \`<tr><td colspan="3">\${t('noSkills')}</td></tr>\`}</tbody></table>\`;
 }
 
+let latestStatusData = null;
+
 async function callAPI(endpoint) {
   const output = document.getElementById('output');
   output.textContent = t('loading');
@@ -362,6 +364,10 @@ async function callAPI(endpoint) {
     });
     const data = await res.json();
     output.textContent = JSON.stringify(data, null, 2);
+    if (endpoint === 'status') {
+      latestStatusData = data;
+      renderStatusTable(data);
+    }
   } catch (err) {
     output.textContent = t('errorPrefix') + err.message;
   }

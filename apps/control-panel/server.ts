@@ -131,7 +131,13 @@ const apiRoutes: Record<string, ApiHandler> = {
   discover: () => {
     const config = loadConfig();
     const registryPath = `${config.projectRoot}/registry/skills.json`;
-    return { skills: discoverSkills({ registryPath }) } as unknown as Record<string, unknown>;
+    return {
+      skills: discoverSkills({
+        projectRoot: config.projectRoot,
+        registryPath,
+        installsPath: `${config.projectRoot}/registry/installs.json`,
+      }),
+    } as unknown as Record<string, unknown>;
   },
 
   'discover/import': () => {
@@ -139,7 +145,11 @@ const apiRoutes: Record<string, ApiHandler> = {
     const registryPath = `${config.projectRoot}/registry/skills.json`;
     const incoming = `${config.projectRoot}/incoming`;
     const skills = `${config.projectRoot}/skills`;
-    const discovered = discoverSkills({ registryPath });
+    const discovered = discoverSkills({
+      projectRoot: config.projectRoot,
+      registryPath,
+      installsPath: `${config.projectRoot}/registry/installs.json`,
+    });
     const passSkills = discovered.filter(
       (s) => s.validationStatus === 'pass' && !s.alreadyImported,
     );
@@ -328,11 +338,11 @@ const translations = {
     noSkills: 'No skills found.',
     noProject: '(no project)',
     statusLoadFailed: 'Could not load status',
-    totalManaged: 'Total Managed',
+    totalManaged: 'Total Skills',
     totalDiscovered: 'Local Discovered',
-    installedClaude: 'Installed to Claude',
-    installedCodex: 'Installed to Codex',
-    notInstalled: 'Not Installed',
+    installedClaude: 'Used by Claude',
+    installedCodex: 'Used by Codex',
+    notInstalled: 'Not Used by Agent',
     withOverlay: 'With Overlay',
     validationPass: 'Validation Pass',
     validationFixable: 'Validation Fixable',
@@ -385,11 +395,11 @@ const translations = {
     noSkills: '未找到技能。',
     noProject: '（无项目）',
     statusLoadFailed: '无法加载状态',
-    totalManaged: '已管理技能',
+    totalManaged: '总技能数',
     totalDiscovered: '本机发现',
-    installedClaude: '已安装到 Claude',
-    installedCodex: '已安装到 Codex',
-    notInstalled: '未安装',
+    installedClaude: '用于 Claude',
+    installedCodex: '用于 Codex',
+    notInstalled: '未用于智能体',
     withOverlay: '有覆盖层',
     validationPass: '校验通过',
     validationFixable: '可修复',

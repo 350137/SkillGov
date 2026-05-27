@@ -83,7 +83,11 @@ export function main(args: string[]): void {
     const doImport = args.includes('--import');
     const config = loadConfig();
     const registryPath = `${config.projectRoot}/registry/skills.json`;
-    const discovered = discoverSkills({ registryPath });
+    const discovered = discoverSkills({
+      projectRoot: config.projectRoot,
+      registryPath,
+      installsPath: `${config.projectRoot}/registry/installs.json`,
+    });
 
     if (discovered.length === 0) {
       console.log('No local skills found.');

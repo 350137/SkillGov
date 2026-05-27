@@ -54,6 +54,51 @@ describe('discoverSkills', () => {
     expect(result[0].agentTargets).toEqual(['claude']);
   });
 
+  it('finds project skills and ignores project skills imported from plugin cache', () => {
+    createSkill(join(tmpDir, 'project', 'skills', 'project-skill'), 'project-skill');
+    createSkill(join(tmpDir, 'project', 'skills', 'cached-skill'), 'cached-skill');
+    mkdirSync(join(tmpDir, 'project', 'skills', 'plugin-folder'), { recursive: true });
+    const registryPath = join(tmpDir, 'project', 'registry', 'skills.json');
+    mkdirSync(join(tmpDir, 'project', 'registry'), { recursive: true });
+    writeFileSync(
+      registryPath,
+      JSON.stringify({
+        skills: {
+          'project-skill': { name: 'project-skill', origin: 'local' },
+          'cached-skill': { name: 'cached-skill', origin: 'codex-plugin-cache' },
+        },
+      }),
+      'utf-8',
+    );
+
+    const result = discoverSkills({
+      home: tmpDir,
+      projectRoot: join(tmpDir, 'project'),
+      registryPath,
+    });
+
+    expect(result.map((s) => s.name)).toEqual(['project-skill']);
+    expect(result[0].source).toBe('skillgov-project');
+    expect(result[0].sourceLabel).toBe('SkillGov 技能库');
+    expect(result[0].agentTargets).toEqual([]);
+    expect(result[0].alreadyImported).toBe(true);
+  });
+
+  it('merges duplicate project and agent skills into one row with agent targets', () => {
+    createSkill(join(tmpDir, 'project', 'skills', 'shared-skill'), 'shared-skill');
+    createSkill(join(tmpDir, '.codex', 'skills', 'shared-skill'), 'shared-skill');
+    const result = discoverSkills({
+      home: tmpDir,
+      projectRoot: join(tmpDir, 'project'),
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('shared-skill');
+    expect(result[0].sourceLabel).toBe('SkillGov 技能库、Codex 技能目录');
+    expect(result[0].agentTargets).toEqual(['codex']);
+    expect(result[0].alreadyImported).toBe(true);
+  });
+
   it('ignores codex plugin cache skills', () => {
     const cachePath = join(
       tmpDir,

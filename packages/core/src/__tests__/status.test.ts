@@ -50,14 +50,14 @@ afterEach(() => {
 
 describe('getProjectStatus', () => {
   it('lists skills discovered in filesystem', () => {
-    const status = getProjectStatus(tmpDir);
+    const status = getProjectStatus(tmpDir, { home: join(tmpDir, 'home') });
     expect(status.skills.length).toBe(2);
     expect(status.skills.some((s) => s.name === 'alpha-skill')).toBe(true);
     expect(status.skills.some((s) => s.name === 'beta-skill')).toBe(true);
   });
 
   it('reports overlay targets for skills', () => {
-    const status = getProjectStatus(tmpDir);
+    const status = getProjectStatus(tmpDir, { home: join(tmpDir, 'home') });
     const beta = status.skills.find((s) => s.name === 'beta-skill');
     expect(beta).toBeDefined();
     expect(beta?.hasOverlay).toBe(true);
@@ -65,7 +65,7 @@ describe('getProjectStatus', () => {
   });
 
   it('reports registry entry count', () => {
-    const status = getProjectStatus(tmpDir);
+    const status = getProjectStatus(tmpDir, { home: join(tmpDir, 'home') });
     expect(status.registryEntries).toBe(1);
   });
 
@@ -92,11 +92,57 @@ describe('getProjectStatus', () => {
       }),
       'utf-8',
     );
-    const status = getProjectStatus(tmpDir);
+    const status = getProjectStatus(tmpDir, { home: join(tmpDir, 'home') });
     const alpha = status.skills.find((s) => s.name === 'alpha-skill');
     expect(alpha?.installedTargets).toContain('claude');
     expect(alpha?.installedTargets).toContain('codex');
     const beta = status.skills.find((s) => s.name === 'beta-skill');
     expect(beta?.installedTargets).toEqual([]);
+  });
+
+  it('uses the same non-plugin inventory across project and agent skill directories', () => {
+    mkdirSync(join(tmpDir, 'skills', 'cached-skill'), { recursive: true });
+    writeFileSync(
+      join(tmpDir, 'skills', 'cached-skill', 'SKILL.md'),
+      '---\nname: cached\ndescription: cached\n---\n\nCached.\n',
+      'utf-8',
+    );
+    mkdirSync(join(tmpDir, '.codex', 'skills', 'codex-only'), { recursive: true });
+    writeFileSync(
+      join(tmpDir, '.codex', 'skills', 'codex-only', 'SKILL.md'),
+      '---\nname: codex-only\ndescription: codex only\n---\n\nCodex only.\n',
+      'utf-8',
+    );
+    writeFileSync(
+      join(tmpDir, 'registry', 'skills.json'),
+      JSON.stringify({
+        skills: {
+          'alpha-skill': {
+            name: 'alpha-skill',
+            sourcePath: '/tmp',
+            origin: 'local',
+            fileHash: 'abc',
+            importedAt: '2025-01-01',
+            validationStatus: 'pass',
+          },
+          'cached-skill': {
+            name: 'cached-skill',
+            sourcePath: '/tmp/cache',
+            origin: 'codex-plugin-cache',
+            fileHash: 'def',
+            importedAt: '2025-01-01',
+            validationStatus: 'pass',
+          },
+        },
+      }),
+      'utf-8',
+    );
+
+    const status = getProjectStatus(tmpDir, { home: tmpDir });
+    const names = status.skills.map((s) => s.name).sort();
+
+    expect(names).toEqual(['alpha-skill', 'beta-skill', 'codex-only']);
+    expect(status.registryEntries).toBe(1);
+    expect(status.skills.find((s) => s.name === 'codex-only')?.installedTargets).toEqual(['codex']);
   });
 });

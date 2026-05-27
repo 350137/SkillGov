@@ -2,6 +2,7 @@
 import {
   VERSION,
   checkCompatibility,
+  discoverSkills,
   generateOverlayTask,
   generateRepairTask,
   getProjectStatus,
@@ -25,6 +26,7 @@ Commands:
   init                          Initialize a new SkillGov project
   inventory                     List all skills in the registry
   import <path>                 Import a skill into the incoming review area
+  discover [--import]           Scan local machine for existing skills
   validate <skill>              Run standard Agent Skill validation
   compat <skill> --target <t>   Check compatibility for a target agent
   task repair <skill>           Generate a repair task for a fixable skill
@@ -77,6 +79,58 @@ export function main(args: string[]): void {
     return;
   }
 
+  if (command === 'discover') {
+    const doImport = args.includes('--import');
+    const config = loadConfig();
+    const registryPath = `${config.projectRoot}/registry/skills.json`;
+    const discovered = discoverSkills({ registryPath });
+
+    if (discovered.length === 0) {
+      console.log('No local skills found.');
+      return;
+    }
+
+    console.log(`Found ${discovered.length} local skill(s):\n`);
+    for (const skill of discovered) {
+      const imported = skill.alreadyImported ? ' [already imported]' : '';
+      console.log(`  - ${skill.name} (${skill.source}) — ${skill.validationStatus}${imported}`);
+      console.log(`      path: ${skill.path}`);
+      for (const issue of skill.issues) {
+        console.log(`      issue: ${issue}`);
+      }
+    }
+
+    if (doImport) {
+      const incoming = `${config.projectRoot}/incoming`;
+      const skills = `${config.projectRoot}/skills`;
+      const passSkills = discovered.filter(
+        (s) => s.validationStatus === 'pass' && !s.alreadyImported,
+      );
+
+      if (passSkills.length === 0) {
+        console.log('\nNo new skills to import (all already imported or failed validation).');
+        return;
+      }
+
+      console.log(`\nImporting ${passSkills.length} passing skill(s)...`);
+      for (const skill of passSkills) {
+        try {
+          const result = importSkill(skill.path, {
+            incoming,
+            skills,
+            registryPath,
+            origin: skill.source,
+          });
+          console.log(`  ✓ ${result.skillName} — ${result.status}`);
+        } catch (err) {
+          console.log(`  ✗ ${skill.name} — error: ${(err as Error).message}`);
+        }
+      }
+    }
+
+    return;
+  }
+
   if (command === 'validate') {
     const skillPath = args[1];
     if (!skillPath) {
@@ -107,7 +161,11 @@ export function main(args: string[]): void {
     const skills = `${config.projectRoot}/skills`;
 
     try {
-      const result = importSkill(sourcePath, { incoming, skills });
+      const result = importSkill(sourcePath, {
+        incoming,
+        skills,
+        registryPath: `${config.projectRoot}/registry/skills.json`,
+      });
       if (result.status === 'pass') {
         console.log(`Imported "${result.skillName}" — validation passed`);
       } else if (result.status === 'fixable') {

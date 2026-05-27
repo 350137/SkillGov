@@ -152,4 +152,34 @@ describe('Control Panel API', () => {
     expect(data).toHaveProperty('error');
     expect((data as { error: string }).error).toContain('Unknown API');
   });
+
+  it('returns discover results at POST /api/discover', async () => {
+    const data = await fetchJson('/api/discover');
+    expect(data).toHaveProperty('skills');
+    expect(Array.isArray(data.skills)).toBe(true);
+  });
+
+  it('returns discover/import results at POST /api/discover/import', async () => {
+    const data = await fetchJson('/api/discover/import');
+    expect(data).toHaveProperty('total');
+    expect(data).toHaveProperty('imported');
+    expect(data).toHaveProperty('results');
+  });
+
+  it('includes Scan Local Skills button in HTML', async () => {
+    const res = await new Promise<string>((resolve, reject) => {
+      http
+        .get(`${BASE}/`, (res) => {
+          let data = '';
+          res.on('data', (chunk: string) => {
+            data += chunk;
+          });
+          res.on('end', () => resolve(data));
+        })
+        .on('error', reject);
+    });
+    expect(res).toContain('data-i18n="scanLocal"');
+    expect(res).toContain('data-i18n="importPassed"');
+    expect(res).toContain('id="discover-table"');
+  });
 });

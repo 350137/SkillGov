@@ -5,6 +5,7 @@ import { URL } from 'node:url';
 import {
   VERSION,
   checkCompatibility,
+  discoverSkills,
   generateOverlayTask,
   generateRepairTask,
   getProjectStatus,
@@ -45,7 +46,11 @@ const apiRoutes: Record<string, ApiHandler> = {
     const incoming = `${config.projectRoot}/incoming`;
     const skills = `${config.projectRoot}/skills`;
     try {
-      return importSkill(sourcePath, { incoming, skills }) as unknown as Record<string, unknown>;
+      return importSkill(sourcePath, {
+        incoming,
+        skills,
+        registryPath: `${config.projectRoot}/registry/skills.json`,
+      }) as unknown as Record<string, unknown>;
     } catch (err) {
       return { status: 'fail', message: (err as Error).message };
     }
@@ -122,6 +127,44 @@ const apiRoutes: Record<string, ApiHandler> = {
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
     }) as unknown as Record<string, unknown>;
   },
+
+  discover: () => {
+    const config = loadConfig();
+    const registryPath = `${config.projectRoot}/registry/skills.json`;
+    return { skills: discoverSkills({ registryPath }) } as unknown as Record<string, unknown>;
+  },
+
+  'discover/import': () => {
+    const config = loadConfig();
+    const registryPath = `${config.projectRoot}/registry/skills.json`;
+    const incoming = `${config.projectRoot}/incoming`;
+    const skills = `${config.projectRoot}/skills`;
+    const discovered = discoverSkills({ registryPath });
+    const passSkills = discovered.filter(
+      (s) => s.validationStatus === 'pass' && !s.alreadyImported,
+    );
+
+    const results: Array<{ name: string; status: string; message?: string }> = [];
+    for (const skill of passSkills) {
+      try {
+        const result = importSkill(skill.path, {
+          incoming,
+          skills,
+          registryPath,
+          origin: skill.source,
+        });
+        results.push({ name: result.skillName, status: result.status });
+      } catch (err) {
+        results.push({ name: skill.name, status: 'fail', message: (err as Error).message });
+      }
+    }
+
+    return {
+      total: discovered.length,
+      imported: results.filter((r) => r.status === 'pass').length,
+      results,
+    } as unknown as Record<string, unknown>;
+  },
 };
 
 const HTML = `<!DOCTYPE html>
@@ -187,6 +230,13 @@ th { font-weight: 600; background: #fafafa; }
 </div>
 <div id="status-table"></div>
 
+<h2 data-i18n="discoverHeading">Local Skills</h2>
+<div class="grid">
+  <button onclick="callAPI('discover')" data-i18n="scanLocal">Scan Local Skills</button>
+  <button onclick="callAPI('discover/import')" class="primary" data-i18n="importPassed">Import Passed Skills</button>
+</div>
+<div id="discover-table"></div>
+
 <h2 data-i18n="importValidateHeading">Import & Validate</h2>
 <div class="field-row">
   <input id="import-path" placeholder="Path to skill directory..." data-i18n-placeholder="importPathPlaceholder" />
@@ -236,6 +286,9 @@ const translations = {
     languageLabel: 'Language',
     statusHeading: 'Status',
     refreshStatus: 'Refresh Status',
+    discoverHeading: 'Local Skills',
+    scanLocal: 'Scan Local Skills',
+    importPassed: 'Import Passed Skills',
     importValidateHeading: 'Import & Validate',
     importPathPlaceholder: 'Path to skill directory...',
     skillPathPlaceholder: 'Path to skill...',
@@ -258,6 +311,10 @@ const translations = {
     loading: 'Loading...',
     errorPrefix: 'Error: ',
     tableSkill: 'Skill',
+    tableSource: 'Source',
+    tableStatus: 'Status',
+    tablePath: 'Path',
+    tableImported: 'Imported',
     tableOverlay: 'Overlay',
     tableTargets: 'Targets',
     yes: 'Yes',
@@ -272,6 +329,9 @@ const translations = {
     languageLabel: '语言',
     statusHeading: '状态',
     refreshStatus: '刷新状态',
+    discoverHeading: '本机技能',
+    scanLocal: '扫描本机技能',
+    importPassed: '导入已通过技能',
     importValidateHeading: '导入与验证',
     importPathPlaceholder: '技能目录路径...',
     skillPathPlaceholder: '技能路径...',
@@ -294,6 +354,10 @@ const translations = {
     loading: '加载中...',
     errorPrefix: '错误：',
     tableSkill: '技能',
+    tableSource: '来源',
+    tableStatus: '状态',
+    tablePath: '路径',
+    tableImported: '已导入',
     tableOverlay: '覆盖层',
     tableTargets: '目标',
     yes: '是',
@@ -340,13 +404,26 @@ function renderStatusTable(data) {
     .join('');
   table.innerHTML = \`<table><thead><tr><th>\${t('tableSkill')}</th><th>\${t('tableOverlay')}</th><th>\${t('tableTargets')}</th></tr></thead><tbody>\${rows || \`<tr><td colspan="3">\${t('noSkills')}</td></tr>\`}</tbody></table>\`;
 }
+
+function renderDiscoverTable(skills) {
+  const table = document.getElementById('discover-table');
+  if (!skills || skills.length === 0) {
+    table.innerHTML = \`<p>\${t('noSkills')}</p>\`;
+    return;
+  }
+  const rows = skills.map((s) => {
+    const badgeClass = s.validationStatus === 'pass' ? 'status-pass' : s.validationStatus === 'fixable' ? 'status-fixable' : 'status-fail';
+    return \`<tr><td>\${s.name}</td><td>\${s.source}</td><td><span class="status-badge \${badgeClass}">\${s.validationStatus}</span></td><td>\${s.path}</td><td>\${s.alreadyImported ? t('yes') : t('no')}</td></tr>\`;
+  }).join('');
+  table.innerHTML = \`<table><thead><tr><th>\${t('tableSkill')}</th><th>\${t('tableSource')}</th><th>\${t('tableStatus')}</th><th>\${t('tablePath')}</th><th>\${t('tableImported')}</th></tr></thead><tbody>\${rows}</tbody></table>\`;
+}
 async function callAPI(endpoint) {
   const output = document.getElementById('output');
   output.textContent = t('loading');
 
   const body = {};
   const fields = {
-    import: { path: 'import-path' },
+    import: { sourcePath: 'import-path' },
     validate: { path: 'validate-path' },
     compat: { skillPath: 'compat-path', target: 'compat-target' },
     install: { skillName: 'install-skill', target: 'install-target' },
@@ -374,6 +451,12 @@ async function callAPI(endpoint) {
     if (endpoint === 'status') {
       latestStatusData = data;
       renderStatusTable(data);
+    }
+    if (endpoint === 'discover' && data.skills) {
+      renderDiscoverTable(data.skills);
+    }
+    if (endpoint === 'discover/import' && data.results) {
+      callAPI('discover');
     }
   } catch (err) {
     output.textContent = t('errorPrefix') + err.message;

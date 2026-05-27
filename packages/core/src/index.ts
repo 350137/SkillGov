@@ -34,3 +34,5 @@ export { getProjectStatus } from './status.js';
 export type { ProjectStatus, SkillStatus } from './status.js';
 export { runDoctor } from './doctor.js';
 export type { DoctorIssue, DoctorReport } from './doctor.js';
+export { discoverSkills } from './discovery.js';
+export type { DiscoveredSkill, DiscoveryOptions } from './discovery.js';

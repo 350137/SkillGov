@@ -68,6 +68,7 @@ describe('CLI main()', () => {
       'init',
       'inventory',
       'import',
+      'discover',
       'validate',
       'compat',
       'task repair',
@@ -129,5 +130,10 @@ describe('CLI main()', () => {
     const { stdout, exitCode } = captureOutput(['rollback']);
     expect(stdout).toContain('Usage: skillgov rollback');
     expect(exitCode).toBe(1);
+  });
+
+  it('discover runs without error', () => {
+    const { stdout } = captureOutput(['discover']);
+    expect(stdout).toMatch(/Found \d+ local skill|No local skills found/);
   });
 });

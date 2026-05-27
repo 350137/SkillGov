@@ -203,6 +203,8 @@ th { font-weight: 600; background: #fafafa; }
 .status-pass { background: #d4edda; color: #155724; }
 .status-fail { background: #f8d7da; color: #721c24; }
 .status-fixable { background: #fff3cd; color: #856404; }
+#status-summary table, #discover-summary table { margin-bottom: 12px; }
+#status-summary td, #discover-summary td { padding: 4px 12px 4px 0; font-size: 0.85rem; }
 @media (max-width: 640px) { .page-header { flex-direction: column; margin-bottom: 24px; } .header-actions { width: 100%; justify-content: flex-start; padding-top: 0; } }
 </style>
 </head>
@@ -228,14 +230,16 @@ th { font-weight: 600; background: #fafafa; }
 <div class="grid">
   <button onclick="callAPI('status')" class="primary" data-i18n="refreshStatus">Refresh Status</button>
 </div>
-<div id="status-table"></div>
+<div id="status-summary"></div>
 
 <h2 data-i18n="discoverHeading">Local Skills</h2>
 <div class="grid">
   <button onclick="callAPI('discover')" data-i18n="scanLocal">Scan Local Skills</button>
   <button onclick="callAPI('discover/import')" class="primary" data-i18n="importPassed">Import Passed Skills</button>
 </div>
+<div id="discover-summary"></div>
 <div id="discover-table"></div>
+<div id="discover-pagination"></div>
 
 <h2 data-i18n="importValidateHeading">Import & Validate</h2>
 <div class="field-row">
@@ -312,9 +316,10 @@ const translations = {
     errorPrefix: 'Error: ',
     tableSkill: 'Skill',
     tableSource: 'Source',
-    tableStatus: 'Status',
+    tableValidation: 'Validation',
     tablePath: 'Path',
     tableImported: 'Imported',
+    tableAgent: 'Agent',
     tableOverlay: 'Overlay',
     tableTargets: 'Targets',
     yes: 'Yes',
@@ -323,6 +328,19 @@ const translations = {
     noSkills: 'No skills found.',
     noProject: '(no project)',
     statusLoadFailed: 'Could not load status',
+    totalManaged: 'Total Managed',
+    totalDiscovered: 'Local Discovered',
+    installedClaude: 'Installed to Claude',
+    installedCodex: 'Installed to Codex',
+    notInstalled: 'Not Installed',
+    withOverlay: 'With Overlay',
+    validationPass: 'Validation Pass',
+    validationFixable: 'Validation Fixable',
+    validationFail: 'Validation Fail',
+    prevPage: 'Previous',
+    nextPage: 'Next',
+    pageInfo: 'Page {current} / {total}',
+    totalSkills: '{count} local skills',
   },
   zh: {
     title: 'SkillGov 控制面板',
@@ -355,9 +373,10 @@ const translations = {
     errorPrefix: '错误：',
     tableSkill: '技能',
     tableSource: '来源',
-    tableStatus: '状态',
+    tableValidation: '规范校验',
     tablePath: '路径',
     tableImported: '已导入',
+    tableAgent: '智能体',
     tableOverlay: '覆盖层',
     tableTargets: '目标',
     yes: '是',
@@ -366,6 +385,19 @@ const translations = {
     noSkills: '未找到技能。',
     noProject: '（无项目）',
     statusLoadFailed: '无法加载状态',
+    totalManaged: '已管理技能',
+    totalDiscovered: '本机发现',
+    installedClaude: '已安装到 Claude',
+    installedCodex: '已安装到 Codex',
+    notInstalled: '未安装',
+    withOverlay: '有覆盖层',
+    validationPass: '校验通过',
+    validationFixable: '可修复',
+    validationFail: '校验失败',
+    prevPage: '上一页',
+    nextPage: '下一页',
+    pageInfo: '第 {current} / {total} 页',
+    totalSkills: '共 {count} 个本机技能',
   },
 };
 
@@ -396,26 +428,80 @@ function applyLanguage(language) {
   if (select) select.value = currentLanguage;
 }
 
-function renderStatusTable(data) {
+let discoverPage = 0;
+const PAGE_SIZE = 10;
+let latestDiscoverData = [];
+
+function renderStatusSummary(data) {
   latestStatusData = data;
-  const table = document.getElementById('status-table');
-  const rows = (data.skills || [])
-    .map((s) => \`<tr><td>\${s.name}</td><td>\${s.hasOverlay ? t('yes') : t('no')}</td><td>\${s.overlayTargets.join(', ') || t('none')}</td></tr>\`)
-    .join('');
-  table.innerHTML = \`<table><thead><tr><th>\${t('tableSkill')}</th><th>\${t('tableOverlay')}</th><th>\${t('tableTargets')}</th></tr></thead><tbody>\${rows || \`<tr><td colspan="3">\${t('noSkills')}</td></tr>\`}</tbody></table>\`;
+  const el = document.getElementById('status-summary');
+  const skills = data.skills || [];
+  const totalManaged = skills.length;
+  const installedClaude = skills.filter((s) => s.installedTargets && s.installedTargets.includes('claude')).length;
+  const installedCodex = skills.filter((s) => s.installedTargets && s.installedTargets.includes('codex')).length;
+  const notInstalled = skills.filter((s) => !s.installedTargets || s.installedTargets.length === 0).length;
+  const withOverlay = skills.filter((s) => s.hasOverlay).length;
+  el.innerHTML = \`<table><tbody>
+    <tr><td><strong>\${t('totalManaged')}</strong></td><td>\${totalManaged}</td></tr>
+    <tr><td><strong>\${t('installedClaude')}</strong></td><td>\${installedClaude}</td></tr>
+    <tr><td><strong>\${t('installedCodex')}</strong></td><td>\${installedCodex}</td></tr>
+    <tr><td><strong>\${t('notInstalled')}</strong></td><td>\${notInstalled}</td></tr>
+    <tr><td><strong>\${t('withOverlay')}</strong></td><td>\${withOverlay}</td></tr>
+  </tbody></table>\`;
 }
 
 function renderDiscoverTable(skills) {
+  latestDiscoverData = skills || [];
+  discoverPage = 0;
+  renderDiscoverPage();
+}
+
+function renderDiscoverPage() {
+  const skills = latestDiscoverData;
+  const summary = document.getElementById('discover-summary');
   const table = document.getElementById('discover-table');
+  const pagination = document.getElementById('discover-pagination');
+
   if (!skills || skills.length === 0) {
+    summary.innerHTML = '';
     table.innerHTML = \`<p>\${t('noSkills')}</p>\`;
+    pagination.innerHTML = '';
     return;
   }
-  const rows = skills.map((s) => {
+
+  const totalPages = Math.ceil(skills.length / PAGE_SIZE);
+  const passCount = skills.filter((s) => s.validationStatus === 'pass').length;
+  const fixableCount = skills.filter((s) => s.validationStatus === 'fixable').length;
+  const failCount = skills.filter((s) => s.validationStatus === 'fail').length;
+
+  summary.innerHTML = \`<table><tbody>
+    <tr><td><strong>\${t('totalDiscovered')}</strong></td><td>\${skills.length}</td></tr>
+    <tr><td><strong>\${t('validationPass')}</strong></td><td>\${passCount}</td></tr>
+    <tr><td><strong>\${t('validationFixable')}</strong></td><td>\${fixableCount}</td></tr>
+    <tr><td><strong>\${t('validationFail')}</strong></td><td>\${failCount}</td></tr>
+  </tbody></table>\`;
+
+  const start = discoverPage * PAGE_SIZE;
+  const page = skills.slice(start, start + PAGE_SIZE);
+  const rows = page.map((s) => {
     const badgeClass = s.validationStatus === 'pass' ? 'status-pass' : s.validationStatus === 'fixable' ? 'status-fixable' : 'status-fail';
-    return \`<tr><td>\${s.name}</td><td>\${s.source}</td><td><span class="status-badge \${badgeClass}">\${s.validationStatus}</span></td><td>\${s.path}</td><td>\${s.alreadyImported ? t('yes') : t('no')}</td></tr>\`;
+    return \`<tr><td>\${s.name}</td><td>\${s.sourceTarget || s.source}</td><td><span class="status-badge \${badgeClass}">\${s.validationStatus}</span></td><td>\${s.alreadyImported ? t('yes') : t('no')}</td><td>\${s.sourceTarget || s.source}</td><td style="font-size:0.75rem;color:#888;">\${s.path}</td></tr>\`;
   }).join('');
-  table.innerHTML = \`<table><thead><tr><th>\${t('tableSkill')}</th><th>\${t('tableSource')}</th><th>\${t('tableStatus')}</th><th>\${t('tablePath')}</th><th>\${t('tableImported')}</th></tr></thead><tbody>\${rows}</tbody></table>\`;
+  table.innerHTML = \`<table><thead><tr><th>\${t('tableSkill')}</th><th>\${t('tableSource')}</th><th>\${t('tableValidation')}</th><th>\${t('tableImported')}</th><th>\${t('tableAgent')}</th><th>\${t('tablePath')}</th></tr></thead><tbody>\${rows}</tbody></table>\`;
+
+  const pageInfo = t('pageInfo').replace('{current}', discoverPage + 1).replace('{total}', totalPages);
+  pagination.innerHTML = \`<div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+    <button onclick="changeDiscoverPage(-1)" \${discoverPage === 0 ? 'disabled' : ''}>\${t('prevPage')}</button>
+    <span>\${pageInfo}</span>
+    <button onclick="changeDiscoverPage(1)" \${discoverPage >= totalPages - 1 ? 'disabled' : ''}>\${t('nextPage')}</button>
+    <span style="margin-left:12px;color:#666;">\${t('totalSkills').replace('{count}', skills.length)}</span>
+  </div>\`;
+}
+
+function changeDiscoverPage(delta) {
+  const totalPages = Math.ceil(latestDiscoverData.length / PAGE_SIZE);
+  discoverPage = Math.max(0, Math.min(totalPages - 1, discoverPage + delta));
+  renderDiscoverPage();
 }
 async function callAPI(endpoint) {
   const output = document.getElementById('output');
@@ -450,7 +536,7 @@ async function callAPI(endpoint) {
     output.textContent = JSON.stringify(data, null, 2);
     if (endpoint === 'status') {
       latestStatusData = data;
-      renderStatusTable(data);
+      renderStatusSummary(data);
     }
     if (endpoint === 'discover' && data.skills) {
       renderDiscoverTable(data.skills);
@@ -468,7 +554,7 @@ window.addEventListener('DOMContentLoaded', () => {
   applyLanguage(getPreferredLanguage());
   document.getElementById('language-select').addEventListener('change', (event) => {
     applyLanguage(event.target.value);
-    if (latestStatusData) renderStatusTable(latestStatusData);
+    if (latestStatusData) renderStatusSummary(latestStatusData);
   });
   const searchParams = new URLSearchParams(window.location.search);
   const pp = document.getElementById('project-path');
@@ -476,7 +562,7 @@ window.addEventListener('DOMContentLoaded', () => {
     .then(r => r.json())
     .then(data => {
       pp.textContent = data.projectRoot || t('noProject');
-      renderStatusTable(data);
+      renderStatusSummary(data);
       if (searchParams.get('discover') === '1') callAPI('discover');
     })
     .catch(() => { pp.textContent = t('statusLoadFailed'); });

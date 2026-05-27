@@ -10,6 +10,7 @@ export interface DiscoveredSkill {
   name: string;
   path: string;
   source: 'codex-user' | 'claude-user' | 'codex-plugin-cache';
+  sourceTarget: string;
   validationStatus: 'pass' | 'fixable' | 'fail';
   issues: string[];
   alreadyImported: boolean;
@@ -20,11 +21,22 @@ export interface DiscoveryOptions {
   registryPath?: string;
 }
 
+const SOURCE_TARGET_LABELS: Record<DiscoveredSkill['source'], string> = {
+  'codex-user': 'Codex 本地',
+  'claude-user': 'Claude 本地',
+  'codex-plugin-cache': 'Codex 插件缓存',
+};
+
 function scanSkillDir(
   dir: string,
   source: DiscoveredSkill['source'],
-): Array<{ name: string; path: string; source: DiscoveredSkill['source'] }> {
-  const results: Array<{ name: string; path: string; source: DiscoveredSkill['source'] }> = [];
+): Array<{ name: string; path: string; source: DiscoveredSkill['source']; sourceTarget: string }> {
+  const results: Array<{
+    name: string;
+    path: string;
+    source: DiscoveredSkill['source'];
+    sourceTarget: string;
+  }> = [];
   if (!existsSync(dir)) return results;
 
   let entries: string[];
@@ -44,7 +56,12 @@ function scanSkillDir(
       continue;
     }
     if (stat.isDirectory()) {
-      results.push({ name: entry, path: fullPath, source });
+      results.push({
+        name: entry,
+        path: fullPath,
+        source,
+        sourceTarget: SOURCE_TARGET_LABELS[source],
+      });
     }
   }
 
@@ -53,8 +70,13 @@ function scanSkillDir(
 
 function scanPluginCache(
   cacheDir: string,
-): Array<{ name: string; path: string; source: DiscoveredSkill['source'] }> {
-  const results: Array<{ name: string; path: string; source: DiscoveredSkill['source'] }> = [];
+): Array<{ name: string; path: string; source: DiscoveredSkill['source']; sourceTarget: string }> {
+  const results: Array<{
+    name: string;
+    path: string;
+    source: DiscoveredSkill['source'];
+    sourceTarget: string;
+  }> = [];
   if (!existsSync(cacheDir)) return results;
 
   // Walk: cache/<org>/<plugin>/<version>/skills/<skill>/
@@ -114,7 +136,12 @@ function scanPluginCache(
           const skillDir = join(skillsDir, skill);
           try {
             if (statSync(skillDir).isDirectory()) {
-              results.push({ name: skill, path: resolve(skillDir), source: 'codex-plugin-cache' });
+              results.push({
+                name: skill,
+                path: resolve(skillDir),
+                source: 'codex-plugin-cache',
+                sourceTarget: SOURCE_TARGET_LABELS['codex-plugin-cache'],
+              });
             }
           } catch {
             // skip unreadable entry
@@ -132,13 +159,23 @@ function hasLatestSegment(path: string): boolean {
 }
 
 function dedupePluginCacheCandidates(
-  candidates: Array<{ name: string; path: string; source: DiscoveredSkill['source'] }>,
-): Array<{ name: string; path: string; source: DiscoveredSkill['source'] }> {
+  candidates: Array<{
+    name: string;
+    path: string;
+    source: DiscoveredSkill['source'];
+    sourceTarget: string;
+  }>,
+): Array<{ name: string; path: string; source: DiscoveredSkill['source']; sourceTarget: string }> {
   const pluginSkills = new Map<
     string,
-    { name: string; path: string; source: DiscoveredSkill['source'] }
+    { name: string; path: string; source: DiscoveredSkill['source']; sourceTarget: string }
   >();
-  const results: Array<{ name: string; path: string; source: DiscoveredSkill['source'] }> = [];
+  const results: Array<{
+    name: string;
+    path: string;
+    source: DiscoveredSkill['source'];
+    sourceTarget: string;
+  }> = [];
 
   for (const candidate of candidates) {
     if (candidate.source !== 'codex-plugin-cache') {
@@ -181,6 +218,7 @@ export function discoverSkills(options: DiscoveryOptions = {}): DiscoveredSkill[
       name: candidate.name,
       path: candidate.path,
       source: candidate.source,
+      sourceTarget: candidate.sourceTarget,
       validationStatus: validation.status,
       issues: validation.issues.map((i) => i.message),
       alreadyImported: importedNames.has(candidate.name),

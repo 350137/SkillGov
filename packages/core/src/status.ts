@@ -8,6 +8,7 @@ export interface SkillStatus {
   name: string;
   hasOverlay: boolean;
   overlayTargets: string[];
+  installedTargets: string[];
 }
 
 export interface ProjectStatus {
@@ -35,6 +36,15 @@ export function getProjectStatus(projectRoot: string): ProjectStatus {
     }
   }
 
+  // Read installs registry once for target aggregation
+  const installsReg = readRegistry<InstallsRegistry>(installsPath, { installs: {} });
+  const installedBySkill = new Map<string, string[]>();
+  for (const record of Object.values(installsReg.installs)) {
+    const targets = installedBySkill.get(record.skillName) || [];
+    targets.push(record.target);
+    installedBySkill.set(record.skillName, targets);
+  }
+
   // Discover overlay targets
   const skills: SkillStatus[] = skillNames.map((name) => {
     const overlayTargets: string[] = [];
@@ -46,11 +56,15 @@ export function getProjectStatus(projectRoot: string): ProjectStatus {
         }
       }
     }
-    return { name, hasOverlay: overlayTargets.length > 0, overlayTargets };
+    return {
+      name,
+      hasOverlay: overlayTargets.length > 0,
+      overlayTargets,
+      installedTargets: installedBySkill.get(name) || [],
+    };
   });
 
-  // Read installs from registry
-  const installsReg = readRegistry<InstallsRegistry>(installsPath, { installs: {} });
+  // Collect installs list
   const installs = Object.values(installsReg.installs).map((r) => ({
     skillName: r.skillName,
     target: r.target,

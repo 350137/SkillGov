@@ -38,6 +38,7 @@ describe('discoverSkills', () => {
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('my-skill');
     expect(result[0].source).toBe('codex-user');
+    expect(result[0].sourceTarget).toBe('Codex 本地');
     expect(result[0].validationStatus).toBe('pass');
     expect(result[0].alreadyImported).toBe(false);
   });
@@ -48,6 +49,7 @@ describe('discoverSkills', () => {
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('claude-skill');
     expect(result[0].source).toBe('claude-user');
+    expect(result[0].sourceTarget).toBe('Claude 本地');
   });
 
   it('finds codex plugin cache skills', () => {
@@ -67,6 +69,7 @@ describe('discoverSkills', () => {
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('brainstorming');
     expect(result[0].source).toBe('codex-plugin-cache');
+    expect(result[0].sourceTarget).toBe('Codex 插件缓存');
   });
 
   it('deduplicates plugin cache latest and version directories', () => {

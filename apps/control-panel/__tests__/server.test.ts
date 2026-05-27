@@ -196,6 +196,14 @@ describe('Control Panel API', () => {
     expect(res).toContain('data-i18n="scanLocal"');
     expect(res).toContain('data-i18n="importPassed"');
     expect(res).toContain('id="discover-table"');
+    expect(res).toContain('id="status-summary"');
+    expect(res).toContain('id="discover-summary"');
+    expect(res).toContain('id="discover-pagination"');
     expect(res).toContain("searchParams.get('discover') === '1'");
+    expect(res).toContain('totalManaged');
+    expect(res).toContain('validationPass');
+    expect(res).toContain('prevPage');
+    expect(res).toContain('nextPage');
+    expect(res).toContain('changeDiscoverPage');
   });
 });

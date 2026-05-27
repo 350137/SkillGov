@@ -68,4 +68,35 @@ describe('getProjectStatus', () => {
     const status = getProjectStatus(tmpDir);
     expect(status.registryEntries).toBe(1);
   });
+
+  it('aggregates installedTargets from installs registry', () => {
+    writeFileSync(
+      join(tmpDir, 'registry', 'installs.json'),
+      JSON.stringify({
+        installs: {
+          'alpha-skill:claude': {
+            skillName: 'alpha-skill',
+            target: 'claude',
+            installedAt: '2025-01-01',
+            type: 'standard',
+            linkPath: '/tmp/claude/alpha',
+          },
+          'alpha-skill:codex': {
+            skillName: 'alpha-skill',
+            target: 'codex',
+            installedAt: '2025-01-02',
+            type: 'standard',
+            linkPath: '/tmp/codex/alpha',
+          },
+        },
+      }),
+      'utf-8',
+    );
+    const status = getProjectStatus(tmpDir);
+    const alpha = status.skills.find((s) => s.name === 'alpha-skill');
+    expect(alpha?.installedTargets).toContain('claude');
+    expect(alpha?.installedTargets).toContain('codex');
+    const beta = status.skills.find((s) => s.name === 'beta-skill');
+    expect(beta?.installedTargets).toEqual([]);
+  });
 });

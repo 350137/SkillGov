@@ -157,6 +157,12 @@ describe('Control Panel API', () => {
     const data = await fetchJson('/api/discover');
     expect(data).toHaveProperty('skills');
     expect(Array.isArray(data.skills)).toBe(true);
+    const skills = data.skills as Array<Record<string, unknown>>;
+    expect(skills.every((skill) => skill.source !== 'codex-plugin-cache')).toBe(true);
+    for (const skill of skills) {
+      expect(skill).toHaveProperty('sourceLabel');
+      expect(Array.isArray(skill.agentTargets)).toBe(true);
+    }
   });
 
   it('redirects browser GET /api/discover to the control panel discover view', async () => {
@@ -205,5 +211,9 @@ describe('Control Panel API', () => {
     expect(res).toContain('prevPage');
     expect(res).toContain('nextPage');
     expect(res).toContain('changeDiscoverPage');
+    expect(res).toContain('function formatAgentTargets');
+    expect(res).toContain('s.sourceLabel || s.source');
+    expect(res).toContain('formatAgentTargets(s.agentTargets)');
+    expect(res).not.toContain('sourceTarget || s.source');
   });
 });

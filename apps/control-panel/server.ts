@@ -456,6 +456,12 @@ function renderDiscoverTable(skills) {
   renderDiscoverPage();
 }
 
+function formatAgentTargets(agentTargets) {
+  const labels = { codex: 'Codex', claude: 'Claude' };
+  if (!agentTargets || agentTargets.length === 0) return t('none');
+  return agentTargets.map((target) => labels[target] || target).join(', ');
+}
+
 function renderDiscoverPage() {
   const skills = latestDiscoverData;
   const summary = document.getElementById('discover-summary');
@@ -485,7 +491,7 @@ function renderDiscoverPage() {
   const page = skills.slice(start, start + PAGE_SIZE);
   const rows = page.map((s) => {
     const badgeClass = s.validationStatus === 'pass' ? 'status-pass' : s.validationStatus === 'fixable' ? 'status-fixable' : 'status-fail';
-    return \`<tr><td>\${s.name}</td><td>\${s.sourceTarget || s.source}</td><td><span class="status-badge \${badgeClass}">\${s.validationStatus}</span></td><td>\${s.alreadyImported ? t('yes') : t('no')}</td><td>\${s.sourceTarget || s.source}</td><td style="font-size:0.75rem;color:#888;">\${s.path}</td></tr>\`;
+    return \`<tr><td>\${s.name}</td><td>\${s.sourceLabel || s.source}</td><td><span class="status-badge \${badgeClass}">\${s.validationStatus}</span></td><td>\${s.alreadyImported ? t('yes') : t('no')}</td><td>\${formatAgentTargets(s.agentTargets)}</td><td style="font-size:0.75rem;color:#888;">\${s.path}</td></tr>\`;
   }).join('');
   table.innerHTML = \`<table><thead><tr><th>\${t('tableSkill')}</th><th>\${t('tableSource')}</th><th>\${t('tableValidation')}</th><th>\${t('tableImported')}</th><th>\${t('tableAgent')}</th><th>\${t('tablePath')}</th></tr></thead><tbody>\${rows}</tbody></table>\`;
 

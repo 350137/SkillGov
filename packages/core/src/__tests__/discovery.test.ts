@@ -1,4 +1,4 @@
-// Tests for local skill discovery — scans Codex/Claude/plugin cache directories for skills using temp directories.
+// Tests for local skill discovery using Codex and Claude user skill directories.
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -38,7 +38,8 @@ describe('discoverSkills', () => {
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('my-skill');
     expect(result[0].source).toBe('codex-user');
-    expect(result[0].sourceTarget).toBe('Codex 本地');
+    expect(result[0].sourceLabel).toBe('Codex 技能目录');
+    expect(result[0].agentTargets).toEqual(['codex']);
     expect(result[0].validationStatus).toBe('pass');
     expect(result[0].alreadyImported).toBe(false);
   });
@@ -49,10 +50,11 @@ describe('discoverSkills', () => {
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('claude-skill');
     expect(result[0].source).toBe('claude-user');
-    expect(result[0].sourceTarget).toBe('Claude 本地');
+    expect(result[0].sourceLabel).toBe('Claude 技能目录');
+    expect(result[0].agentTargets).toEqual(['claude']);
   });
 
-  it('finds codex plugin cache skills', () => {
+  it('ignores codex plugin cache skills', () => {
     const cachePath = join(
       tmpDir,
       '.codex',
@@ -66,45 +68,10 @@ describe('discoverSkills', () => {
     );
     createSkill(cachePath, 'brainstorming');
     const result = discoverSkills({ home: tmpDir });
-    expect(result).toHaveLength(1);
-    expect(result[0].name).toBe('brainstorming');
-    expect(result[0].source).toBe('codex-plugin-cache');
-    expect(result[0].sourceTarget).toBe('Codex 插件缓存');
+    expect(result).toEqual([]);
   });
 
-  it('deduplicates plugin cache latest and version directories', () => {
-    const versionPath = join(
-      tmpDir,
-      '.codex',
-      'plugins',
-      'cache',
-      'openai-bundled',
-      'chrome',
-      '26.519.41501',
-      'skills',
-      'chrome',
-    );
-    const latestPath = join(
-      tmpDir,
-      '.codex',
-      'plugins',
-      'cache',
-      'openai-bundled',
-      'chrome',
-      'latest',
-      'skills',
-      'chrome',
-    );
-    createSkill(versionPath, 'chrome');
-    createSkill(latestPath, 'chrome');
-
-    const result = discoverSkills({ home: tmpDir });
-    expect(result).toHaveLength(1);
-    expect(result[0].name).toBe('chrome');
-    expect(result[0].path).toBe(latestPath);
-  });
-
-  it('finds skills from all three sources', () => {
+  it('finds skills from both agent skill directories without plugin cache entries', () => {
     createSkill(join(tmpDir, '.codex', 'skills', 'codex-skill'), 'codex-skill');
     createSkill(join(tmpDir, '.claude', 'skills', 'claude-skill'), 'claude-skill');
     const cachePath = join(
@@ -120,9 +87,9 @@ describe('discoverSkills', () => {
     );
     createSkill(cachePath, 'cached-skill');
     const result = discoverSkills({ home: tmpDir });
-    expect(result).toHaveLength(3);
+    expect(result).toHaveLength(2);
     const sources = result.map((s) => s.source).sort();
-    expect(sources).toEqual(['claude-user', 'codex-plugin-cache', 'codex-user']);
+    expect(sources).toEqual(['claude-user', 'codex-user']);
   });
 
   it('marks already-imported skills when registryPath provided', () => {

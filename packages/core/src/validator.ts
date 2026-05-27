@@ -20,6 +20,15 @@ const LINK_REGEX = /\[([^\]]*)\]\(([^)]+)\)/g;
 // Matches absolute paths starting with / or drive letters (C:\). Use hex escape for backtick to avoid esbuild conflicts.
 const ABSOLUTE_PATH_REGEX = /(?:^|[\s\x60])([A-Z]:\\[^\s\x60<>"|]+|\/[^\s\x60<>"|]+)/g;
 
+function isLocalMarkdownReference(linkTarget: string): boolean {
+  const target = linkTarget.trim();
+  if (!target || target.startsWith('#')) return false;
+  if (target === 'IMAGE_LINK') return false;
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(target)) return false;
+  if (target.startsWith('/')) return false;
+  return true;
+}
+
 function findMarkdownFiles(dir: string, maxDepth = 2): string[] {
   const results: string[] = [];
   function walk(current: string, depth: number) {
@@ -118,12 +127,7 @@ export function validateSkill(skillPath: string): ValidationResult {
     for (let match = LINK_REGEX.exec(content); match; match = LINK_REGEX.exec(content)) {
       const linkTarget = match[2];
 
-      // Skip external URLs and anchors
-      if (
-        linkTarget.startsWith('http://') ||
-        linkTarget.startsWith('https://') ||
-        linkTarget.startsWith('#')
-      ) {
+      if (!isLocalMarkdownReference(linkTarget)) {
         continue;
       }
 

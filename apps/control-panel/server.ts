@@ -470,12 +470,14 @@ window.addEventListener('DOMContentLoaded', () => {
     applyLanguage(event.target.value);
     if (latestStatusData) renderStatusTable(latestStatusData);
   });
+  const searchParams = new URLSearchParams(window.location.search);
   const pp = document.getElementById('project-path');
   fetch('/api/status')
     .then(r => r.json())
     .then(data => {
       pp.textContent = data.projectRoot || t('noProject');
       renderStatusTable(data);
+      if (searchParams.get('discover') === '1') callAPI('discover');
     })
     .catch(() => { pp.textContent = t('statusLoadFailed'); });
 });
@@ -518,6 +520,16 @@ export function startServer(port: number = PORT): http.Server {
     if (req.method === 'GET' && path === '/') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(HTML);
+      return;
+    }
+
+    if (
+      req.method === 'GET' &&
+      path === '/api/discover' &&
+      (req.headers.accept || '').includes('text/html')
+    ) {
+      res.writeHead(303, { Location: '/?discover=1' });
+      res.end();
       return;
     }
 

@@ -127,6 +127,34 @@ function scanPluginCache(
   return results;
 }
 
+function hasLatestSegment(path: string): boolean {
+  return path.split(/[\\/]/).includes('latest');
+}
+
+function dedupePluginCacheCandidates(
+  candidates: Array<{ name: string; path: string; source: DiscoveredSkill['source'] }>,
+): Array<{ name: string; path: string; source: DiscoveredSkill['source'] }> {
+  const pluginSkills = new Map<
+    string,
+    { name: string; path: string; source: DiscoveredSkill['source'] }
+  >();
+  const results: Array<{ name: string; path: string; source: DiscoveredSkill['source'] }> = [];
+
+  for (const candidate of candidates) {
+    if (candidate.source !== 'codex-plugin-cache') {
+      results.push(candidate);
+      continue;
+    }
+
+    const existing = pluginSkills.get(candidate.name);
+    if (!existing || (!hasLatestSegment(existing.path) && hasLatestSegment(candidate.path))) {
+      pluginSkills.set(candidate.name, candidate);
+    }
+  }
+
+  return [...results, ...pluginSkills.values()];
+}
+
 export function discoverSkills(options: DiscoveryOptions = {}): DiscoveredSkill[] {
   const home = options.home || homedir();
   const registryPath = options.registryPath;
@@ -139,11 +167,11 @@ export function discoverSkills(options: DiscoveryOptions = {}): DiscoveredSkill[
     }
   }
 
-  const candidates: Array<{ name: string; path: string; source: DiscoveredSkill['source'] }> = [
+  const candidates = dedupePluginCacheCandidates([
     ...scanSkillDir(join(home, '.codex', 'skills'), 'codex-user'),
     ...scanSkillDir(join(home, '.claude', 'skills'), 'claude-user'),
     ...scanPluginCache(join(home, '.codex', 'plugins', 'cache')),
-  ];
+  ]);
 
   const results: DiscoveredSkill[] = [];
 

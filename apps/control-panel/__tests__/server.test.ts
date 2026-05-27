@@ -159,6 +159,21 @@ describe('Control Panel API', () => {
     expect(Array.isArray(data.skills)).toBe(true);
   });
 
+  it('redirects browser GET /api/discover to the control panel discover view', async () => {
+    const res = await new Promise<http.IncomingMessage>((resolve, reject) => {
+      const req = http.request(
+        `${BASE}/api/discover`,
+        { method: 'GET', headers: { Accept: 'text/html' } },
+        resolve,
+      );
+      req.on('error', reject);
+      req.end();
+    });
+
+    expect(res.statusCode).toBe(303);
+    expect(res.headers.location).toBe('/?discover=1');
+  });
+
   it('returns discover/import results at POST /api/discover/import', async () => {
     const data = await fetchJson('/api/discover/import');
     expect(data).toHaveProperty('total');
@@ -181,5 +196,6 @@ describe('Control Panel API', () => {
     expect(res).toContain('data-i18n="scanLocal"');
     expect(res).toContain('data-i18n="importPassed"');
     expect(res).toContain('id="discover-table"');
+    expect(res).toContain("searchParams.get('discover') === '1'");
   });
 });

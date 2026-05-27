@@ -108,6 +108,28 @@ describe('validateSkill', () => {
     expect(result.issues.some((i) => i.message.toLowerCase().includes('reference'))).toBe(true);
   });
 
+  it('ignores non-file markdown links and documentation placeholders', () => {
+    const dir = join(tmpDir, 'external-links');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'SKILL.md'),
+      [
+        '---',
+        'name: external-links',
+        'description: references external docs and browser pages',
+        '---',
+        '',
+        'Open [extensions](chrome://extensions/).',
+        'Read [skill docs](/en/docs/agents-and-tools/agent-skills/overview).',
+        '![screenshot](IMAGE_LINK)',
+      ].join('\n'),
+      'utf-8',
+    );
+
+    const result = validateSkill(dir);
+    expect(result.status).toBe('pass');
+  });
+
   it('reports dangerous absolute paths', () => {
     const dir = join(tmpDir, 'dangerous-path');
     mkdirSync(dir, { recursive: true });

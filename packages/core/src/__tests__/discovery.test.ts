@@ -69,6 +69,38 @@ describe('discoverSkills', () => {
     expect(result[0].source).toBe('codex-plugin-cache');
   });
 
+  it('deduplicates plugin cache latest and version directories', () => {
+    const versionPath = join(
+      tmpDir,
+      '.codex',
+      'plugins',
+      'cache',
+      'openai-bundled',
+      'chrome',
+      '26.519.41501',
+      'skills',
+      'chrome',
+    );
+    const latestPath = join(
+      tmpDir,
+      '.codex',
+      'plugins',
+      'cache',
+      'openai-bundled',
+      'chrome',
+      'latest',
+      'skills',
+      'chrome',
+    );
+    createSkill(versionPath, 'chrome');
+    createSkill(latestPath, 'chrome');
+
+    const result = discoverSkills({ home: tmpDir });
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('chrome');
+    expect(result[0].path).toBe(latestPath);
+  });
+
   it('finds skills from all three sources', () => {
     createSkill(join(tmpDir, '.codex', 'skills', 'codex-skill'), 'codex-skill');
     createSkill(join(tmpDir, '.claude', 'skills', 'claude-skill'), 'claude-skill');

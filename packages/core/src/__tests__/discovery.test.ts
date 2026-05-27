@@ -38,7 +38,7 @@ describe('discoverSkills', () => {
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('my-skill');
     expect(result[0].source).toBe('codex-user');
-    expect(result[0].sourceLabel).toBe('Codex 技能目录');
+    expect(result[0].sourceLabel).toBe('Codex 本地');
     expect(result[0].agentTargets).toEqual(['codex']);
     expect(result[0].validationStatus).toBe('pass');
     expect(result[0].alreadyImported).toBe(false);
@@ -50,11 +50,11 @@ describe('discoverSkills', () => {
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('claude-skill');
     expect(result[0].source).toBe('claude-user');
-    expect(result[0].sourceLabel).toBe('Claude 技能目录');
+    expect(result[0].sourceLabel).toBe('Claude 本地');
     expect(result[0].agentTargets).toEqual(['claude']);
   });
 
-  it('finds project skills and ignores project skills imported from plugin cache', () => {
+  it('finds project skills from all origins and ignores non-skill project folders', () => {
     createSkill(join(tmpDir, 'project', 'skills', 'project-skill'), 'project-skill');
     createSkill(join(tmpDir, 'project', 'skills', 'cached-skill'), 'cached-skill');
     mkdirSync(join(tmpDir, 'project', 'skills', 'plugin-folder'), { recursive: true });
@@ -77,11 +77,14 @@ describe('discoverSkills', () => {
       registryPath,
     });
 
-    expect(result.map((s) => s.name)).toEqual(['project-skill']);
-    expect(result[0].source).toBe('skillgov-project');
-    expect(result[0].sourceLabel).toBe('SkillGov 技能库');
-    expect(result[0].agentTargets).toEqual([]);
-    expect(result[0].alreadyImported).toBe(true);
+    const byName = new Map(result.map((skill) => [skill.name, skill]));
+    expect([...byName.keys()].sort()).toEqual(['cached-skill', 'project-skill']);
+    expect(byName.get('project-skill')?.source).toBe('skillgov-project');
+    expect(byName.get('project-skill')?.sourceLabel).toBe('手动导入');
+    expect(byName.get('project-skill')?.agentTargets).toEqual([]);
+    expect(byName.get('project-skill')?.alreadyImported).toBe(true);
+    expect(byName.get('cached-skill')?.sourceLabel).toBe('Codex 插件缓存');
+    expect(byName.get('cached-skill')?.alreadyImported).toBe(true);
   });
 
   it('merges duplicate project and agent skills into one row with agent targets', () => {
@@ -94,7 +97,7 @@ describe('discoverSkills', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('shared-skill');
-    expect(result[0].sourceLabel).toBe('SkillGov 技能库、Codex 技能目录');
+    expect(result[0].sourceLabel).toBe('SkillGov 技能库');
     expect(result[0].agentTargets).toEqual(['codex']);
     expect(result[0].alreadyImported).toBe(true);
   });

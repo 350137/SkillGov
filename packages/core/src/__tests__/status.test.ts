@@ -100,7 +100,7 @@ describe('getProjectStatus', () => {
     expect(beta?.installedTargets).toEqual([]);
   });
 
-  it('uses the same non-plugin inventory across project and agent skill directories', () => {
+  it('uses the same managed inventory across project and agent skill directories', () => {
     mkdirSync(join(tmpDir, 'skills', 'cached-skill'), { recursive: true });
     writeFileSync(
       join(tmpDir, 'skills', 'cached-skill', 'SKILL.md'),
@@ -141,8 +141,8 @@ describe('getProjectStatus', () => {
     const status = getProjectStatus(tmpDir, { home: tmpDir });
     const names = status.skills.map((s) => s.name).sort();
 
-    expect(names).toEqual(['alpha-skill', 'beta-skill', 'codex-only']);
-    expect(status.registryEntries).toBe(1);
+    expect(names).toEqual(['alpha-skill', 'beta-skill', 'cached-skill', 'codex-only']);
+    expect(status.registryEntries).toBe(2);
     expect(status.skills.find((s) => s.name === 'codex-only')?.installedTargets).toEqual(['codex']);
   });
 });

@@ -80,9 +80,7 @@ export function getProjectStatus(
 
   // Count registry entries
   const skillsReg = readRegistry<SkillsRegistry>(registryPath, { skills: {} });
-  const registryEntries = Object.values(skillsReg.skills).filter(
-    (entry) => entry.origin !== 'codex-plugin-cache',
-  ).length;
+  const registryEntries = Object.keys(skillsReg.skills).length;
 
   return { projectRoot, skills, installs, registryEntries };
 }

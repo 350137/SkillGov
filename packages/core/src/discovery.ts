@@ -1,4 +1,4 @@
-// Local skill discovery scans Codex and Claude user skill directories and reports validation status.
+// Local skill discovery scans SkillGov-managed skills plus Codex and Claude user skill directories.
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -29,8 +29,15 @@ export interface DiscoveryOptions {
 
 const SOURCE_METADATA: Record<SkillSource, { sourceLabel: string; agentTargets: AgentTarget[] }> = {
   'skillgov-project': { sourceLabel: 'SkillGov 技能库', agentTargets: [] },
-  'codex-user': { sourceLabel: 'Codex 技能目录', agentTargets: ['codex'] },
-  'claude-user': { sourceLabel: 'Claude 技能目录', agentTargets: ['claude'] },
+  'codex-user': { sourceLabel: 'Codex 本地', agentTargets: ['codex'] },
+  'claude-user': { sourceLabel: 'Claude 本地', agentTargets: ['claude'] },
+};
+
+const ORIGIN_LABELS: Record<string, string> = {
+  local: '手动导入',
+  'codex-user': 'Codex 本地',
+  'claude-user': 'Claude 本地',
+  'codex-plugin-cache': 'Codex 插件缓存',
 };
 
 function scanSkillDir(
@@ -94,6 +101,11 @@ function addUnique<T>(items: T[], nextItems: T[]): T[] {
   return merged;
 }
 
+function labelForOrigin(origin?: string): string {
+  if (!origin) return SOURCE_METADATA['skillgov-project'].sourceLabel;
+  return ORIGIN_LABELS[origin] || origin;
+}
+
 function mergeCandidates(
   candidates: Array<{
     name: string;
@@ -119,7 +131,15 @@ function mergeCandidates(
     }
 
     if (!existing.sourceLabel.split('、').includes(candidate.sourceLabel)) {
-      existing.sourceLabel = `${existing.sourceLabel}、${candidate.sourceLabel}`;
+      if (existing.source === 'skillgov-project') {
+        // Keep provenance in the source column and track agent usage separately.
+      } else if (candidate.source === 'skillgov-project') {
+        existing.path = candidate.path;
+        existing.source = candidate.source;
+        existing.sourceLabel = candidate.sourceLabel;
+      } else {
+        existing.sourceLabel = `${existing.sourceLabel}、${candidate.sourceLabel}`;
+      }
     }
     existing.agentTargets = addUnique(existing.agentTargets, candidate.agentTargets);
   }
@@ -137,12 +157,12 @@ export function discoverSkills(options: DiscoveryOptions = {}): DiscoveredSkill[
     (options.projectRoot ? join(options.projectRoot, 'registry', 'installs.json') : undefined);
 
   const importedNames = new Set<string>();
-  const pluginOriginNames = new Set<string>();
+  const importedOrigins = new Map<string, string>();
   if (registryPath) {
     const registry = readRegistry<SkillsRegistry>(registryPath, { skills: {} });
     for (const [name, entry] of Object.entries(registry.skills)) {
       importedNames.add(name);
-      if (entry.origin === 'codex-plugin-cache') pluginOriginNames.add(name);
+      importedOrigins.set(name, entry.origin);
     }
   }
 
@@ -157,17 +177,19 @@ export function discoverSkills(options: DiscoveryOptions = {}): DiscoveredSkill[
   }
 
   const projectCandidates = options.projectRoot
-    ? scanSkillDir(join(options.projectRoot, 'skills'), 'skillgov-project').filter(
-        (candidate) =>
-          !pluginOriginNames.has(candidate.name) && existsSync(join(candidate.path, 'SKILL.md')),
-      )
+    ? scanSkillDir(join(options.projectRoot, 'skills'), 'skillgov-project')
+        .filter((candidate) => existsSync(join(candidate.path, 'SKILL.md')))
+        .map((candidate) => ({
+          ...candidate,
+          sourceLabel: labelForOrigin(importedOrigins.get(candidate.name)),
+        }))
     : [];
 
   const candidates = mergeCandidates([
     ...projectCandidates,
     ...scanSkillDir(join(home, '.codex', 'skills'), 'codex-user'),
     ...scanSkillDir(join(home, '.claude', 'skills'), 'claude-user'),
-  ]).filter((candidate) => !pluginOriginNames.has(candidate.name));
+  ]);
 
   const results: DiscoveredSkill[] = [];
 

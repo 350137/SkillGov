@@ -2,6 +2,7 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { getMappingTargets } from './mapping.js';
 import { readRegistry } from './registry.js';
 import type { InstallsRegistry, SkillsRegistry } from './registry.js';
 import { validateSkill } from './validator.js';
@@ -15,9 +16,23 @@ export interface DiscoveredSkill {
   source: SkillSource;
   sourceLabel: string;
   agentTargets: AgentTarget[];
+  mappingTargets: ReturnType<typeof getMappingTargets>;
   validationStatus: 'pass' | 'fixable' | 'fail';
   issues: string[];
   alreadyImported: boolean;
+}
+
+export interface NonSkillDirectory {
+  name: string;
+  path: string;
+  source: SkillSource;
+  sourceLabel: string;
+  issue: 'Missing SKILL.md';
+}
+
+export interface SkillInventory {
+  skills: DiscoveredSkill[];
+  nonSkillDirectories: NonSkillDirectory[];
 }
 
 export interface DiscoveryOptions {
@@ -25,6 +40,7 @@ export interface DiscoveryOptions {
   projectRoot?: string;
   registryPath?: string;
   installsPath?: string;
+  mappingsPath?: string;
 }
 
 const SOURCE_METADATA: Record<SkillSource, { sourceLabel: string; agentTargets: AgentTarget[] }> = {
@@ -40,30 +56,27 @@ const ORIGIN_LABELS: Record<string, string> = {
   'codex-plugin-cache': 'Codex 插件缓存',
 };
 
-function scanSkillDir(
-  dir: string,
-  source: SkillSource,
-): Array<{
+interface SkillCandidate {
   name: string;
   path: string;
   source: SkillSource;
   sourceLabel: string;
   agentTargets: AgentTarget[];
-}> {
-  const results: Array<{
-    name: string;
-    path: string;
-    source: SkillSource;
-    sourceLabel: string;
-    agentTargets: AgentTarget[];
-  }> = [];
-  if (!existsSync(dir)) return results;
+}
+
+function scanSkillDir(
+  dir: string,
+  source: SkillSource,
+): { skills: SkillCandidate[]; nonSkillDirectories: NonSkillDirectory[] } {
+  const skills: SkillCandidate[] = [];
+  const nonSkillDirectories: NonSkillDirectory[] = [];
+  if (!existsSync(dir)) return { skills, nonSkillDirectories };
 
   let entries: string[];
   try {
     entries = readdirSync(dir);
   } catch {
-    return results;
+    return { skills, nonSkillDirectories };
   }
 
   for (const entry of entries) {
@@ -75,18 +88,74 @@ function scanSkillDir(
     } catch {
       continue;
     }
-    if (stat.isDirectory()) {
-      results.push({
-        name: entry,
-        path: fullPath,
-        source,
-        sourceLabel: SOURCE_METADATA[source].sourceLabel,
+    if (!stat.isDirectory()) continue;
+    const base = {
+      name: entry,
+      path: fullPath,
+      source,
+      sourceLabel: SOURCE_METADATA[source].sourceLabel,
+    };
+    if (existsSync(join(fullPath, 'SKILL.md'))) {
+      skills.push({
+        ...base,
         agentTargets: [...SOURCE_METADATA[source].agentTargets],
+      });
+    } else {
+      nonSkillDirectories.push({
+        ...base,
+        issue: 'Missing SKILL.md',
       });
     }
   }
 
-  return results;
+  return { skills, nonSkillDirectories };
+}
+
+function mapProjectCandidateOrigin(
+  candidates: SkillCandidate[],
+  importedOrigins: Map<string, string>,
+): SkillCandidate[] {
+  return candidates.map((candidate) => ({
+    ...candidate,
+    sourceLabel: labelForOrigin(importedOrigins.get(candidate.name)),
+  }));
+}
+
+function mapProjectNonSkillOrigin(
+  directories: NonSkillDirectory[],
+  importedOrigins: Map<string, string>,
+): NonSkillDirectory[] {
+  return directories.map((directory) => ({
+    ...directory,
+    sourceLabel: labelForOrigin(importedOrigins.get(directory.name)),
+  }));
+}
+
+function scanInventoryRoots(
+  options: DiscoveryOptions,
+  home: string,
+  importedOrigins: Map<string, string>,
+): { candidates: SkillCandidate[]; nonSkillDirectories: NonSkillDirectory[] } {
+  const candidates: SkillCandidate[] = [];
+  const nonSkillDirectories: NonSkillDirectory[] = [];
+
+  if (options.projectRoot) {
+    const projectScan = scanSkillDir(join(options.projectRoot, 'skills'), 'skillgov-project');
+    candidates.push(...mapProjectCandidateOrigin(projectScan.skills, importedOrigins));
+    nonSkillDirectories.push(
+      ...mapProjectNonSkillOrigin(projectScan.nonSkillDirectories, importedOrigins),
+    );
+  }
+
+  const codexScan = scanSkillDir(join(home, '.codex', 'skills'), 'codex-user');
+  candidates.push(...codexScan.skills);
+  nonSkillDirectories.push(...codexScan.nonSkillDirectories);
+
+  const claudeScan = scanSkillDir(join(home, '.claude', 'skills'), 'claude-user');
+  candidates.push(...claudeScan.skills);
+  nonSkillDirectories.push(...claudeScan.nonSkillDirectories);
+
+  return { candidates, nonSkillDirectories };
 }
 
 function isAgentTarget(target: string): target is AgentTarget {
@@ -106,21 +175,7 @@ function labelForOrigin(origin?: string): string {
   return ORIGIN_LABELS[origin] || origin;
 }
 
-function mergeCandidates(
-  candidates: Array<{
-    name: string;
-    path: string;
-    source: SkillSource;
-    sourceLabel: string;
-    agentTargets: AgentTarget[];
-  }>,
-): Array<{
-  name: string;
-  path: string;
-  source: SkillSource;
-  sourceLabel: string;
-  agentTargets: AgentTarget[];
-}> {
+function mergeCandidates(candidates: SkillCandidate[]): SkillCandidate[] {
   const byName = new Map<string, (typeof candidates)[number]>();
 
   for (const candidate of candidates) {
@@ -147,7 +202,7 @@ function mergeCandidates(
   return [...byName.values()];
 }
 
-export function discoverSkills(options: DiscoveryOptions = {}): DiscoveredSkill[] {
+export function discoverSkillInventory(options: DiscoveryOptions = {}): SkillInventory {
   const home = options.home || homedir();
   const registryPath =
     options.registryPath ||
@@ -155,6 +210,9 @@ export function discoverSkills(options: DiscoveryOptions = {}): DiscoveredSkill[
   const installsPath =
     options.installsPath ||
     (options.projectRoot ? join(options.projectRoot, 'registry', 'installs.json') : undefined);
+  const mappingsPath =
+    options.mappingsPath ||
+    (options.projectRoot ? join(options.projectRoot, 'registry', 'mappings.json') : undefined);
 
   const importedNames = new Set<string>();
   const importedOrigins = new Map<string, string>();
@@ -176,28 +234,20 @@ export function discoverSkills(options: DiscoveryOptions = {}): DiscoveredSkill[
     }
   }
 
-  const projectCandidates = options.projectRoot
-    ? scanSkillDir(join(options.projectRoot, 'skills'), 'skillgov-project')
-        .filter((candidate) => existsSync(join(candidate.path, 'SKILL.md')))
-        .map((candidate) => ({
-          ...candidate,
-          sourceLabel: labelForOrigin(importedOrigins.get(candidate.name)),
-        }))
-    : [];
-
-  const candidates = mergeCandidates([
-    ...projectCandidates,
-    ...scanSkillDir(join(home, '.codex', 'skills'), 'codex-user'),
-    ...scanSkillDir(join(home, '.claude', 'skills'), 'claude-user'),
-  ]);
+  const scanned = scanInventoryRoots(options, home, importedOrigins);
+  const candidates = mergeCandidates(scanned.candidates);
 
   const results: DiscoveredSkill[] = [];
 
   for (const candidate of candidates) {
     const validation = validateSkill(candidate.path);
+    const mappingTargets = getMappingTargets(candidate.name, mappingsPath);
+    const linkedMappingTargets = mappingTargets
+      .filter((mapping) => mapping.status === 'linked')
+      .map((mapping) => mapping.target);
     const agentTargets = addUnique(
-      candidate.agentTargets,
-      installedBySkill.get(candidate.name) || [],
+      addUnique(candidate.agentTargets, installedBySkill.get(candidate.name) || []),
+      linkedMappingTargets,
     );
     results.push({
       name: candidate.name,
@@ -205,11 +255,16 @@ export function discoverSkills(options: DiscoveryOptions = {}): DiscoveredSkill[
       source: candidate.source,
       sourceLabel: candidate.sourceLabel,
       agentTargets,
+      mappingTargets,
       validationStatus: validation.status,
       issues: validation.issues.map((i) => i.message),
       alreadyImported: importedNames.has(candidate.name) || candidate.source === 'skillgov-project',
     });
   }
 
-  return results;
+  return { skills: results, nonSkillDirectories: scanned.nonSkillDirectories };
+}
+
+export function discoverSkills(options: DiscoveryOptions = {}): DiscoveredSkill[] {
+  return discoverSkillInventory(options).skills;
 }

@@ -10,6 +10,7 @@ import {
 } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { checkCompatibility } from './compat.js';
+import { linkManagedSkillToAgent } from './mapping.js';
 import { appendOperation, readOperations } from './operations.js';
 import type { Operation } from './operations.js';
 import { readRegistry, writeRegistry } from './registry.js';
@@ -22,6 +23,7 @@ export interface InstallOptions {
   projectRoot: string;
   registryPath: string;
   operationsPath: string;
+  mappingsPath?: string;
 }
 
 export interface InstallResult {
@@ -132,9 +134,27 @@ export function installSkill(
     };
   }
 
-  // 4. Create link
   const isOverlay = skillSource.includes('overlays');
-  createLink(skillSource, targetSkillDir, linkMode);
+  if (isOverlay) {
+    createLink(skillSource, targetSkillDir, linkMode);
+  } else if (targetName === 'codex' || targetName === 'claude') {
+    const mapping = linkManagedSkillToAgent(skillName, targetName, {
+      projectRoot,
+      mappingsPath: options.mappingsPath || resolve(projectRoot, 'registry', 'mappings.json'),
+      linkMode,
+    });
+    if (mapping.status !== 'linked') {
+      return {
+        status: 'blocked',
+        skillName,
+        targetName,
+        linkPath: mapping.linkPath,
+        message: mapping.message,
+      };
+    }
+  } else {
+    createLink(skillSource, targetSkillDir, linkMode);
+  }
 
   // 5. Record install in registry
   const installKey = `${skillName}@${targetName}`;

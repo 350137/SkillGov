@@ -145,4 +145,22 @@ describe('getProjectStatus', () => {
     expect(status.registryEntries).toBe(2);
     expect(status.skills.find((s) => s.name === 'codex-only')?.installedTargets).toEqual(['codex']);
   });
+
+  it('reports non-skill directories without counting them as skills', () => {
+    mkdirSync(join(tmpDir, 'skills', 'not-a-skill'), { recursive: true });
+    writeFileSync(join(tmpDir, 'skills', 'not-a-skill', 'README.md'), 'notes', 'utf-8');
+
+    const status = getProjectStatus(tmpDir, { home: join(tmpDir, 'home') });
+
+    expect(status.skills.map((s) => s.name).sort()).toEqual(['alpha-skill', 'beta-skill']);
+    expect(status.nonSkillDirectories).toEqual([
+      {
+        name: 'not-a-skill',
+        path: join(tmpDir, 'skills', 'not-a-skill'),
+        source: 'skillgov-project',
+        sourceLabel: 'SkillGov 技能库',
+        issue: 'Missing SKILL.md',
+      },
+    ]);
+  });
 });

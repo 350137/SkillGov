@@ -39,6 +39,27 @@ export interface InstallsRegistry {
   installs: Record<string, InstallRecord>;
 }
 
+export type SkillMappingTarget = 'codex' | 'claude';
+
+export interface SkillMappingLink {
+  path: string;
+  mode: 'junction' | 'symlink' | 'copy';
+  status: 'linked' | 'missing' | 'conflict';
+  backupPath?: string;
+  updatedAt: string;
+}
+
+export interface SkillMapping {
+  skillName: string;
+  canonicalPath: string;
+  links: Partial<Record<SkillMappingTarget, SkillMappingLink>>;
+  updatedAt: string;
+}
+
+export interface SkillMappingsRegistry {
+  mappings: Record<string, SkillMapping>;
+}
+
 function ensureDir(path: string): void {
   const dir = dirname(path);
   if (!existsSync(dir)) {

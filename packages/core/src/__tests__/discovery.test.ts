@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { discoverSkills } from '../discovery.js';
+import { discoverSkillInventory, discoverSkills } from '../discovery.js';
 
 let tmpDir: string;
 
@@ -153,12 +153,23 @@ describe('discoverSkills', () => {
     expect(result[0].alreadyImported).toBe(true);
   });
 
-  it('reports fail status for directories without SKILL.md', () => {
+  it('excludes directories without SKILL.md and reports them as non-skill directories', () => {
     mkdirSync(join(tmpDir, '.codex', 'skills', 'broken'), { recursive: true });
     writeFileSync(join(tmpDir, '.codex', 'skills', 'broken', 'readme.txt'), 'not a skill', 'utf-8');
     const result = discoverSkills({ home: tmpDir });
-    expect(result).toHaveLength(1);
-    expect(result[0].validationStatus).toBe('fail');
+    expect(result).toEqual([]);
+
+    const inventory = discoverSkillInventory({ home: tmpDir });
+    expect(inventory.skills).toEqual([]);
+    expect(inventory.nonSkillDirectories).toEqual([
+      {
+        name: 'broken',
+        path: join(tmpDir, '.codex', 'skills', 'broken'),
+        source: 'codex-user',
+        sourceLabel: 'Codex 本地',
+        issue: 'Missing SKILL.md',
+      },
+    ]);
   });
 
   it('reports fixable status for skills with warnings', () => {

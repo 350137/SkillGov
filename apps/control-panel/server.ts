@@ -5,6 +5,7 @@ import { URL } from 'node:url';
 import {
   VERSION,
   checkCompatibility,
+  discoverSkillInventory,
   discoverSkills,
   generateOverlayTask,
   generateRepairTask,
@@ -72,6 +73,7 @@ const apiRoutes: Record<string, ApiHandler> = {
       projectRoot: config.projectRoot,
       registryPath: `${config.projectRoot}/registry/installs.json`,
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
     }) as unknown as Record<string, unknown>;
   },
 
@@ -131,13 +133,12 @@ const apiRoutes: Record<string, ApiHandler> = {
   discover: () => {
     const config = loadConfig();
     const registryPath = `${config.projectRoot}/registry/skills.json`;
-    return {
-      skills: discoverSkills({
-        projectRoot: config.projectRoot,
-        registryPath,
-        installsPath: `${config.projectRoot}/registry/installs.json`,
-      }),
-    } as unknown as Record<string, unknown>;
+    return discoverSkillInventory({
+      projectRoot: config.projectRoot,
+      registryPath,
+      installsPath: `${config.projectRoot}/registry/installs.json`,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+    }) as unknown as Record<string, unknown>;
   },
 
   'discover/import': () => {
@@ -242,28 +243,17 @@ th { font-weight: 600; background: #fafafa; }
 </div>
 <div id="status-summary"></div>
 
-<h2 data-i18n="discoverHeading">Local Skills</h2>
+<h2 data-i18n="discoverHeading">Skill Library</h2>
 <div class="grid">
   <button onclick="callAPI('discover')" data-i18n="scanLocal">Scan Local Skills</button>
-  <button onclick="callAPI('discover/import')" class="primary" data-i18n="importPassed">Import Passed Skills</button>
 </div>
 <div id="discover-summary"></div>
 <div id="discover-table"></div>
 <div id="discover-pagination"></div>
 
-<h2 data-i18n="importValidateHeading">Import & Validate</h2>
-<div class="field-row">
-  <input id="import-path" placeholder="Path to skill directory..." data-i18n-placeholder="importPathPlaceholder" />
-  <button onclick="callAPI('import')" data-i18n="importButton">Import</button>
-</div>
-<div class="field-row">
-  <input id="validate-path" placeholder="Path to skill..." data-i18n-placeholder="skillPathPlaceholder" />
-  <button onclick="callAPI('validate')" data-i18n="validateButton">Validate</button>
-</div>
-
 <h2 data-i18n="compatibilityHeading">Compatibility</h2>
 <div class="field-row">
-  <input id="compat-path" placeholder="Skill path..." data-i18n-placeholder="skillPathPlaceholder" />
+  <input id="compat-number" placeholder="Skill number..." data-i18n-placeholder="skillNumberPlaceholder" />
   <select id="compat-target"><option value="claude">Claude</option><option value="codex">Codex</option></select>
   <button onclick="callAPI('compat')" data-i18n="checkButton">Check</button>
 </div>
@@ -300,12 +290,13 @@ const translations = {
     languageLabel: 'Language',
     statusHeading: 'Status',
     refreshStatus: 'Refresh Status',
-    discoverHeading: 'Local Skills',
-    scanLocal: 'Scan Local Skills',
+    discoverHeading: 'Skill Library',
+    scanLocal: 'Refresh Skill Library',
     importPassed: 'Import Passed Skills',
     importValidateHeading: 'Import & Validate',
     importPathPlaceholder: 'Path to skill directory...',
     skillPathPlaceholder: 'Path to skill...',
+    skillNumberPlaceholder: 'Skill number...',
     skillNamePlaceholder: 'Skill name...',
     importButton: 'Import',
     validateButton: 'Validate',
@@ -325,11 +316,14 @@ const translations = {
     loading: 'Loading...',
     errorPrefix: 'Error: ',
     tableSkill: 'Skill',
+    tableNumber: '#',
     tableSource: 'Source',
     tableValidation: 'Validation',
     tablePath: 'Path',
     tableImported: 'Imported',
     tableAgent: 'Agent',
+    tableCodexMapping: 'Codex Mapping',
+    tableClaudeMapping: 'Claude Mapping',
     tableOverlay: 'Overlay',
     tableTargets: 'Targets',
     yes: 'Yes',
@@ -339,7 +333,8 @@ const translations = {
     noProject: '(no project)',
     statusLoadFailed: 'Could not load status',
     totalManaged: 'Total Skills',
-    totalDiscovered: 'Local Discovered',
+    totalDiscovered: 'Library Skills',
+    excludedDirectories: 'Excluded Non-Skill Dirs',
     installedClaude: 'Used by Claude',
     installedCodex: 'Used by Codex',
     notInstalled: 'Not Used by Agent',
@@ -350,19 +345,25 @@ const translations = {
     prevPage: 'Previous',
     nextPage: 'Next',
     pageInfo: 'Page {current} / {total}',
-    totalSkills: '{count} local skills',
+    totalSkills: '{count} skills',
+    mappingLinked: 'Linked',
+    mappingMissing: 'Missing',
+    mappingConflict: 'Conflict',
+    mappingUnlinked: '-',
+    invalidSkillNumber: 'Enter a valid skill number from the current skill list.',
   },
   zh: {
     title: 'SkillGov 控制面板',
     languageLabel: '语言',
     statusHeading: '状态',
     refreshStatus: '刷新状态',
-    discoverHeading: '本机技能',
-    scanLocal: '扫描本机技能',
+    discoverHeading: '技能库',
+    scanLocal: '刷新技能库',
     importPassed: '导入已通过技能',
     importValidateHeading: '导入与验证',
     importPathPlaceholder: '技能目录路径...',
     skillPathPlaceholder: '技能路径...',
+    skillNumberPlaceholder: '技能编号...',
     skillNamePlaceholder: '技能名称...',
     importButton: '导入',
     validateButton: '验证',
@@ -382,11 +383,14 @@ const translations = {
     loading: '加载中...',
     errorPrefix: '错误：',
     tableSkill: '技能',
+    tableNumber: '编号',
     tableSource: '来源',
     tableValidation: '规范校验',
     tablePath: '路径',
     tableImported: '已导入',
     tableAgent: '智能体',
+    tableCodexMapping: 'Codex 映射',
+    tableClaudeMapping: 'Claude 映射',
     tableOverlay: '覆盖层',
     tableTargets: '目标',
     yes: '是',
@@ -396,7 +400,8 @@ const translations = {
     noProject: '（无项目）',
     statusLoadFailed: '无法加载状态',
     totalManaged: '总技能数',
-    totalDiscovered: '本机发现',
+    totalDiscovered: '技能库数量',
+    excludedDirectories: '非技能目录',
     installedClaude: '用于 Claude',
     installedCodex: '用于 Codex',
     notInstalled: '未用于智能体',
@@ -407,7 +412,12 @@ const translations = {
     prevPage: '上一页',
     nextPage: '下一页',
     pageInfo: '第 {current} / {total} 页',
-    totalSkills: '共 {count} 个本机技能',
+    totalSkills: '共 {count} 个技能',
+    mappingLinked: '已链接',
+    mappingMissing: '缺失',
+    mappingConflict: '冲突',
+    mappingUnlinked: '-',
+    invalidSkillNumber: '请输入技能列表中的有效编号。',
   },
 };
 
@@ -441,6 +451,7 @@ function applyLanguage(language) {
 let discoverPage = 0;
 const PAGE_SIZE = 10;
 let latestDiscoverData = [];
+let latestNonSkillDirectories = [];
 
 function renderStatusSummary(data) {
   latestStatusData = data;
@@ -451,17 +462,20 @@ function renderStatusSummary(data) {
   const installedCodex = skills.filter((s) => s.installedTargets && s.installedTargets.includes('codex')).length;
   const notInstalled = skills.filter((s) => !s.installedTargets || s.installedTargets.length === 0).length;
   const withOverlay = skills.filter((s) => s.hasOverlay).length;
+  const excludedDirectories = (data.nonSkillDirectories || []).length;
   el.innerHTML = \`<table><tbody>
     <tr><td><strong>\${t('totalManaged')}</strong></td><td>\${totalManaged}</td></tr>
     <tr><td><strong>\${t('installedClaude')}</strong></td><td>\${installedClaude}</td></tr>
     <tr><td><strong>\${t('installedCodex')}</strong></td><td>\${installedCodex}</td></tr>
     <tr><td><strong>\${t('notInstalled')}</strong></td><td>\${notInstalled}</td></tr>
     <tr><td><strong>\${t('withOverlay')}</strong></td><td>\${withOverlay}</td></tr>
+    <tr><td><strong>\${t('excludedDirectories')}</strong></td><td>\${excludedDirectories}</td></tr>
   </tbody></table>\`;
 }
 
-function renderDiscoverTable(skills) {
+function renderDiscoverTable(skills, nonSkillDirectories) {
   latestDiscoverData = skills || [];
+  latestNonSkillDirectories = nonSkillDirectories || [];
   discoverPage = 0;
   renderDiscoverPage();
 }
@@ -470,6 +484,21 @@ function formatAgentTargets(agentTargets) {
   const labels = { codex: 'Codex', claude: 'Claude' };
   if (!agentTargets || agentTargets.length === 0) return t('none');
   return agentTargets.map((target) => labels[target] || target).join(', ');
+}
+
+function formatMappingStatus(mappingTargets, target) {
+  const mapping = (mappingTargets || []).find((item) => item.target === target);
+  if (!mapping) return t('mappingUnlinked');
+  if (mapping.status === 'linked') return t('mappingLinked');
+  if (mapping.status === 'missing') return t('mappingMissing');
+  if (mapping.status === 'conflict') return t('mappingConflict');
+  return mapping.status || t('mappingUnlinked');
+}
+
+function resolveSkillByNumber(value) {
+  const number = Number.parseInt(value, 10);
+  if (!Number.isInteger(number) || number < 1 || number > latestDiscoverData.length) return null;
+  return latestDiscoverData[number - 1];
 }
 
 function renderDiscoverPage() {
@@ -495,15 +524,17 @@ function renderDiscoverPage() {
     <tr><td><strong>\${t('validationPass')}</strong></td><td>\${passCount}</td></tr>
     <tr><td><strong>\${t('validationFixable')}</strong></td><td>\${fixableCount}</td></tr>
     <tr><td><strong>\${t('validationFail')}</strong></td><td>\${failCount}</td></tr>
+    <tr><td><strong>\${t('excludedDirectories')}</strong></td><td>\${latestNonSkillDirectories.length}</td></tr>
   </tbody></table>\`;
 
   const start = discoverPage * PAGE_SIZE;
   const page = skills.slice(start, start + PAGE_SIZE);
-  const rows = page.map((s) => {
+  const rows = page.map((s, index) => {
     const badgeClass = s.validationStatus === 'pass' ? 'status-pass' : s.validationStatus === 'fixable' ? 'status-fixable' : 'status-fail';
-    return \`<tr><td>\${s.name}</td><td>\${s.sourceLabel || s.source}</td><td><span class="status-badge \${badgeClass}">\${s.validationStatus}</span></td><td>\${s.alreadyImported ? t('yes') : t('no')}</td><td>\${formatAgentTargets(s.agentTargets)}</td><td style="font-size:0.75rem;color:#888;">\${s.path}</td></tr>\`;
+    const rowNumber = start + index + 1;
+    return \`<tr><td>\${rowNumber}</td><td>\${s.name}</td><td>\${s.sourceLabel || s.source}</td><td><span class="status-badge \${badgeClass}">\${s.validationStatus}</span></td><td>\${formatAgentTargets(s.agentTargets)}</td><td>\${formatMappingStatus(s.mappingTargets, 'codex')}</td><td>\${formatMappingStatus(s.mappingTargets, 'claude')}</td><td style="font-size:0.75rem;color:#888;">\${s.path}</td></tr>\`;
   }).join('');
-  table.innerHTML = \`<table><thead><tr><th>\${t('tableSkill')}</th><th>\${t('tableSource')}</th><th>\${t('tableValidation')}</th><th>\${t('tableImported')}</th><th>\${t('tableAgent')}</th><th>\${t('tablePath')}</th></tr></thead><tbody>\${rows}</tbody></table>\`;
+  table.innerHTML = \`<table><thead><tr><th>\${t('tableNumber')}</th><th>\${t('tableSkill')}</th><th>\${t('tableSource')}</th><th>\${t('tableValidation')}</th><th>\${t('tableAgent')}</th><th>\${t('tableCodexMapping')}</th><th>\${t('tableClaudeMapping')}</th><th>\${t('tablePath')}</th></tr></thead><tbody>\${rows}</tbody></table>\`;
 
   const pageInfo = t('pageInfo').replace('{current}', discoverPage + 1).replace('{total}', totalPages);
   pagination.innerHTML = \`<div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
@@ -527,7 +558,6 @@ async function callAPI(endpoint) {
   const fields = {
     import: { sourcePath: 'import-path' },
     validate: { path: 'validate-path' },
-    compat: { skillPath: 'compat-path', target: 'compat-target' },
     install: { skillName: 'install-skill', target: 'install-target' },
     uninstall: { skillName: 'install-skill', target: 'install-target' },
     'task/repair': { skillPath: 'task-path' },
@@ -540,6 +570,17 @@ async function callAPI(endpoint) {
       const el = document.getElementById(elId);
       if (el) body[key] = el.value || el.value;
     }
+  }
+
+  if (endpoint === 'compat') {
+    const skill = resolveSkillByNumber(document.getElementById('compat-number').value);
+    const target = document.getElementById('compat-target').value;
+    if (!skill) {
+      output.textContent = t('invalidSkillNumber');
+      return;
+    }
+    body.skillPath = skill.path;
+    body.target = target;
   }
 
   try {
@@ -555,7 +596,7 @@ async function callAPI(endpoint) {
       renderStatusSummary(data);
     }
     if (endpoint === 'discover' && data.skills) {
-      renderDiscoverTable(data.skills);
+      renderDiscoverTable(data.skills, data.nonSkillDirectories);
     }
     if (endpoint === 'discover/import' && data.results) {
       callAPI('discover');
@@ -571,6 +612,7 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('language-select').addEventListener('change', (event) => {
     applyLanguage(event.target.value);
     if (latestStatusData) renderStatusSummary(latestStatusData);
+    if (latestDiscoverData.length > 0) renderDiscoverPage();
   });
   const searchParams = new URLSearchParams(window.location.search);
   const pp = document.getElementById('project-path');

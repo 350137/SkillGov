@@ -12,6 +12,10 @@ export type {
   CompatibilityRegistry,
   InstallRecord,
   InstallsRegistry,
+  SkillMapping,
+  SkillMappingLink,
+  SkillMappingTarget,
+  SkillMappingsRegistry,
 } from './registry.js';
 export { appendOperation, readOperations } from './operations.js';
 export type { Operation, OperationInput } from './operations.js';
@@ -30,9 +34,16 @@ export { generateRepairTask, generateOverlayTask } from './tasks.js';
 export type { RepairTaskOptions, OverlayTaskOptions, TaskResult } from './tasks.js';
 export { installSkill, uninstallSkill, rollbackLastInstall } from './installer.js';
 export type { LinkMode, InstallOptions, InstallResult } from './installer.js';
+export { getMappingTargets, linkManagedSkillToAgent, readSkillMappings } from './mapping.js';
+export type { LinkManagedSkillOptions, LinkManagedSkillResult } from './mapping.js';
 export { getProjectStatus } from './status.js';
 export type { ProjectStatus, SkillStatus } from './status.js';
 export { runDoctor } from './doctor.js';
 export type { DoctorIssue, DoctorReport } from './doctor.js';
-export { discoverSkills } from './discovery.js';
-export type { DiscoveredSkill, DiscoveryOptions } from './discovery.js';
+export { discoverSkillInventory, discoverSkills } from './discovery.js';
+export type {
+  DiscoveredSkill,
+  DiscoveryOptions,
+  NonSkillDirectory,
+  SkillInventory,
+} from './discovery.js';

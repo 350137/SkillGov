@@ -156,12 +156,15 @@ describe('Control Panel API', () => {
   it('returns discover results at POST /api/discover', async () => {
     const data = await fetchJson('/api/discover');
     expect(data).toHaveProperty('skills');
+    expect(data).toHaveProperty('nonSkillDirectories');
     expect(Array.isArray(data.skills)).toBe(true);
+    expect(Array.isArray(data.nonSkillDirectories)).toBe(true);
     const skills = data.skills as Array<Record<string, unknown>>;
     expect(skills.every((skill) => skill.source !== 'codex-plugin-cache')).toBe(true);
     for (const skill of skills) {
       expect(skill).toHaveProperty('sourceLabel');
       expect(Array.isArray(skill.agentTargets)).toBe(true);
+      expect(skill).toHaveProperty('mappingTargets');
     }
   });
 
@@ -200,11 +203,12 @@ describe('Control Panel API', () => {
         .on('error', reject);
     });
     expect(res).toContain('data-i18n="scanLocal"');
-    expect(res).toContain('data-i18n="importPassed"');
     expect(res).toContain('id="discover-table"');
     expect(res).toContain('id="status-summary"');
     expect(res).toContain('id="discover-summary"');
     expect(res).toContain('id="discover-pagination"');
+    expect(res).toContain('id="compat-number"');
+    expect(res).toContain('function resolveSkillByNumber');
     expect(res).toContain("searchParams.get('discover') === '1'");
     expect(res).toContain('totalManaged');
     expect(res).toContain('validationPass');
@@ -212,8 +216,14 @@ describe('Control Panel API', () => {
     expect(res).toContain('nextPage');
     expect(res).toContain('changeDiscoverPage');
     expect(res).toContain('function formatAgentTargets');
+    expect(res).toContain('tableNumber');
+    expect(res).toContain('tableCodexMapping');
+    expect(res).toContain('tableClaudeMapping');
     expect(res).toContain('s.sourceLabel || s.source');
     expect(res).toContain('formatAgentTargets(s.agentTargets)');
+    expect(res).toContain('formatMappingStatus(s.mappingTargets');
     expect(res).not.toContain('sourceTarget || s.source');
+    expect(res).not.toContain('id="compat-path"');
+    expect(res).not.toContain('data-i18n="importValidateHeading"');
   });
 });

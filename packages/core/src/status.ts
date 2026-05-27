@@ -1,7 +1,8 @@
 // Project status reporter — aggregates skill inventory, install state, and registry info into a structured report.
 import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { discoverSkills } from './discovery.js';
+import { discoverSkillInventory } from './discovery.js';
+import type { NonSkillDirectory } from './discovery.js';
 import { readRegistry } from './registry.js';
 import type { InstallsRegistry, SkillsRegistry } from './registry.js';
 
@@ -15,6 +16,7 @@ export interface SkillStatus {
 export interface ProjectStatus {
   projectRoot: string;
   skills: SkillStatus[];
+  nonSkillDirectories: NonSkillDirectory[];
   installs: Array<{ skillName: string; target: string; installedAt: string; type: string }>;
   registryEntries: number;
 }
@@ -30,12 +32,13 @@ export function getProjectStatus(
   const overlaysDir = resolve(projectRoot, 'overlays');
   const registryPath = resolve(projectRoot, 'registry', 'skills.json');
   const installsPath = resolve(projectRoot, 'registry', 'installs.json');
-  const discovered = discoverSkills({
+  const inventory = discoverSkillInventory({
     home: options.home,
     projectRoot,
     registryPath,
     installsPath,
   });
+  const discovered = inventory.skills;
   const visibleSkillNames = new Set(discovered.map((skill) => skill.name));
 
   // Read installs registry once for target aggregation
@@ -82,5 +85,11 @@ export function getProjectStatus(
   const skillsReg = readRegistry<SkillsRegistry>(registryPath, { skills: {} });
   const registryEntries = Object.keys(skillsReg.skills).length;
 
-  return { projectRoot, skills, installs, registryEntries };
+  return {
+    projectRoot,
+    skills,
+    nonSkillDirectories: inventory.nonSkillDirectories,
+    installs,
+    registryEntries,
+  };
 }

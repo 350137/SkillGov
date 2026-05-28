@@ -60,9 +60,7 @@ ${controlPanelStyles}
     <select id="target-agent-select" aria-label="Target Agent"></select>
 
     <h3 data-i18n="compatibilityHeading">Compatibility</h3>
-    <div class="field-row">
-      <input id="compat-number" placeholder="Skill number..." data-i18n-placeholder="skillNumberPlaceholder" />
-      <select id="compat-target"><option value="claude">Claude</option><option value="codex">Codex</option></select>
+    <div class="grid">
       <button onclick="callAPI('compat')" data-i18n="checkButton">Check</button>
     </div>
     <div id="compat-result-card"></div>
@@ -73,13 +71,13 @@ ${controlPanelStyles}
       <button onclick="callAPI('unmap')" class="danger" data-i18n="unmapButton">Unmap</button>
     </div>
 
-    <h3 data-i18n="diagnosticsHeading">Diagnostics</h3>
-    <div id="system-diagnostics-panel">
+    <details id="system-diagnostics-panel">
+      <summary data-i18n="diagnosticsHeading">Diagnostics</summary>
       <div class="grid">
         <button onclick="callAPI('doctor')" data-i18n="doctorButton">Run Doctor</button>
         <button onclick="callAPI('rollback')" class="danger" data-i18n="rollbackButton">Rollback Last</button>
       </div>
-    </div>
+    </details>
 
     <h3 data-i18n="outputHeading">Output</h3>
     <details id="raw-output-details" open>

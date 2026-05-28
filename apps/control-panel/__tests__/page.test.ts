@@ -45,11 +45,16 @@ describe('two-pane layout structure', () => {
   it('does not contain removed legacy element IDs', () => {
     expect(bodyHtml).not.toContain('id="install-skill"');
     expect(bodyHtml).not.toContain('id="task-path"');
-    expect(bodyHtml).not.toContain('tableCodexMapping');
-    expect(bodyHtml).not.toContain('tableClaudeMapping');
+    expect(bodyHtml).not.toContain('id="compat-number"');
+    expect(bodyHtml).not.toContain('id="compat-target"');
   });
 
   it('target-agent-select is an empty select placeholder for future dynamic agents', () => {
     expect(bodyHtml).toMatch(/<select[^>]*id="target-agent-select"[^>]*>\s*<\/select>/);
+  });
+
+  it('system-diagnostics-panel is a collapsed details element', () => {
+    expect(bodyHtml).toMatch(/<details[^>]*id="system-diagnostics-panel"[\s\S]*?<\/details>/);
+    expect(bodyHtml).toContain('<summary');
   });
 });

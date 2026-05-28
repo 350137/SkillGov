@@ -43,6 +43,16 @@ declare global {
   }
 }
 
+export function escapeHtmlBody(value: unknown): string {
+  if (value == null) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function selectSkillNumberBody(value: string): void {
   const skill = window.resolveSkillByNumber(value);
   const titleEl = document.getElementById('selected-skill-title');
@@ -88,6 +98,8 @@ function populateTargetOptionsBody(_skill: BrowserSkill): void {
   }
 }
 
+const escapeHtml = escapeHtmlBody;
+
 function renderCompatibilityResultBody(data: Record<string, unknown>): void {
   const card = document.getElementById('compat-result-card');
   const output = document.getElementById('output');
@@ -97,19 +109,19 @@ function renderCompatibilityResultBody(data: Record<string, unknown>): void {
     const statusKey = `${status}Status`;
     const statusLabel = window.t(statusKey) || status;
     let html = '<div class="compat-card">';
-    html += `<span class="status-badge ${badgeClass}">${statusLabel}</span>`;
+    html += `<span class="status-badge ${badgeClass}">${escapeHtml(statusLabel)}</span>`;
     if (data.reason) {
-      html += `<p class="compat-reason">${data.reason}</p>`;
+      html += `<p class="compat-reason">${escapeHtml(data.reason)}</p>`;
     }
     if (data.suggestedAction) {
-      html += `<p class="compat-action"><strong>${window.t('checkButton')}:</strong> ${data.suggestedAction}</p>`;
+      html += `<p class="compat-action"><strong>${escapeHtml(window.t('checkButton'))}:</strong> ${escapeHtml(data.suggestedAction)}</p>`;
     }
     const issues = data.issues as Array<{ severity: string; message: string }> | undefined;
     if (issues && issues.length > 0) {
       html += `<p class="compat-reason">${window.t('compatIssues').replace('{count}', String(issues.length))}</p>`;
       html += '<ul class="compat-issues-list">';
       for (const issue of issues) {
-        html += `<li><span class="status-badge status-${issue.severity === 'error' ? 'fail' : issue.severity === 'warning' ? 'fixable' : 'pass'}">${issue.severity}</span> ${issue.message}</li>`;
+        html += `<li><span class="status-badge status-${issue.severity === 'error' ? 'fail' : issue.severity === 'warning' ? 'fixable' : 'pass'}">${escapeHtml(issue.severity)}</span> ${escapeHtml(issue.message)}</li>`;
       }
       html += '</ul>';
     } else if (status === 'compatible') {
@@ -150,6 +162,53 @@ async function checkSelectedCompatibilityBody(): Promise<void> {
   }
 }
 
+export interface FilterOptions {
+  search?: string;
+  status?: string;
+  source?: string;
+  mapping?: string;
+  agent?: string;
+}
+
+export function filterSkillsBody(skills: BrowserSkill[], opts: FilterOptions): BrowserSkill[] {
+  let result = skills || [];
+  if (opts.search) {
+    const q = opts.search.toLowerCase();
+    result = result.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        (s.path || '').toLowerCase().includes(q) ||
+        (s.sourceLabel || s.source || '').toLowerCase().includes(q) ||
+        (s.appliedAgents || []).some((a) => (a.label || a.id).toLowerCase().includes(q)),
+    );
+  }
+  if (opts.status) {
+    result = result.filter((s) => s.validationStatus === opts.status);
+  }
+  if (opts.source) {
+    result = result.filter((s) => (s.sourceLabel || s.source) === opts.source);
+  }
+  if (opts.mapping) {
+    result = result.filter((s) => {
+      const ms = s.mappingSummary;
+      if (opts.mapping === 'unmapped') return !ms || ms.total === 0;
+      if (opts.mapping === 'linked')
+        return ms && ms.linked > 0 && ms.missing === 0 && ms.conflict === 0;
+      if (opts.mapping === 'missing') return ms && ms.missing > 0;
+      if (opts.mapping === 'conflict') return ms && ms.conflict > 0;
+      return true;
+    });
+  }
+  if (opts.agent) {
+    result = result.filter((s) => {
+      const targets = s.agentTargets || [];
+      const applied = (s.appliedAgents || []).map((a) => a.id);
+      return targets.includes(opts.agent) || applied.includes(opts.agent);
+    });
+  }
+  return result;
+}
+
 function extractFunctionBody(fn: (...args: never[]) => unknown): string {
   return fn
     .toString()
@@ -164,6 +223,16 @@ let selectedSkill = null;
 
 const DEFAULT_TARGETS = ${JSON.stringify(DEFAULT_TARGETS)};
 const STATUS_CLASSES = ${JSON.stringify(STATUS_CLASSES)};
+
+function escapeHtml(value) {
+  if (value == null) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 // Filter state
 let filterSearch = '';
@@ -208,14 +277,19 @@ function renderStatusCards(data) {
   }
   const el = document.getElementById('status-cards');
   if (!el) return;
-  const skills = data.skills || [];
   const profiles = Array.isArray(data.targetProfiles) ? data.targetProfiles : (window.targetProfiles || []);
-  const appliedCount = skills.filter((s) => s.installedTargets && s.installedTargets.length > 0).length;
-  const problemCount = skills.filter((s) => s.validationStatus && s.validationStatus !== 'pass').length;
-  const excludedCount = (data.nonSkillDirectories || []).length;
+
+  // Prefer discover data for metrics when available (has complete validationStatus)
+  const useDiscover = latestDiscoverData && latestDiscoverData.length > 0;
+  const metricSkills = useDiscover ? latestDiscoverData : (data.skills || []);
+  const appliedCount = useDiscover
+    ? metricSkills.filter((s) => s.appliedAgents && s.appliedAgents.length > 0).length
+    : metricSkills.filter((s) => s.installedTargets && s.installedTargets.length > 0).length;
+  const problemCount = metricSkills.filter((s) => s.validationStatus && s.validationStatus !== 'pass').length;
+  const excludedCount = useDiscover ? latestNonSkillDirectories.length : (data.nonSkillDirectories || []).length;
 
   const cards = [
-    { value: skills.length, label: t('metricTotal') || t('totalManaged') },
+    { value: metricSkills.length, label: t('metricTotal') || t('totalManaged') },
     { value: appliedCount, label: t('metricApplied') },
     { value: problemCount, label: t('metricProblem') },
     { value: excludedCount, label: t('metricNonSkill') || t('excludedDirectories') },
@@ -268,7 +342,12 @@ function getFilteredSkills() {
   let skills = latestDiscoverData || [];
   if (filterSearch) {
     const q = filterSearch.toLowerCase();
-    skills = skills.filter((s) => s.name.toLowerCase().includes(q) || (s.sourceLabel || s.source || '').toLowerCase().includes(q));
+    skills = skills.filter((s) =>
+      s.name.toLowerCase().includes(q) ||
+      (s.path || '').toLowerCase().includes(q) ||
+      (s.sourceLabel || s.source || '').toLowerCase().includes(q) ||
+      ((s.appliedAgents || []).some((a) => (a.label || a.id).toLowerCase().includes(q)))
+    );
   }
   if (filterStatus) {
     skills = skills.filter((s) => s.validationStatus === filterStatus);
@@ -302,6 +381,8 @@ function renderDiscoverTable(skills, nonSkillDirectories) {
   discoverPage = 0;
   populateSourceFilter(latestDiscoverData);
   renderDiscoverPage();
+  // Refresh status cards with discover data for accurate metrics
+  if (latestStatusData) renderStatusCards(latestStatusData);
 }
 
 function formatAppliedAgents(skill) {
@@ -318,15 +399,15 @@ function formatAppliedAgentsChip(skill) {
   const agents = skill.appliedAgents && skill.appliedAgents.length > 0
     ? skill.appliedAgents.map((a) => a.label || a.id)
     : skill.agentTargets || [];
-  if (agents.length === 0) return '<span class="agent-chip">' + t('none') + '</span>';
-  return agents.map((a) => '<span class="agent-chip">' + a + '</span>').join('');
+  if (agents.length === 0) return '<span class="agent-chip">' + escapeHtml(t('none')) + '</span>';
+  return agents.map((a) => '<span class="agent-chip">' + escapeHtml(a) + '</span>').join('');
 }
 
 function formatMappingBadge(summary) {
-  if (!summary || summary.total === 0) return '<span class="mapping-chip mapping-chip-unmapped">' + t('mappingStatusUnmapped') + '</span>';
-  if (summary.conflict > 0) return '<span class="mapping-chip mapping-chip-conflict">' + t('mappingStatusConflict') + '</span>';
-  if (summary.missing > 0) return '<span class="mapping-chip mapping-chip-unmapped">' + summary.linked + '/' + summary.total + '</span>';
-  return '<span class="mapping-chip mapping-chip-linked">' + summary.linked + '/' + summary.total + '</span>';
+  if (!summary || summary.total === 0) return '<span class="mapping-chip mapping-chip-unmapped">' + escapeHtml(t('mappingStatusUnmapped')) + '</span>';
+  if (summary.conflict > 0) return '<span class="mapping-chip mapping-chip-conflict">' + escapeHtml(t('mappingStatusConflict')) + '</span>';
+  if (summary.missing > 0) return '<span class="mapping-chip mapping-chip-unmapped">' + escapeHtml(summary.linked) + '/' + escapeHtml(summary.total) + '</span>';
+  return '<span class="mapping-chip mapping-chip-linked">' + escapeHtml(summary.linked) + '/' + escapeHtml(summary.total) + '</span>';
 }
 
 function resolveSkillByNumber(value) {
@@ -385,14 +466,19 @@ function renderDiscoverPage() {
   const rows = page.map((s, index) => {
     const badgeClass = s.validationStatus === 'pass' ? 'status-pass' : s.validationStatus === 'fixable' ? 'status-fixable' : 'status-fail';
     const rowNumber = start + index + 1;
+    const escName = escapeHtml(s.name);
+    const escStatus = escapeHtml(s.validationStatus || '');
+    const escSource = escapeHtml(s.sourceLabel || s.source || '');
+    const escPath = escapeHtml(s.path || '');
+    const escPathDisplay = escapeHtml(s.path || '-');
     return '<tr data-skill-number="' + rowNumber + '" onclick="selectSkillNumber(\\'' + rowNumber + '\\')" style="cursor:pointer;">' +
       '<td>' + rowNumber + '</td>' +
-      '<td>' + s.name + '</td>' +
-      '<td><span class="status-badge ' + badgeClass + '">' + (s.validationStatus || '') + '</span></td>' +
+      '<td>' + escName + '</td>' +
+      '<td><span class="status-badge ' + badgeClass + '">' + escStatus + '</span></td>' +
       '<td>' + formatAppliedAgentsChip(s) + '</td>' +
       '<td>' + formatMappingBadge(s.mappingSummary) + '</td>' +
-      '<td>' + (s.sourceLabel || s.source || '') + '</td>' +
-      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (s.path || '') + '">' + (s.path || '-') + '</td>' +
+      '<td>' + escSource + '</td>' +
+      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escPath + '">' + escPathDisplay + '</td>' +
       '</tr>';
   }).join('');
   if (table) {
@@ -572,10 +658,12 @@ window.addEventListener('DOMContentLoaded', () => {
 export const controlPanelClientScript = `const translations = ${JSON.stringify(translations, null, 2)};\n\n${clientScriptBody}`;
 
 export const clientScriptFunctions = {
+  escapeHtml: escapeHtmlBody,
   selectSkillNumber: selectSkillNumberBody,
   populateTargetOptions: populateTargetOptionsBody,
   renderCompatibilityResult: renderCompatibilityResultBody,
   checkSelectedCompatibility: checkSelectedCompatibilityBody,
+  filterSkills: filterSkillsBody,
   DEFAULT_TARGETS,
   STATUS_CLASSES,
 };

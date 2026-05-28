@@ -5,9 +5,11 @@ import { clientScriptFunctions, controlPanelClientScript } from '../src/client-s
 import { translations } from '../src/i18n.js';
 
 const {
+  escapeHtml,
   selectSkillNumber,
   populateTargetOptions,
   renderCompatibilityResult,
+  filterSkills,
   DEFAULT_TARGETS,
   STATUS_CLASSES,
 } = clientScriptFunctions;
@@ -292,6 +294,86 @@ describe('script structure', () => {
     expect(controlPanelClientScript).toContain('formatAppliedAgentsChip(s)');
     expect(controlPanelClientScript).toContain('formatMappingBadge(s.mappingSummary)');
   });
+
+  it('renderDiscoverTable calls renderStatusCards to refresh metrics', () => {
+    expect(controlPanelClientScript).toContain(
+      'if (latestStatusData) renderStatusCards(latestStatusData)',
+    );
+  });
+
+  it('renderStatusCards prefers latestDiscoverData for metrics', () => {
+    expect(controlPanelClientScript).toContain(
+      'latestDiscoverData && latestDiscoverData.length > 0',
+    );
+  });
+
+  it('search filter includes path matching', () => {
+    expect(controlPanelClientScript).toContain("s.path || '').toLowerCase().includes(q)");
+  });
+
+  it('search filter includes appliedAgents label matching', () => {
+    expect(controlPanelClientScript).toContain('(a.label || a.id).toLowerCase()');
+  });
+});
+
+describe('filterSkills', () => {
+  const skills = [
+    {
+      name: 'alpha',
+      path: 'D:\\\\SkillGov\\\\skills\\\\alpha',
+      source: 'local',
+      validationStatus: 'pass',
+      appliedAgents: [{ id: 'codex', label: 'Codex', source: 'local' }],
+    },
+    {
+      name: 'beta',
+      path: 'D:\\\\SkillGov\\\\skills\\\\beta',
+      source: 'local',
+      validationStatus: 'fail',
+      appliedAgents: [{ id: 'claude', label: 'Claude', source: 'mapping' }],
+    },
+    {
+      name: 'gamma',
+      path: 'C:\\\\Users\\\\docs\\\\gamma',
+      source: 'remote',
+      validationStatus: 'fixable',
+      appliedAgents: [],
+    },
+  ];
+
+  it('returns all skills when no filters applied', () => {
+    expect(filterSkills(skills, {})).toHaveLength(3);
+  });
+
+  it('searches by name', () => {
+    expect(filterSkills(skills, { search: 'alpha' })).toHaveLength(1);
+    expect(filterSkills(skills, { search: 'alpha' })[0].name).toBe('alpha');
+  });
+
+  it('searches by path', () => {
+    expect(filterSkills(skills, { search: 'SkillGov\\\\skills' })).toHaveLength(2);
+  });
+
+  it('searches by appliedAgents label', () => {
+    const result = filterSkills(skills, { search: 'Claude' });
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('beta');
+  });
+
+  it('filters by validation status', () => {
+    expect(filterSkills(skills, { status: 'fail' })).toHaveLength(1);
+    expect(filterSkills(skills, { status: 'fail' })[0].name).toBe('beta');
+  });
+
+  it('filters problem skills (status !== pass)', () => {
+    const problems = skills.filter((s) => s.validationStatus && s.validationStatus !== 'pass');
+    expect(problems).toHaveLength(2);
+  });
+
+  it('search is case-insensitive', () => {
+    expect(filterSkills(skills, { search: 'ALPHA' })).toHaveLength(1);
+    expect(filterSkills(skills, { search: 'claude' })).toHaveLength(1);
+  });
 });
 
 describe('i18n compatibility keys', () => {
@@ -339,4 +421,160 @@ describe('i18n compatibility keys', () => {
       expect(translations.zh).not.toHaveProperty(key);
     });
   }
+});
+
+describe('escapeHtml', () => {
+  it('escapes < and > to prevent tag injection', () => {
+    expect(escapeHtml('<img src=x onerror=alert(1)>')).toBe('&lt;img src=x onerror=alert(1)&gt;');
+  });
+
+  it('escapes double quotes to prevent attribute breakout', () => {
+    expect(escapeHtml('" onmouseover="alert(1)"')).toBe('&quot; onmouseover=&quot;alert(1)&quot;');
+  });
+
+  it('escapes single quotes', () => {
+    expect(escapeHtml("it's")).toBe('it&#39;s');
+  });
+
+  it('escapes ampersand first to avoid double-encoding', () => {
+    expect(escapeHtml('&amp;')).toBe('&amp;amp;');
+  });
+
+  it('returns empty string for null/undefined', () => {
+    expect(escapeHtml(null)).toBe('');
+    expect(escapeHtml(undefined)).toBe('');
+  });
+
+  it('converts non-string values to string before escaping', () => {
+    expect(escapeHtml(42)).toBe('42');
+  });
+});
+
+describe('XSS prevention in rendered HTML', () => {
+  it('escapeHtml function is defined in the embedded script', () => {
+    expect(controlPanelClientScript).toContain('function escapeHtml(');
+  });
+
+  it('renderDiscoverPage uses escapeHtml for skill name', () => {
+    expect(controlPanelClientScript).toContain('escapeHtml(s.name)');
+  });
+
+  it('renderDiscoverPage uses escapeHtml for validation status', () => {
+    expect(controlPanelClientScript).toContain('escapeHtml(s.validationStatus');
+  });
+
+  it('renderDiscoverPage uses escapeHtml for source', () => {
+    expect(controlPanelClientScript).toContain('escapeHtml(s.sourceLabel');
+  });
+
+  it('renderDiscoverPage uses escapeHtml for path including title attribute', () => {
+    expect(controlPanelClientScript).toContain('escapeHtml(s.path');
+  });
+
+  it('formatAppliedAgentsChip uses escapeHtml for agent names', () => {
+    expect(controlPanelClientScript).toContain('escapeHtml(a)');
+  });
+
+  it('formatMappingBadge uses escapeHtml for summary values', () => {
+    expect(controlPanelClientScript).toContain('escapeHtml(summary.linked)');
+  });
+
+  it('renderDiscoverPage escapes malicious skill name in table output', () => {
+    const table = createElement('discover-table');
+    createElement('discover-summary');
+    createElement('discover-pagination');
+    const win = testWindow() as TestWindow & {
+      PAGE_SIZE?: number;
+      discoverPage?: number;
+      getFilteredSkills?: () => TestSkill[];
+    };
+    win.latestDiscoverData = [
+      {
+        name: '<img src=x onerror=alert(1)>',
+        path: 'D:\\SkillGov\\skills\\<bad>',
+        source: 'local',
+        sourceLabel: '"><script>alert("xss")</script>',
+        validationStatus: 'pass',
+        appliedAgents: [{ id: 'codex', label: 'Codex', source: 'local' }],
+        mappingSummary: { total: 1, linked: 1, missing: 0, conflict: 0 },
+      },
+    ];
+    win.PAGE_SIZE = 10;
+    win.discoverPage = 0;
+    win.getFilteredSkills = () => win.latestDiscoverData;
+
+    const renderFn = new Function(
+      't',
+      'escapeHtml',
+      'formatAppliedAgentsChip',
+      'formatMappingBadge',
+      'getFilteredSkills',
+      'PAGE_SIZE',
+      'discoverPage',
+      'latestDiscoverData',
+      `
+      var table = document.getElementById('discover-table');
+      var skills = getFilteredSkills();
+      var start = discoverPage * PAGE_SIZE;
+      var page = skills.slice(start, start + PAGE_SIZE);
+      var rows = page.map(function(s, index) {
+        var badgeClass = s.validationStatus === 'pass' ? 'status-pass' : 'status-fail';
+        var rowNumber = start + index + 1;
+        var escName = escapeHtml(s.name);
+        var escStatus = escapeHtml(s.validationStatus || '');
+        var escSource = escapeHtml(s.sourceLabel || s.source || '');
+        var escPath = escapeHtml(s.path || '');
+        var escPathDisplay = escapeHtml(s.path || '-');
+        return '<tr data-skill-number="' + rowNumber + '">' +
+          '<td>' + rowNumber + '</td>' +
+          '<td>' + escName + '</td>' +
+          '<td><span class="status-badge ' + badgeClass + '">' + escStatus + '</span></td>' +
+          '<td>' + formatAppliedAgentsChip(s) + '</td>' +
+          '<td>' + formatMappingBadge(s.mappingSummary) + '</td>' +
+          '<td>' + escSource + '</td>' +
+          '<td title="' + escPath + '">' + escPathDisplay + '</td>' +
+          '</tr>';
+      }).join('');
+      table.innerHTML = '<table><tbody>' + rows + '</tbody></table>';
+      `,
+    );
+
+    const escFn = (v: unknown) => {
+      if (v == null) return '';
+      return String(v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const chipFn = (s: TestSkill) => {
+      const agents = (s.appliedAgents || []).map((a) => a.label || a.id);
+      if (agents.length === 0) return '<span class="agent-chip">-</span>';
+      return agents.map((a) => `<span class="agent-chip">${escFn(a)}</span>`).join('');
+    };
+    const badgeFn = (summary: TestSkill['mappingSummary']) => {
+      if (!summary || summary.total === 0)
+        return '<span class="mapping-chip mapping-chip-unmapped">Unmapped</span>';
+      return `<span class="mapping-chip mapping-chip-linked">${escFn(summary.linked)}/${escFn(summary.total)}</span>`;
+    };
+
+    renderFn(
+      (k: string) => k,
+      escFn,
+      chipFn,
+      badgeFn,
+      () => win.latestDiscoverData,
+      10,
+      0,
+      win.latestDiscoverData,
+    );
+
+    const html = table.innerHTML;
+    expect(html).not.toContain('<img src=x');
+    expect(html).toContain('&lt;img');
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).toContain('D:\\SkillGov\\skills\\&lt;bad&gt;');
+  });
 });

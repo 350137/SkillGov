@@ -190,6 +190,42 @@ describe('Control Panel API', () => {
     expect(data).toHaveProperty('results');
   });
 
+  it('returns target profiles at GET /api/targets', async () => {
+    const data = await fetchJson('/api/targets');
+    expect(data).toHaveProperty('targets');
+    const targets = data.targets as Array<Record<string, unknown>>;
+    expect(Array.isArray(targets)).toBe(true);
+    expect(targets.length).toBeGreaterThanOrEqual(2);
+    for (const target of targets) {
+      expect(target).toHaveProperty('id');
+      expect(target).toHaveProperty('label');
+      expect(target).toHaveProperty('skillDirs');
+      expect(target).toHaveProperty('linkMode');
+      expect(Array.isArray(target.skillDirs)).toBe(true);
+    }
+    const ids = targets.map((t) => t.id);
+    expect(ids).toContain('codex');
+    expect(ids).toContain('claude');
+  });
+
+  it('includes targetProfiles in /api/status response', async () => {
+    const data = await fetchJson('/api/status');
+    expect(data).toHaveProperty('targetProfiles');
+    expect(data).toHaveProperty('skills');
+    const profiles = data.targetProfiles as Array<Record<string, unknown>>;
+    expect(Array.isArray(profiles)).toBe(true);
+    expect(profiles.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('includes targetProfiles in /api/discover response', async () => {
+    const data = await fetchJson('/api/discover');
+    expect(data).toHaveProperty('targetProfiles');
+    expect(data).toHaveProperty('skills');
+    const profiles = data.targetProfiles as Array<Record<string, unknown>>;
+    expect(Array.isArray(profiles)).toBe(true);
+    expect(profiles.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('includes Scan Local Skills button in HTML', async () => {
     const res = await new Promise<string>((resolve, reject) => {
       http

@@ -12,6 +12,7 @@ import {
   importSkill,
   initProject,
   installSkill,
+  listTargetProfiles,
   loadConfig,
   rollbackLastInstall,
   runDoctor,
@@ -30,7 +31,12 @@ const apiRoutes: Record<string, ApiHandler> = {
   status: () => {
     const config = loadConfig();
     const status = getProjectStatus(config.projectRoot);
-    return status as unknown as Record<string, unknown>;
+    return { ...status, targetProfiles: listTargetProfiles(config.targets) } as unknown as Record<string, unknown>;
+  },
+
+  targets: () => {
+    const config = loadConfig();
+    return { targets: listTargetProfiles(config.targets) } as unknown as Record<string, unknown>;
   },
 
   validate: (body) => {
@@ -133,12 +139,13 @@ const apiRoutes: Record<string, ApiHandler> = {
   discover: () => {
     const config = loadConfig();
     const registryPath = `${config.projectRoot}/registry/skills.json`;
-    return discoverSkillInventory({
+    const inventory = discoverSkillInventory({
       projectRoot: config.projectRoot,
       registryPath,
       installsPath: `${config.projectRoot}/registry/installs.json`,
       mappingsPath: `${config.projectRoot}/registry/mappings.json`,
-    }) as unknown as Record<string, unknown>;
+    });
+    return { ...inventory, targetProfiles: listTargetProfiles(config.targets) } as unknown as Record<string, unknown>;
   },
 
   'discover/import': () => {

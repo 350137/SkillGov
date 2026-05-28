@@ -14,16 +14,21 @@ const {
 
 interface TestSkill {
   name: string;
+  path?: string;
   source?: string;
   sourceLabel?: string;
   validationStatus?: string;
   agentTargets?: string[];
+  appliedAgents?: Array<{ id: string; label: string; source: string }>;
+  mappingSummary?: { total: number; linked: number; missing: number; conflict: number };
 }
 
 interface TestWindow extends Window {
   t: (key: string) => string;
   latestDiscoverData: TestSkill[];
   selectedSkill: TestSkill | null;
+  targetProfiles?: Array<{ id: string; label: string; skillDirs?: string[]; linkMode?: string }>;
+  availableTargets?: Array<{ id: string; label: string }>;
   resolveSkillByNumber: (value: string) => TestSkill | null;
   populateTargetOptions: typeof populateTargetOptions;
   renderCompatibilityResult: typeof renderCompatibilityResult;
@@ -66,6 +71,7 @@ describe('selectSkillNumber', () => {
         sourceLabel: 'Codex 本地',
         validationStatus: 'pass',
         agentTargets: ['codex'],
+        appliedAgents: [{ id: 'codex', label: 'Codex', source: 'local' }],
       },
     ];
 
@@ -74,8 +80,32 @@ describe('selectSkillNumber', () => {
     expect(titleEl.textContent).toBe('test-skill');
     expect(metaEl.textContent).toContain('Codex 本地');
     expect(metaEl.textContent).toContain('pass');
-    expect(metaEl.textContent).toContain('codex');
+    expect(metaEl.textContent).toContain('Codex');
     expect(testWindow().selectedSkill?.name).toBe('test-skill');
+  });
+
+  it('displays all appliedAgents labels in meta when multiple agents use the skill', () => {
+    createElement('selected-skill-title');
+    createElement('selected-skill-meta');
+    createElement('target-agent-select', 'select');
+    testWindow().latestDiscoverData = [
+      {
+        name: 'multi-agent-skill',
+        source: 'local',
+        validationStatus: 'pass',
+        agentTargets: ['codex', 'claude'],
+        appliedAgents: [
+          { id: 'codex', label: 'Codex', source: 'local' },
+          { id: 'claude', label: 'Claude', source: 'mapping' },
+        ],
+      },
+    ];
+
+    selectSkillNumber('1');
+
+    const metaEl = document.getElementById('selected-skill-meta');
+    expect(metaEl?.textContent).toContain('Codex');
+    expect(metaEl?.textContent).toContain('Claude');
   });
 
   it('shows noSkillSelected message when skill number is invalid', () => {
@@ -122,6 +152,36 @@ describe('populateTargetOptions', () => {
     populateTargetOptions({ name: 'test-skill' });
 
     expect(select.options.length).toBe(DEFAULT_TARGETS.length);
+  });
+
+  it('uses window.targetProfiles when available', () => {
+    const select = createElement('target-agent-select', 'select') as HTMLSelectElement;
+    testWindow().targetProfiles = [
+      { id: 'codex', label: 'Codex' },
+      { id: 'claude', label: 'Claude' },
+      { id: 'custom', label: 'Custom Agent' },
+    ];
+
+    populateTargetOptions({ name: 'test-skill' });
+
+    expect(select.options.length).toBe(3);
+    expect(select.options[2].value).toBe('custom');
+    expect(select.options[2].textContent).toBe('Custom Agent');
+  });
+
+  it('prefers window.targetProfiles over window.availableTargets', () => {
+    const select = createElement('target-agent-select', 'select') as HTMLSelectElement;
+    testWindow().targetProfiles = [
+      { id: 'from-profiles', label: 'From Profiles' },
+    ];
+    testWindow().availableTargets = [
+      { id: 'from-available', label: 'From Available' },
+    ];
+
+    populateTargetOptions({ name: 'test-skill' });
+
+    expect(select.options.length).toBe(1);
+    expect(select.options[0].value).toBe('from-profiles');
   });
 
   it('does not crash when target-agent-select is missing', () => {
@@ -210,6 +270,33 @@ describe('script structure', () => {
     expect(controlPanelClientScript).toContain('window.selectedSkill');
     expect(controlPanelClientScript).not.toContain("getElementById('install-skill')");
   });
+
+  it('contains formatAppliedAgents function for dynamic agent display', () => {
+    expect(controlPanelClientScript).toContain('function formatAppliedAgents(');
+  });
+
+  it('contains formatAgentTargets function as backward-compatible alias', () => {
+    expect(controlPanelClientScript).toContain('function formatAgentTargets(');
+  });
+
+  it('contains formatMappingSummary function for mapping overview', () => {
+    expect(controlPanelClientScript).toContain('function formatMappingSummary(');
+  });
+
+  it('does not contain hardcoded installedClaude or installedCodex counters', () => {
+    expect(controlPanelClientScript).not.toContain('installedClaude');
+    expect(controlPanelClientScript).not.toContain('installedCodex');
+  });
+
+  it('uses targetProfiles for dynamic agent stats in renderStatusSummary', () => {
+    expect(controlPanelClientScript).toContain('targetProfiles');
+    expect(controlPanelClientScript).toContain('usedByAgent');
+  });
+
+  it('appliedAgents and mappingSummary columns appear in discover table', () => {
+    expect(controlPanelClientScript).toContain('formatAgentTargets(s.agentTargets)');
+    expect(controlPanelClientScript).toContain('formatMappingSummary(s.mappingSummary)');
+  });
 });
 
 describe('i18n compatibility keys', () => {
@@ -227,6 +314,17 @@ describe('i18n compatibility keys', () => {
     'outputSummary',
     'noSkillSelected',
     'noTargetAvailable',
+    'usedByAgent',
+    'tableAppliedAgents',
+    'tableMappingSummary',
+    'tableNumber',
+  ];
+
+  const forbiddenKeys = [
+    'installedClaude',
+    'installedCodex',
+    'tableCodexMapping',
+    'tableClaudeMapping',
   ];
 
   for (const key of requiredKeys) {
@@ -235,6 +333,15 @@ describe('i18n compatibility keys', () => {
     });
     it(`zh has key "${key}"`, () => {
       expect(translations.zh).toHaveProperty(key);
+    });
+  }
+
+  for (const key of forbiddenKeys) {
+    it(`en does not have hardcoded key "${key}"`, () => {
+      expect(translations.en).not.toHaveProperty(key);
+    });
+    it(`zh does not have hardcoded key "${key}"`, () => {
+      expect(translations.zh).not.toHaveProperty(key);
     });
   }
 });

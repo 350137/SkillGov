@@ -19,16 +19,21 @@ interface BrowserSkill {
   sourceLabel?: string;
   validationStatus?: string;
   agentTargets?: string[];
+  appliedAgents?: Array<{ id: string; label: string; source: string }>;
+  mappingSummary?: { total: number; linked: number; missing: number; conflict: number };
 }
 
 interface BrowserTarget {
   id: string;
   label: string;
+  skillDirs?: string[];
+  linkMode?: string;
 }
 
 declare global {
   interface Window {
     selectedSkill: BrowserSkill | null;
+    targetProfiles?: BrowserTarget[];
     availableTargets?: BrowserTarget[];
     t: (key: string) => string;
     resolveSkillByNumber: (value: string) => BrowserSkill | null;
@@ -51,21 +56,25 @@ function selectSkillNumberBody(value: string): void {
   if (titleEl) titleEl.textContent = skill.name;
   if (metaEl) {
     const parts = [skill.sourceLabel || skill.source, skill.validationStatus];
-    if (skill.agentTargets && skill.agentTargets.length > 0) {
-      parts.push(skill.agentTargets.join(', '));
+    const agents = skill.appliedAgents && skill.appliedAgents.length > 0
+      ? skill.appliedAgents.map((a) => a.label || a.id)
+      : skill.agentTargets || [];
+    if (agents.length > 0) {
+      parts.push(agents.join(', '));
     }
     metaEl.textContent = parts.join(' · ');
   }
   window.populateTargetOptions(skill);
 }
 
-function populateTargetOptionsBody(skill: BrowserSkill): void {
-  void skill;
+function populateTargetOptionsBody(_skill: BrowserSkill): void {
   const select = document.getElementById('target-agent-select');
   if (!select) return;
-  const targets = Array.isArray(window.availableTargets)
-    ? window.availableTargets
-    : DEFAULT_TARGETS;
+  const targets = Array.isArray(window.targetProfiles) && window.targetProfiles.length > 0
+    ? window.targetProfiles
+    : Array.isArray(window.availableTargets) && window.availableTargets.length > 0
+      ? window.availableTargets
+      : DEFAULT_TARGETS;
   select.innerHTML = '';
   for (const target of targets) {
     const option = document.createElement('option');
@@ -165,19 +174,26 @@ let latestNonSkillDirectories = [];
 
 function renderStatusSummary(data) {
   latestStatusData = data;
+  if (Array.isArray(data.targetProfiles)) {
+    window.targetProfiles = data.targetProfiles;
+  }
   const el = document.getElementById('status-summary');
   if (!el) return;
   const skills = data.skills || [];
   const totalManaged = skills.length;
-  const installedClaude = skills.filter((s) => s.installedTargets && s.installedTargets.includes('claude')).length;
-  const installedCodex = skills.filter((s) => s.installedTargets && s.installedTargets.includes('codex')).length;
+  const profiles = Array.isArray(data.targetProfiles) ? data.targetProfiles : (window.targetProfiles || []);
   const notInstalled = skills.filter((s) => !s.installedTargets || s.installedTargets.length === 0).length;
   const withOverlay = skills.filter((s) => s.hasOverlay).length;
   const excludedDirectories = (data.nonSkillDirectories || []).length;
+  let agentRows = '';
+  for (const profile of profiles) {
+    const count = skills.filter((s) => s.installedTargets && s.installedTargets.includes(profile.id)).length;
+    const label = t('usedByAgent').replace('{agent}', profile.label || profile.id);
+    agentRows += \`<tr><td><strong>\${label}</strong></td><td>\${count}</td></tr>\`;
+  }
   el.innerHTML = \`<table><tbody>
     <tr><td><strong>\${t('totalManaged')}</strong></td><td>\${totalManaged}</td></tr>
-    <tr><td><strong>\${t('installedClaude')}</strong></td><td>\${installedClaude}</td></tr>
-    <tr><td><strong>\${t('installedCodex')}</strong></td><td>\${installedCodex}</td></tr>
+    \${agentRows}
     <tr><td><strong>\${t('notInstalled')}</strong></td><td>\${notInstalled}</td></tr>
     <tr><td><strong>\${t('withOverlay')}</strong></td><td>\${withOverlay}</td></tr>
     <tr><td><strong>\${t('excludedDirectories')}</strong></td><td>\${excludedDirectories}</td></tr>
@@ -191,10 +207,25 @@ function renderDiscoverTable(skills, nonSkillDirectories) {
   renderDiscoverPage();
 }
 
-function formatAgentTargets(agentTargets) {
+function formatAppliedAgents(skill) {
+  if (skill.appliedAgents && skill.appliedAgents.length > 0) {
+    return skill.appliedAgents.map((a) => a.label || a.id).join(', ');
+  }
   const labels = { codex: 'Codex', claude: 'Claude' };
-  if (!agentTargets || agentTargets.length === 0) return t('none');
-  return agentTargets.map((target) => labels[target] || target).join(', ');
+  const targets = skill.agentTargets;
+  if (!targets || targets.length === 0) return t('none');
+  return targets.map((target) => labels[target] || target).join(', ');
+}
+
+function formatAgentTargets(targets) {
+  if (!targets || targets.length === 0) return t('none');
+  const labels = { codex: 'Codex', claude: 'Claude' };
+  return targets.map((target) => labels[target] || target).join(', ');
+}
+
+function formatMappingSummary(summary) {
+  if (!summary || summary.total === 0) return t('none');
+  return summary.linked + '/' + summary.total;
 }
 
 function resolveSkillByNumber(value) {
@@ -264,10 +295,10 @@ function renderDiscoverPage() {
   const rows = page.map((s, index) => {
     const badgeClass = s.validationStatus === 'pass' ? 'status-pass' : s.validationStatus === 'fixable' ? 'status-fixable' : 'status-fail';
     const rowNumber = start + index + 1;
-    return \`<tr data-skill-number="\${rowNumber}" onclick="selectSkillNumber('\${rowNumber}')" style="cursor:pointer;"><td>\${rowNumber}</td><td>\${s.name}</td><td>\${s.sourceLabel || s.source}</td><td><span class="status-badge \${badgeClass}">\${s.validationStatus}</span></td><td>\${formatAgentTargets(s.agentTargets)}</td></tr>\`;
+    return \`<tr data-skill-number="\${rowNumber}" onclick="selectSkillNumber('\${rowNumber}')" style="cursor:pointer;"><td>\${rowNumber}</td><td>\${s.name}</td><td>\${s.sourceLabel || s.source}</td><td><span class="status-badge \${badgeClass}">\${s.validationStatus}</span></td><td>\${formatAgentTargets(s.agentTargets)}</td><td>\${formatMappingSummary(s.mappingSummary)}</td></tr>\`;
   }).join('');
   if (table) {
-    table.innerHTML = \`<table><thead><tr><th>\${t('tableNumber')}</th><th>\${t('tableSkill')}</th><th>\${t('tableSource')}</th><th>\${t('tableValidation')}</th><th>\${t('tableAgent')}</th></tr></thead><tbody>\${rows}</tbody></table>\`;
+    table.innerHTML = \`<table><thead><tr><th>\${t('tableNumber')}</th><th>\${t('tableSkill')}</th><th>\${t('tableSource')}</th><th>\${t('tableValidation')}</th><th>\${t('tableAppliedAgents')}</th><th>\${t('tableMappingSummary')}</th></tr></thead><tbody>\${rows}</tbody></table>\`;
   }
 
   const pageInfo = t('pageInfo').replace('{current}', discoverPage + 1).replace('{total}', totalPages);
@@ -366,6 +397,9 @@ window.addEventListener('DOMContentLoaded', () => {
     .then(r => r.json())
     .then(data => {
       if (pp) pp.textContent = data.projectRoot || t('noProject');
+      if (Array.isArray(data.targetProfiles)) {
+        window.targetProfiles = data.targetProfiles;
+      }
       renderStatusSummary(data);
       if (searchParams.get('discover') === '1') callAPI('discover');
     })

@@ -1,11 +1,12 @@
 // Config schema, loading, validation, and writing for skillgov.config.json — normalises paths and merges user values with defaults.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import type { TargetEntry } from './targets.js';
 
 export interface SkillGovConfig {
   projectRoot: string;
   defaultLinkMode: 'junction' | 'symlink' | 'copy';
-  targets: string[];
+  targets: TargetEntry[];
 }
 
 const VALID_LINK_MODES = new Set(['junction', 'symlink', 'copy']);
@@ -53,7 +54,7 @@ export function loadConfig(configPath?: string): SkillGovConfig {
     ),
     defaultLinkMode:
       (raw.defaultLinkMode as SkillGovConfig['defaultLinkMode']) || defaults.defaultLinkMode,
-    targets: Array.isArray(raw.targets) ? (raw.targets as string[]) : defaults.targets,
+    targets: Array.isArray(raw.targets) ? (raw.targets as TargetEntry[]) : defaults.targets,
   };
 
   return cfg;

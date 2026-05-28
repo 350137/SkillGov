@@ -101,6 +101,39 @@ describe('loadConfig', () => {
     writeFileSync(configPath, JSON.stringify({ defaultLinkMode: 'invalid' }), 'utf-8');
     expect(() => loadConfig(configPath)).toThrow(/linkMode/i);
   });
+
+  it('accepts targets as object array with id, label, skillDirs', () => {
+    const configPath = join(tmpDir, 'skillgov.config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        targets: [
+          { id: 'opencode', label: 'OpenCode', skillDirs: ['D:/OpenCode/skills'] },
+        ],
+      }),
+      'utf-8',
+    );
+    const cfg = loadConfig(configPath);
+    expect(cfg.targets).toHaveLength(1);
+    const t = cfg.targets[0] as { id: string; label: string; skillDirs: string[] };
+    expect(t.id).toBe('opencode');
+    expect(t.label).toBe('OpenCode');
+  });
+
+  it('accepts mixed string and object targets', () => {
+    const configPath = join(tmpDir, 'skillgov.config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        targets: ['claude', { id: 'opencode', label: 'OpenCode', skillDirs: ['D:/OpenCode/skills'] }],
+      }),
+      'utf-8',
+    );
+    const cfg = loadConfig(configPath);
+    expect(cfg.targets).toHaveLength(2);
+    expect(cfg.targets[0]).toBe('claude');
+    expect((cfg.targets[1] as { id: string }).id).toBe('opencode');
+  });
 });
 
 describe('writeConfig', () => {

@@ -37,6 +37,11 @@ describe('getTargetProfile', () => {
     expect(profile.id).toBe('codex');
     expect(profile.label).toBe('Codex');
   });
+
+  it('codex and claude profiles both model agent support as a capability', () => {
+    expect((getTargetProfile('codex') as TargetProfile).supports.agents).toBe('native');
+    expect((getTargetProfile('claude') as TargetProfile).supports.agents).toBe('native');
+  });
 });
 
 describe('listTargetProfiles', () => {
@@ -65,6 +70,20 @@ describe('listTargetProfiles', () => {
     expect(profiles[0].id).toBe('opencode');
     expect(profiles[0].label).toBe('OpenCode');
     expect(profiles[0].skillDirs).toEqual(['D:/OpenCode/skills']);
+    expect(profiles[0].supports.agents).toBe('native');
+  });
+
+  it('accepts custom target capability overrides', () => {
+    const profiles = listTargetProfiles([
+      {
+        id: 'plain',
+        label: 'Plain Tool',
+        skillDirs: ['D:/Plain/skills'],
+        supports: { agents: 'none', mcp: 'none' },
+      },
+    ]);
+    expect(profiles[0].supports.agents).toBe('none');
+    expect(profiles[0].supports.mcp).toBe('none');
   });
 
   it('getTargetProfile works with resolved custom profiles', () => {

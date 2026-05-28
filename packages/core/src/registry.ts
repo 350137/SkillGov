@@ -18,7 +18,7 @@ export interface SkillsRegistry {
 export interface CompatibilityEntry {
   skillName: string;
   target: string;
-  status: 'compatible' | 'needs-overlay' | 'unsupported' | 'unknown';
+  status: 'compatible' | 'needs-mapping' | 'needs-overlay' | 'unsupported' | 'unknown';
   notes?: string;
   checkedAt: string;
 }

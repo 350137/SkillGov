@@ -83,6 +83,20 @@ describe('installSkill', () => {
     expect(result.status).toBe('blocked');
   });
 
+  it('blocks standard install when the skill requires a target overlay', () => {
+    const skillDir = join(tmpDir, 'skills', 'claude-only-standard');
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(
+      join(skillDir, 'SKILL.md'),
+      '---\nname: claude-only-standard\ndescription: blocked\ncompatibility: claude-only\n---\n\nBlocked.\n',
+      'utf-8',
+    );
+    const options = makeOptions();
+    const result = installSkill('claude-only-standard', 'codex', 'copy', options);
+    expect(result.status).toBe('blocked');
+    expect(result.message).toContain('needs-overlay');
+  });
+
   it('logs an install operation', () => {
     const options = makeOptions();
     const result = installSkill('test-skill', 'claude', 'copy', options);
@@ -159,6 +173,42 @@ describe('installSkill', () => {
     expect(mappings.mappings['test-skill'].links.opencode.path).toBe(
       join(targetSkillRoot, 'test-skill'),
     );
+  });
+
+  it('uses configured target capabilities when checking install compatibility', () => {
+    const skillDir = join(tmpDir, 'skills', 'agent-bound');
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(
+      join(skillDir, 'SKILL.md'),
+      '---\nname: agent-bound\ndescription: agent bound\nagent: Explore\n---\n\nContent.\n',
+      'utf-8',
+    );
+    const targetProfiles: TargetProfile[] = [
+      {
+        id: 'plain',
+        label: 'Plain Tool',
+        skillDirs: [join(tmpDir, 'plain-skills')],
+        linkMode: 'copy',
+        supports: {
+          skillMd: true,
+          allowedTools: 'partial',
+          scripts: 'unknown',
+          agents: 'none',
+        },
+      },
+    ];
+    const options: InstallOptions = {
+      projectRoot: tmpDir,
+      registryPath: join(tmpDir, 'registry', 'installs.json'),
+      operationsPath: join(tmpDir, 'registry', 'operations.jsonl'),
+      mappingsPath: join(tmpDir, 'registry', 'mappings.json'),
+      targetProfiles,
+    };
+
+    const result = installSkill('agent-bound', 'plain', 'copy', options);
+
+    expect(result.status).toBe('blocked');
+    expect(result.message).toContain('needs-overlay');
   });
 });
 

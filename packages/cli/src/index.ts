@@ -9,6 +9,7 @@ import {
   importSkill,
   initProject,
   installSkill,
+  listTargetProfiles,
   loadConfig,
   readRegistry,
   rollbackLastInstall,
@@ -200,7 +201,11 @@ export function main(args: string[]): void {
       process.exitCode = 1;
       return;
     }
-    const result = checkCompatibility(skillPath, targetName);
+    const config = loadConfig();
+    const result = checkCompatibility(skillPath, targetName, {
+      targetProfiles: listTargetProfiles(config.targets),
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+    });
     console.log(`Compatibility result: ${result.status}`);
     console.log(`  Skill: ${result.skillName}`);
     console.log(`  Target: ${result.targetName}`);
@@ -243,7 +248,11 @@ export function main(args: string[]): void {
         process.exitCode = 1;
         return;
       }
-      const compatResult = checkCompatibility(skillPath, targetName);
+      const config = loadConfig();
+      const compatResult = checkCompatibility(skillPath, targetName, {
+        targetProfiles: listTargetProfiles(config.targets),
+        mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+      });
       if (compatResult.status !== 'needs-overlay') {
         console.log(
           `Skill "${compatResult.skillName}" on "${targetName}" is "${compatResult.status}". Overlay task requires "needs-overlay" status.`,

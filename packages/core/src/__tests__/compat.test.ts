@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type CompatibilityResult, checkCompatibility } from '../compat.js';
+import { listTargetProfiles } from '../targets.js';
 
 let tmpDir: string;
 
@@ -116,11 +117,77 @@ describe('checkCompatibility', () => {
     expect(result.status).toBe('needs-overlay');
   });
 
-  it('detects Claude references in markdown for Codex target', () => {
-    const dir = createSkill('ref-claude', {}, 'This skill uses Claude-specific features.');
+  it('does not require overlay for incidental Claude mentions on Codex', () => {
+    const dir = createSkill(
+      'incidental-claude',
+      {},
+      'Example comment: // In Claude Code / AI environment.',
+    );
+    const result = checkCompatibility(dir, 'codex');
+    expect(result.status).toBe('compatible');
+    expect(result.issues.some((i) => i.severity === 'warning' && i.category === 'target')).toBe(
+      false,
+    );
+  });
+
+  it('returns needs-overlay for explicit Claude runtime requirements on Codex', () => {
+    const dir = createSkill('requires-claude', {}, 'This skill requires Claude Code to run.');
     const result = checkCompatibility(dir, 'codex');
     expect(result.status).toBe('needs-overlay');
     expect(result.issues.some((i) => i.category === 'target')).toBe(true);
+  });
+
+  it('returns needs-overlay for Claude-specific skill paths on Codex', () => {
+    const dir = createSkill('claude-path', {}, 'Install this under ~/.claude/skills/claude-path.');
+    const result = checkCompatibility(dir, 'codex');
+    expect(result.status).toBe('needs-overlay');
+    expect(result.issues.some((i) => i.category === 'target')).toBe(true);
+  });
+
+  it('allows agent frontmatter when the target supports agent routing', () => {
+    const dir = createSkill('agent-aware', { agent: 'Explore' });
+    const result = checkCompatibility(dir, 'codex');
+    expect(result.status).toBe('compatible');
+  });
+
+  it('allows agent frontmatter for configured OpenCode-like targets with agent support', () => {
+    const dir = createSkill('opencode-agent-aware', { agent: 'Build' });
+    const targetProfiles = listTargetProfiles([
+      { id: 'opencode', label: 'OpenCode', skillDirs: ['D:/OpenCode/skills'] },
+    ]);
+    const result = checkCompatibility(dir, 'opencode', { targetProfiles });
+    expect(result.status).toBe('compatible');
+  });
+
+  it('returns needs-overlay when agent routing is declared for a target without agent support', () => {
+    const dir = createSkill('agent-required', { agent: 'Explore' });
+    const targetProfiles = listTargetProfiles([
+      {
+        id: 'plain',
+        label: 'Plain Tool',
+        skillDirs: ['D:/Plain/skills'],
+        supports: { agents: 'none' },
+      },
+    ]);
+    const result = checkCompatibility(dir, 'plain', { targetProfiles });
+    expect(result.status).toBe('needs-overlay');
+    expect(result.issues.some((i) => i.category === 'capability')).toBe(true);
+  });
+
+  it('returns needs-overlay when Claude hooks are declared for Codex', () => {
+    const dir = createSkill('hooked', { hooks: 'PostToolUse' });
+    const result = checkCompatibility(dir, 'codex');
+    expect(result.status).toBe('needs-overlay');
+    expect(result.issues.some((i) => i.category === 'capability')).toBe(true);
+  });
+
+  it('returns needs-mapping when content is compatible but the target has no linked mapping', () => {
+    const dir = createSkill('unmapped-compatible');
+    const result = checkCompatibility(dir, 'codex', {
+      mappingsPath: join(tmpDir, 'mappings.json'),
+    });
+    expect(result.status).toBe('needs-mapping');
+    expect(result.issues.some((i) => i.category === 'mapping')).toBe(true);
   });
 
   it('handles comma-separated allowed-tools', () => {

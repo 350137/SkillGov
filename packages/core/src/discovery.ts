@@ -8,7 +8,7 @@ import type { InstallsRegistry, SkillsRegistry } from './registry.js';
 import { validateSkill } from './validator.js';
 
 type SkillSource = 'skillgov-project' | 'codex-user' | 'claude-user';
-type AgentTarget = 'codex' | 'claude';
+type AgentTarget = string;
 
 export interface AppliedAgent {
   id: string;
@@ -181,7 +181,7 @@ function scanInventoryRoots(
 }
 
 function isAgentTarget(target: string): target is AgentTarget {
-  return target === 'codex' || target === 'claude';
+  return target.trim().length > 0;
 }
 
 function addUnique<T>(items: T[], nextItems: T[]): T[] {

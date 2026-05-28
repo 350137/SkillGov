@@ -5,7 +5,15 @@ export interface TargetSupports {
   skillMd: boolean;
   allowedTools: 'partial' | 'full' | 'none';
   scripts: 'unknown' | 'supported' | 'unsupported';
+  agents?: CapabilitySupport;
+  mcp?: CapabilitySupport;
+  hooks?: CapabilitySupport;
+  dynamicShell?: CapabilitySupport;
+  skillPermissions?: CapabilitySupport;
+  modelSelection?: CapabilitySupport;
 }
+
+export type CapabilitySupport = 'native' | 'mapped' | 'none' | 'unknown';
 
 export interface TargetProfile {
   id: string;
@@ -15,10 +23,34 @@ export interface TargetProfile {
   supports: TargetSupports;
 }
 
-export type TargetEntry = string | { id: string; label: string; skillDirs: string[] };
+export type TargetEntry =
+  | string
+  | {
+      id: string;
+      label: string;
+      skillDirs: string[];
+      linkMode?: TargetProfile['linkMode'];
+      supports?: Partial<TargetSupports>;
+    };
 
 function expandHome(p: string): string {
   return p.replace(/^~/, homedir().replace(/\\/g, '/'));
+}
+
+const GENERIC_TARGET_SUPPORTS: TargetSupports = {
+  skillMd: true,
+  allowedTools: 'partial',
+  scripts: 'unknown',
+  agents: 'native',
+  mcp: 'unknown',
+  hooks: 'unknown',
+  dynamicShell: 'unknown',
+  skillPermissions: 'unknown',
+  modelSelection: 'unknown',
+};
+
+function mergeSupports(overrides: Partial<TargetSupports> = {}): TargetSupports {
+  return { ...GENERIC_TARGET_SUPPORTS, ...overrides };
 }
 
 const DEFAULT_TARGETS: Record<string, TargetProfile> = {
@@ -27,14 +59,32 @@ const DEFAULT_TARGETS: Record<string, TargetProfile> = {
     label: 'Claude',
     skillDirs: [expandHome('~/.claude/skills')],
     linkMode: 'junction',
-    supports: { skillMd: true, allowedTools: 'partial', scripts: 'unknown' },
+    supports: mergeSupports({
+      allowedTools: 'full',
+      scripts: 'unknown',
+      agents: 'native',
+      mcp: 'native',
+      hooks: 'native',
+      dynamicShell: 'native',
+      skillPermissions: 'native',
+      modelSelection: 'native',
+    }),
   },
   codex: {
     id: 'codex',
     label: 'Codex',
     skillDirs: [expandHome('~/.codex/skills')],
     linkMode: 'junction',
-    supports: { skillMd: true, allowedTools: 'partial', scripts: 'unknown' },
+    supports: mergeSupports({
+      allowedTools: 'partial',
+      scripts: 'unknown',
+      agents: 'native',
+      mcp: 'native',
+      hooks: 'none',
+      dynamicShell: 'unknown',
+      skillPermissions: 'unknown',
+      modelSelection: 'unknown',
+    }),
   },
 };
 
@@ -46,7 +96,16 @@ function resolveTargetEntry(entry: TargetEntry): TargetProfile {
         label: entry,
         skillDirs: [],
         linkMode: 'junction',
-        supports: { skillMd: false, allowedTools: 'none', scripts: 'unknown' },
+        supports: mergeSupports({
+          skillMd: false,
+          allowedTools: 'none',
+          agents: 'unknown',
+          mcp: 'unknown',
+          hooks: 'unknown',
+          dynamicShell: 'unknown',
+          skillPermissions: 'unknown',
+          modelSelection: 'unknown',
+        }),
       }
     );
   }
@@ -54,8 +113,8 @@ function resolveTargetEntry(entry: TargetEntry): TargetProfile {
     id: entry.id,
     label: entry.label,
     skillDirs: entry.skillDirs,
-    linkMode: 'junction',
-    supports: { skillMd: true, allowedTools: 'partial', scripts: 'unknown' },
+    linkMode: entry.linkMode || 'junction',
+    supports: mergeSupports(entry.supports),
   };
 }
 

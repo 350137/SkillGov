@@ -119,8 +119,14 @@ export function installSkill(
   }
 
   // 2. Check compatibility
-  const compat = checkCompatibility(skillSource, targetName);
-  if (compat.status === 'unsupported' || compat.status === 'unknown') {
+  const compat = checkCompatibility(skillSource, targetName, {
+    targetProfiles: options.targetProfiles,
+  });
+  if (
+    compat.status === 'unsupported' ||
+    compat.status === 'unknown' ||
+    compat.status === 'needs-overlay'
+  ) {
     return {
       status: 'blocked',
       skillName,

@@ -123,14 +123,17 @@ export function getMappingTargets(skillName: string, mappingsPath?: string): Map
   const mapping = registry.mappings[skillName];
   if (!mapping) return [];
 
-  return Object.entries(mapping.links).map(([target, link]) => {
+  return Object.entries(mapping.links).flatMap(([target, link]) => {
+    if (!link) return [];
     const status = assessExistingLink(link.path, mapping.canonicalPath);
-    return {
-      target: target as SkillMappingTarget,
-      path: link.path,
-      mode: link.mode,
-      status,
-    };
+    return [
+      {
+        target: target as SkillMappingTarget,
+        path: link.path,
+        mode: link.mode,
+        status,
+      },
+    ];
   });
 }
 

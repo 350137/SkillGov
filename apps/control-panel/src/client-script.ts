@@ -8,8 +8,17 @@ const DEFAULT_TARGETS = [
 
 const STATUS_CLASSES: Record<string, string> = {
   compatible: 'status-pass',
+  'needs-mapping': 'status-fixable',
   'needs-overlay': 'status-fixable',
   unsupported: 'status-fail',
+};
+
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  compatible: 'compatibleStatus',
+  'needs-mapping': 'needsMappingStatus',
+  'needs-overlay': 'needsOverlayStatus',
+  unsupported: 'unsupportedStatus',
+  unknown: 'unknownStatus',
 };
 
 interface BrowserSkill {
@@ -106,7 +115,7 @@ function renderCompatibilityResultBody(data: Record<string, unknown>): void {
   if (card) {
     const status = (data.status as string) || 'unknown';
     const badgeClass = STATUS_CLASSES[status] || 'status-fail';
-    const statusKey = `${status}Status`;
+    const statusKey = STATUS_LABEL_KEYS[status] || `${status}Status`;
     const statusLabel = window.t(statusKey) || status;
     let html = '<div class="compat-card">';
     html += `<span class="status-badge ${badgeClass}">${escapeHtml(statusLabel)}</span>`;
@@ -223,6 +232,7 @@ let selectedSkill = null;
 
 const DEFAULT_TARGETS = ${JSON.stringify(DEFAULT_TARGETS)};
 const STATUS_CLASSES = ${JSON.stringify(STATUS_CLASSES)};
+const STATUS_LABEL_KEYS = ${JSON.stringify(STATUS_LABEL_KEYS)};
 
 function escapeHtml(value) {
   if (value == null) return '';

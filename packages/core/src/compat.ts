@@ -1,15 +1,30 @@
-// Target compatibility checker — validates whether a standard skill can run on a target agent. Returns compatible, needs-overlay, unsupported, or unknown.
+// Target compatibility checker validates whether a standard skill can run on a target agent.
 import { readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { parseFrontmatter } from './frontmatter.js';
+import { getMappingTargets } from './mapping.js';
 import { getTargetProfile } from './targets.js';
+import type { CapabilitySupport, TargetProfile } from './targets.js';
 
-export type CompatibilityStatus = 'compatible' | 'needs-overlay' | 'unsupported' | 'unknown';
+export type CompatibilityStatus =
+  | 'compatible'
+  | 'needs-mapping'
+  | 'needs-overlay'
+  | 'unsupported'
+  | 'unknown';
 
 export interface CompatibilityIssue {
   severity: 'error' | 'warning' | 'info';
   message: string;
-  category: 'target' | 'tool' | 'dependency' | 'script' | 'security';
+  category:
+    | 'structure'
+    | 'target'
+    | 'mapping'
+    | 'capability'
+    | 'tool'
+    | 'dependency'
+    | 'script'
+    | 'security';
 }
 
 export interface CompatibilityResult {
@@ -19,11 +34,63 @@ export interface CompatibilityResult {
   issues: CompatibilityIssue[];
 }
 
-// Claude-specific tools not available in Codex
-const CLAUDE_SPECIFIC_TOOLS = new Set(['computer', 'web_search', 'web_fetch']);
+export interface CompatibilityOptions {
+  targetProfiles?: TargetProfile[];
+  mappingsPath?: string;
+}
 
-// Codex-specific tools not available in Claude
+const CLAUDE_SPECIFIC_TOOLS = new Set(['computer', 'web_search', 'web_fetch']);
 const CODEX_SPECIFIC_TOOLS = new Set<string>([]);
+
+type CapabilityKey =
+  | 'agents'
+  | 'mcp'
+  | 'hooks'
+  | 'dynamicShell'
+  | 'skillPermissions'
+  | 'modelSelection';
+
+interface CapabilityRule {
+  fields: string[];
+  capability: CapabilityKey;
+  label: string;
+}
+
+const CAPABILITY_FIELD_RULES: CapabilityRule[] = [
+  { fields: ['agent', 'agents', 'subagent'], capability: 'agents', label: 'agent routing' },
+  { fields: ['hooks'], capability: 'hooks', label: 'skill hooks' },
+  { fields: ['shell'], capability: 'dynamicShell', label: 'skill-level shell execution' },
+  {
+    fields: ['model', 'effort'],
+    capability: 'modelSelection',
+    label: 'skill-level model settings',
+  },
+];
+
+const EXPLICIT_TARGET_BINDINGS: Record<string, RegExp[]> = {
+  claude: [
+    /\bclaude[- ]only\b/i,
+    /\brequires\s+claude(?:\s+code)?\b/i,
+    /\bonly\s+(?:works|runs)\s+(?:with|in|on)\s+claude(?:\s+code)?\b/i,
+    /\bmust\s+(?:run|be used)\s+(?:with|in|on)\s+claude(?:\s+code)?\b/i,
+    /\bclaude[- ]specific\s+(?:tool|tools|hook|hooks|agent|agents|command|commands|permission|permissions|runtime|feature|features)\b/i,
+    /(?:^|[\s`"'(])~?\/?\.claude[\\/]/i,
+    /\bCLAUDE_[A-Z0-9_]+\b/,
+  ],
+  codex: [
+    /\bcodex[- ]only\b/i,
+    /\brequires\s+codex\b/i,
+    /\bonly\s+(?:works|runs)\s+(?:with|in|on)\s+codex\b/i,
+    /\bmust\s+(?:run|be used)\s+(?:with|in|on)\s+codex\b/i,
+    /\bcodex[- ]specific\s+(?:tool|tools|hook|hooks|agent|agents|command|commands|permission|permissions|runtime|feature|features)\b/i,
+    /(?:^|[\s`"'(])~?\/?\.codex[\\/]/i,
+    /\bCODEX_[A-Z0-9_]+\b/,
+  ],
+};
+
+function targetIdFor(target: TargetProfile | null, targetName: string): string {
+  return (target?.id || targetName).toLowerCase();
+}
 
 function detectToolsInMarkdown(content: string, frontmatterTools: string[]): string[] {
   const found = new Set<string>();
@@ -50,17 +117,141 @@ function parseToolsField(value: string): string[] {
       return [];
     }
   }
-  if (trimmed)
+  if (trimmed) {
     return trimmed
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
+  }
   return [];
 }
 
-export function checkCompatibility(skillPath: string, targetName: string): CompatibilityResult {
+function getCapabilitySupport(
+  target: TargetProfile | null,
+  capability: CapabilityKey,
+): CapabilitySupport {
+  return target?.supports[capability] || 'unknown';
+}
+
+function addCapabilityIssue(
+  issues: CompatibilityIssue[],
+  target: TargetProfile | null,
+  targetName: string,
+  capability: CapabilityKey,
+  label: string,
+): void {
+  const support = getCapabilitySupport(target, capability);
+  if (support === 'native' || support === 'mapped') return;
+  issues.push({
+    severity: support === 'none' ? 'warning' : 'info',
+    message:
+      support === 'none'
+        ? `Skill declares ${label}, but "${targetName}" does not support that capability directly.`
+        : `Skill declares ${label}; support on "${targetName}" is unknown and should be reviewed.`,
+    category: 'capability',
+  });
+}
+
+function hasFrontmatterValue(data: Record<string, string>, field: string): boolean {
+  const value = data[field];
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function checkCapabilityFields(
+  data: Record<string, string>,
+  content: string,
+  target: TargetProfile | null,
+  targetName: string,
+  issues: CompatibilityIssue[],
+): void {
+  for (const rule of CAPABILITY_FIELD_RULES) {
+    if (rule.fields.some((field) => hasFrontmatterValue(data, field))) {
+      addCapabilityIssue(issues, target, targetName, rule.capability, rule.label);
+    }
+  }
+
+  if (hasFrontmatterValue(data, 'context') && /\bfork\b/i.test(data.context)) {
+    addCapabilityIssue(issues, target, targetName, 'agents', 'forked agent context');
+  }
+
+  if (/!`[^`]+`/.test(content)) {
+    addCapabilityIssue(issues, target, targetName, 'dynamicShell', 'dynamic shell context');
+  }
+}
+
+function checkExplicitTargetBindings(
+  content: string,
+  targetName: string,
+  issues: CompatibilityIssue[],
+): void {
+  const normalizedTarget = targetName.toLowerCase();
+  for (const [boundTarget, patterns] of Object.entries(EXPLICIT_TARGET_BINDINGS)) {
+    if (boundTarget === normalizedTarget) continue;
+    if (!patterns.some((pattern) => pattern.test(content))) continue;
+    issues.push({
+      severity: 'warning',
+      message: `Markdown contains explicit ${boundTarget} binding. An overlay may be needed for "${targetName}".`,
+      category: 'target',
+    });
+  }
+}
+
+function checkRequiredFrontmatter(
+  data: Record<string, string>,
+  target: TargetProfile | null,
+  issues: CompatibilityIssue[],
+): void {
+  if (!target?.supports.skillMd) return;
+  for (const field of ['name', 'description']) {
+    if (!hasFrontmatterValue(data, field)) {
+      issues.push({
+        severity: 'error',
+        message: `Missing required frontmatter field "${field}".`,
+        category: 'structure',
+      });
+    }
+  }
+}
+
+function statusFromIssues(issues: CompatibilityIssue[]): CompatibilityStatus {
+  if (issues.some((i) => i.severity === 'error')) return 'unsupported';
+  if (issues.some((i) => i.severity === 'warning' && i.category !== 'mapping')) {
+    return 'needs-overlay';
+  }
+  if (issues.some((i) => i.severity === 'warning' && i.category === 'mapping')) {
+    return 'needs-mapping';
+  }
+  return 'compatible';
+}
+
+function checkMappingStatus(
+  skillName: string,
+  targetName: string,
+  options: CompatibilityOptions,
+  issues: CompatibilityIssue[],
+): void {
+  if (!options.mappingsPath) return;
+  const targetMappings = getMappingTargets(skillName, options.mappingsPath);
+  const targetMapping = targetMappings.find((mapping) => mapping.target === targetName);
+  if (targetMapping?.status === 'linked') return;
+
+  issues.push({
+    severity: 'warning',
+    message: targetMapping
+      ? `Skill mapping for "${targetName}" is "${targetMapping.status}". Remap before use.`
+      : `Skill is compatible but is not mapped to "${targetName}" yet.`,
+    category: 'mapping',
+  });
+}
+
+export function checkCompatibility(
+  skillPath: string,
+  targetName: string,
+  options: CompatibilityOptions = {},
+): CompatibilityResult {
   const issues: CompatibilityIssue[] = [];
-  const target = getTargetProfile(targetName);
+  const target = getTargetProfile(targetName, options.targetProfiles);
+  const targetId = targetIdFor(target, targetName);
 
   if (!target) {
     issues.push({
@@ -81,7 +272,7 @@ export function checkCompatibility(skillPath: string, targetName: string): Compa
         {
           severity: 'error',
           message: `Cannot parse SKILL.md frontmatter: ${fm.errors.join('; ')}`,
-          category: 'target',
+          category: 'structure',
         },
       ],
     };
@@ -90,26 +281,23 @@ export function checkCompatibility(skillPath: string, targetName: string): Compa
   const skillName = fm.data.name || basename(skillPath);
   const content = readFileSync(skillMdPath, 'utf-8');
 
-  // 1. Check compatibility field
+  checkRequiredFrontmatter(fm.data, target, issues);
+
   const compatibilityRaw = fm.data.compatibility;
   if (compatibilityRaw) {
     const compLower = compatibilityRaw.toLowerCase().replace(/['"]/g, '').trim();
-    if (compLower === 'claude-only' || compLower === 'claude') {
-      if (targetName !== 'claude') {
-        issues.push({
-          severity: 'warning',
-          message: `Skill declares compatibility with Claude only, but target is "${targetName}".`,
-          category: 'target',
-        });
-      }
-    } else if (compLower === 'codex-only' || compLower === 'codex') {
-      if (targetName !== 'codex') {
-        issues.push({
-          severity: 'warning',
-          message: `Skill declares compatibility with Codex only, but target is "${targetName}".`,
-          category: 'target',
-        });
-      }
+    if ((compLower === 'claude-only' || compLower === 'claude') && targetId !== 'claude') {
+      issues.push({
+        severity: 'warning',
+        message: `Skill declares compatibility with Claude only, but target is "${targetName}".`,
+        category: 'target',
+      });
+    } else if ((compLower === 'codex-only' || compLower === 'codex') && targetId !== 'codex') {
+      issues.push({
+        severity: 'warning',
+        message: `Skill declares compatibility with Codex only, but target is "${targetName}".`,
+        category: 'target',
+      });
     } else if (compLower === 'none' || compLower === 'unsupported') {
       issues.push({
         severity: 'error',
@@ -119,20 +307,26 @@ export function checkCompatibility(skillPath: string, targetName: string): Compa
     }
   }
 
-  // 2. Check allowed-tools references
   const toolsRaw = fm.data['allowed-tools'] || fm.data.allowed_tools || '';
   const declaredTools = toolsRaw ? parseToolsField(toolsRaw) : [];
   const detectedTools = detectToolsInMarkdown(content, declaredTools);
+  if (toolsRaw && target?.supports.allowedTools === 'none') {
+    issues.push({
+      severity: 'warning',
+      message: `Skill declares allowed-tools, but "${targetName}" does not support skill-level tool permissions.`,
+      category: 'capability',
+    });
+  }
 
   for (const tool of detectedTools) {
-    if (targetName === 'codex' && CLAUDE_SPECIFIC_TOOLS.has(tool)) {
+    if (targetId === 'codex' && CLAUDE_SPECIFIC_TOOLS.has(tool)) {
       issues.push({
         severity: 'warning',
         message: `Tool "${tool}" is Claude-specific and may not be available on Codex.`,
         category: 'tool',
       });
     }
-    if (targetName === 'claude' && CODEX_SPECIFIC_TOOLS.has(tool)) {
+    if (targetId === 'claude' && CODEX_SPECIFIC_TOOLS.has(tool)) {
       issues.push({
         severity: 'warning',
         message: `Tool "${tool}" is Codex-specific and may not be available on Claude.`,
@@ -141,7 +335,6 @@ export function checkCompatibility(skillPath: string, targetName: string): Compa
     }
   }
 
-  // 3. Check MCP dependencies
   const mcpRaw = fm.data['mcp-servers'] || fm.data.mcp_servers || '';
   if (mcpRaw) {
     const mcpServers = parseToolsField(mcpRaw);
@@ -154,7 +347,6 @@ export function checkCompatibility(skillPath: string, targetName: string): Compa
     }
   }
 
-  // 4. Check CLI dependencies
   const cliRaw = fm.data['cli-dependencies'] || fm.data.cli_dependencies || '';
   if (cliRaw) {
     const cliDeps = parseToolsField(cliRaw);
@@ -167,7 +359,6 @@ export function checkCompatibility(skillPath: string, targetName: string): Compa
     }
   }
 
-  // 5. Check script runtimes
   const scriptsRaw = fm.data.scripts || '';
   if (scriptsRaw) {
     const scripts = parseToolsField(scriptsRaw);
@@ -182,39 +373,9 @@ export function checkCompatibility(skillPath: string, targetName: string): Compa
     }
   }
 
-  // 6. Check target-specific wording in markdown
-  if (targetName === 'codex' && /\bclaude\b/i.test(content)) {
-    issues.push({
-      severity: 'warning',
-      message:
-        'Markdown references "Claude" — may contain Claude-specific instructions needing overlay.',
-      category: 'target',
-    });
-  }
-  if (targetName === 'claude' && /\bcodex\b/i.test(content)) {
-    issues.push({
-      severity: 'warning',
-      message:
-        'Markdown references "Codex" — may contain Codex-specific instructions needing overlay.',
-      category: 'target',
-    });
-  }
+  checkCapabilityFields(fm.data, content, target, targetName, issues);
+  checkExplicitTargetBindings(content, targetId, issues);
+  checkMappingStatus(skillName, targetId, options, issues);
 
-  // Determine final status
-  const hasErrors = issues.some((i) => i.severity === 'error');
-  const hasWarnings = issues.some((i) => i.severity === 'warning');
-
-  let status: CompatibilityStatus;
-  if (hasErrors) {
-    status = 'unsupported';
-  } else if (hasWarnings) {
-    status = 'needs-overlay';
-  } else if (issues.length === 0) {
-    status = 'compatible';
-  } else {
-    // Only info-level issues
-    status = 'compatible';
-  }
-
-  return { status, skillName, targetName, issues };
+  return { status: statusFromIssues(issues), skillName, targetName, issues };
 }

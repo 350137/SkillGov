@@ -212,6 +212,16 @@ describe('renderCompatibilityResult', () => {
     expect(card.innerHTML).toContain('Create overlay');
   });
 
+  it('renders needs-mapping status with a fixable badge', () => {
+    const card = createElement('compat-result-card');
+    createElement('output', 'pre');
+
+    renderCompatibilityResult({ status: 'needs-mapping' });
+
+    expect(card.innerHTML).toContain('status-fixable');
+    expect(card.innerHTML).toContain('Needs Mapping');
+  });
+
   it('renders unsupported status with fail badge', () => {
     const card = createElement('compat-result-card');
     createElement('output', 'pre');
@@ -379,6 +389,7 @@ describe('filterSkills', () => {
 describe('i18n compatibility keys', () => {
   const requiredKeys = [
     'compatibleStatus',
+    'needsMappingStatus',
     'needsOverlayStatus',
     'unsupportedStatus',
     'unknownStatus',

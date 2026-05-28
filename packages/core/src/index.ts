@@ -3,7 +3,7 @@ export { VERSION, version } from './version.js';
 export { defaultConfig, loadConfig, writeConfig, normalizePath } from './config.js';
 export type { SkillGovConfig } from './config.js';
 export { getTargetProfile, listTargetProfiles } from './targets.js';
-export type { TargetEntry, TargetProfile, TargetSupports } from './targets.js';
+export type { CapabilitySupport, TargetEntry, TargetProfile, TargetSupports } from './targets.js';
 export { readRegistry, writeRegistry, addSkillEntry } from './registry.js';
 export type {
   SkillEntry,

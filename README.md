@@ -81,13 +81,20 @@ Initial MVP targets:
 - Claude Code
 - Codex
 
+Compatibility is now target-profile driven. Each target profile describes where
+an agent discovers skills and which capabilities it supports, so SkillGov can
+add OpenCode, Gemini CLI, Cursor, or other tools through configuration instead
+of hard-coded Claude/Codex branches.
+
 Examples of checks:
 
 - Does the skill declare target compatibility?
-- Does it reference tools that the target agent does not have?
+- Does it reference tools or permissions that the target agent does not have?
 - Does it require scripts or runtimes that are unavailable?
 - Does it depend on MCP servers, plugins, commands, or CLI tools?
-- Does it contain target-specific instructions that need an overlay?
+- Does it declare capabilities such as agent routing, hooks, dynamic shell
+  context, skill-level model settings, or tool permissions?
+- Does it contain explicit target-only bindings that need an overlay?
 
 Possible results:
 
@@ -129,6 +136,11 @@ On Windows, mappings should normally use junctions where appropriate. Other
 platforms can use symlinks. Copy mode may be supported as a fallback, but links
 are preferred because they preserve a single source of truth.
 
+The canonical managed skill lives in `skills/<skill>`. Target agent directories
+should contain mappings to that canonical skill, not separate unmanaged copies
+unless copy mode is the only available fallback. This keeps SkillGov focused on
+central skill governance rather than skill accumulation.
+
 ## Scope
 
 ### MVP Includes
@@ -136,7 +148,8 @@ are preferred because they preserve a single source of truth.
 - Local project directory management.
 - Skill import into an incoming area.
 - Standard Agent Skill validation.
-- Claude Code and Codex compatibility review.
+- Target-profile compatibility review for Claude Code, Codex, and configured
+  future agents.
 - Target overlay task generation.
 - Install, uninstall, status, and rollback operations.
 - JSON registry files for skills, compatibility, installs, and operations.
@@ -150,7 +163,7 @@ are preferred because they preserve a single source of truth.
 - Automatic semantic rewriting of skills.
 - Full MCP server management.
 - Full plugin management.
-- Full workflow or agent management.
+- Full workflow management.
 - Desktop app packaging as the first milestone.
 - Direct modification of plugin cache directories.
 
@@ -286,7 +299,8 @@ returns operation results as JSON in the browser.
 - Keep registries explicit and inspectable.
 - Do not hide AI costs inside the tool.
 - Make every install decision explainable.
-- Start with Claude Code and Codex, then expand to other targets later.
+- Start with Claude Code and Codex, then expand through target profiles instead
+  of hard-coded target-specific columns.
 - Every project file that supports comments must start with a first-line comment
   explaining what the file is for and what functionality it implements. Use the
   native comment syntax for that file type, such as `//`, `#`, or `<!-- -->`.
@@ -295,7 +309,7 @@ returns operation results as JSON in the browser.
 
 ## Current Status
 
-As of 2026-05-22, the SkillGov MVP is functionally complete for the main local
+As of 2026-05-28, the SkillGov MVP is functionally complete for the main local
 governance workflow: project initialization, skill import, standard validation,
 target compatibility review, repair and overlay task generation, install,
 uninstall, status, doctor, inventory, and target-based rollback are implemented
@@ -313,12 +327,15 @@ Implemented areas:
    for initialization/config writes.
 3. Standard Agent Skill validation, import, hashing, reference checks, and path
    safety checks.
-4. Claude Code and Codex target profiles with compatibility review.
+4. Target profiles with an explicit capability matrix for skill metadata,
+   agent routing, hooks, MCP, scripts, and runtime-dependent features.
 5. Repair and overlay task generation for human or external AI follow-up.
 6. Install, uninstall, status, doctor, inventory, and target-based rollback
    operations.
-7. A button-based local web control panel backed by the same core operations.
-8. Automated coverage across core, CLI, and control panel behavior.
+7. A central SkillGov skill library with mappings from target agent directories
+   back to managed skills.
+8. A button-based local web control panel backed by the same core operations.
+9. Automated coverage across core, CLI, and control panel behavior.
 
 Known gaps:
 
@@ -331,14 +348,17 @@ Known gaps:
 4. The CLI tests focus heavily on command routing and usage output; broader
    end-to-end CLI tests with fixture skills would improve confidence.
 5. The project is not packaged as a standalone command or desktop app.
-6. `docs/mvp-plan.md` is a historical plan and still contains some older command
+6. The next compatibility step is to persist richer check reports so the UI can
+   distinguish structure issues, capability gaps, mapping gaps, and ordinary
+   notes without relying on raw JSON.
+7. `docs/mvp-plan.md` is a historical plan and still contains some older command
    examples and UI acceptance items that are not fully reflected in the current
    implementation.
 
 Latest verified state:
 
-- Unit and API tests: 18 test files, 130 tests passing.
+- Unit and API tests: 22 test files, 294 tests passing.
 - Lint: Biome check passing.
 - TypeScript: project build with `tsc -b` passing.
-- Runtime smoke checks: `skillgov status`, `skillgov inventory`, and
-  `skillgov doctor` run successfully through `tsx`.
+- Runtime smoke checks: local API and control panel checks are covered by the
+  test suite.

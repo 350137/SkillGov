@@ -70,7 +70,11 @@ const apiRoutes: Record<string, ApiHandler> = {
     const skillPath = body.skillPath as string;
     const target = body.target as string;
     if (!skillPath || !target) return { error: 'Missing "skillPath" or "target" field' };
-    return checkCompatibility(skillPath, target) as unknown as Record<string, unknown>;
+    const config = loadConfig();
+    return checkCompatibility(skillPath, target, {
+      targetProfiles: listTargetProfiles(config.targets),
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+    }) as unknown as Record<string, unknown>;
   },
 
   install: (body) => {
@@ -114,7 +118,11 @@ const apiRoutes: Record<string, ApiHandler> = {
     const skillPath = body.skillPath as string;
     const target = body.target as string;
     if (!skillPath || !target) return { error: 'Missing "skillPath" or "target" field' };
-    const compatResult = checkCompatibility(skillPath, target);
+    const config = loadConfig();
+    const compatResult = checkCompatibility(skillPath, target, {
+      targetProfiles: listTargetProfiles(config.targets),
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+    });
     if (compatResult.status !== 'needs-overlay') {
       return { error: `Status is "${compatResult.status}", expected "needs-overlay"` };
     }

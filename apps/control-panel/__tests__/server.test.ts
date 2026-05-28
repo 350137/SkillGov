@@ -207,7 +207,6 @@ describe('Control Panel API', () => {
     expect(res).toContain('id="status-summary"');
     expect(res).toContain('id="discover-summary"');
     expect(res).toContain('id="discover-pagination"');
-    expect(res).toContain('id="compat-number"');
     expect(res).toContain('function resolveSkillByNumber');
     expect(res).toContain("searchParams.get('discover') === '1'");
     expect(res).toContain('totalManaged');
@@ -217,11 +216,11 @@ describe('Control Panel API', () => {
     expect(res).toContain('changeDiscoverPage');
     expect(res).toContain('function formatAgentTargets');
     expect(res).toContain('tableNumber');
-    expect(res).toContain('tableCodexMapping');
-    expect(res).toContain('tableClaudeMapping');
     expect(res).toContain('s.sourceLabel || s.source');
     expect(res).toContain('formatAgentTargets(s.agentTargets)');
-    expect(res).toContain('formatMappingStatus(s.mappingTargets');
+    expect(res).toContain('function selectSkillNumber');
+    expect(res).toContain('function populateTargetOptions');
+    expect(res).toContain('function renderCompatibilityResult');
     expect(res).not.toContain('sourceTarget || s.source');
     expect(res).not.toContain('id="compat-path"');
     expect(res).not.toContain('data-i18n="importValidateHeading"');

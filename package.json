@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "jsdom": "^29.1.1",
     "typescript": "^5.7.0",
     "vitest": "^3.1.0"
   },
@@ -20,6 +21,9 @@
   },
   "packageManager": "pnpm@10.33.2",
   "pnpm": {
-    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild"]
+    "onlyBuiltDependencies": [
+      "@biomejs/biome",
+      "esbuild"
+    ]
   }
 }

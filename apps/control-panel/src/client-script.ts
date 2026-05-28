@@ -1,7 +1,348 @@
-// Browser interaction script string used by the control panel HTML page.
+// Browser interaction script string used by the control panel HTML page — two-pane layout with visual compatibility results.
 import { translations } from './i18n.js';
 
-const clientScriptBody =
-  "let currentLanguage = 'en';\nlet latestStatusData = null;\n\nfunction getPreferredLanguage() {\n  const stored = localStorage.getItem('skillgov-language');\n  if (stored === 'zh' || stored === 'en') return stored;\n  return navigator.language && navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';\n}\n\nfunction t(key) {\n  return translations[currentLanguage][key] || translations.en[key] || key;\n}\n\nfunction applyLanguage(language) {\n  currentLanguage = language === 'zh' ? 'zh' : 'en';\n  localStorage.setItem('skillgov-language', currentLanguage);\n  document.documentElement.lang = currentLanguage === 'zh' ? 'zh-CN' : 'en';\n  document.querySelectorAll('[data-i18n]').forEach((el) => {\n    el.textContent = t(el.dataset.i18n);\n  });\n  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {\n    el.setAttribute('placeholder', t(el.dataset.i18nPlaceholder));\n  });\n  const select = document.getElementById('language-select');\n  if (select) select.value = currentLanguage;\n}\n\nlet discoverPage = 0;\nconst PAGE_SIZE = 10;\nlet latestDiscoverData = [];\nlet latestNonSkillDirectories = [];\n\nfunction renderStatusSummary(data) {\n  latestStatusData = data;\n  const el = document.getElementById('status-summary');\n  const skills = data.skills || [];\n  const totalManaged = skills.length;\n  const installedClaude = skills.filter((s) => s.installedTargets && s.installedTargets.includes('claude')).length;\n  const installedCodex = skills.filter((s) => s.installedTargets && s.installedTargets.includes('codex')).length;\n  const notInstalled = skills.filter((s) => !s.installedTargets || s.installedTargets.length === 0).length;\n  const withOverlay = skills.filter((s) => s.hasOverlay).length;\n  const excludedDirectories = (data.nonSkillDirectories || []).length;\n  el.innerHTML = \\`<table><tbody>\n    <tr><td><strong>\\${t('totalManaged')}</strong></td><td>\\${totalManaged}</td></tr>\n    <tr><td><strong>\\${t('installedClaude')}</strong></td><td>\\${installedClaude}</td></tr>\n    <tr><td><strong>\\${t('installedCodex')}</strong></td><td>\\${installedCodex}</td></tr>\n    <tr><td><strong>\\${t('notInstalled')}</strong></td><td>\\${notInstalled}</td></tr>\n    <tr><td><strong>\\${t('withOverlay')}</strong></td><td>\\${withOverlay}</td></tr>\n    <tr><td><strong>\\${t('excludedDirectories')}</strong></td><td>\\${excludedDirectories}</td></tr>\n  </tbody></table>\\`;\n}\n\nfunction renderDiscoverTable(skills, nonSkillDirectories) {\n  latestDiscoverData = skills || [];\n  latestNonSkillDirectories = nonSkillDirectories || [];\n  discoverPage = 0;\n  renderDiscoverPage();\n}\n\nfunction formatAgentTargets(agentTargets) {\n  const labels = { codex: 'Codex', claude: 'Claude' };\n  if (!agentTargets || agentTargets.length === 0) return t('none');\n  return agentTargets.map((target) => labels[target] || target).join(', ');\n}\n\nfunction formatMappingStatus(mappingTargets, target) {\n  const mapping = (mappingTargets || []).find((item) => item.target === target);\n  if (!mapping) return t('mappingUnlinked');\n  if (mapping.status === 'linked') return t('mappingLinked');\n  if (mapping.status === 'missing') return t('mappingMissing');\n  if (mapping.status === 'conflict') return t('mappingConflict');\n  return mapping.status || t('mappingUnlinked');\n}\n\nfunction resolveSkillByNumber(value) {\n  const number = Number.parseInt(value, 10);\n  if (!Number.isInteger(number) || number < 1 || number > latestDiscoverData.length) return null;\n  return latestDiscoverData[number - 1];\n}\n\nfunction renderDiscoverPage() {\n  const skills = latestDiscoverData;\n  const summary = document.getElementById('discover-summary');\n  const table = document.getElementById('discover-table');\n  const pagination = document.getElementById('discover-pagination');\n\n  if (!skills || skills.length === 0) {\n    summary.innerHTML = '';\n    table.innerHTML = \\`<p>\\${t('noSkills')}</p>\\`;\n    pagination.innerHTML = '';\n    return;\n  }\n\n  const totalPages = Math.ceil(skills.length / PAGE_SIZE);\n  const passCount = skills.filter((s) => s.validationStatus === 'pass').length;\n  const fixableCount = skills.filter((s) => s.validationStatus === 'fixable').length;\n  const failCount = skills.filter((s) => s.validationStatus === 'fail').length;\n\n  summary.innerHTML = \\`<table><tbody>\n    <tr><td><strong>\\${t('totalDiscovered')}</strong></td><td>\\${skills.length}</td></tr>\n    <tr><td><strong>\\${t('validationPass')}</strong></td><td>\\${passCount}</td></tr>\n    <tr><td><strong>\\${t('validationFixable')}</strong></td><td>\\${fixableCount}</td></tr>\n    <tr><td><strong>\\${t('validationFail')}</strong></td><td>\\${failCount}</td></tr>\n    <tr><td><strong>\\${t('excludedDirectories')}</strong></td><td>\\${latestNonSkillDirectories.length}</td></tr>\n  </tbody></table>\\`;\n\n  const start = discoverPage * PAGE_SIZE;\n  const page = skills.slice(start, start + PAGE_SIZE);\n  const rows = page.map((s, index) => {\n    const badgeClass = s.validationStatus === 'pass' ? 'status-pass' : s.validationStatus === 'fixable' ? 'status-fixable' : 'status-fail';\n    const rowNumber = start + index + 1;\n    return \\`<tr><td>\\${rowNumber}</td><td>\\${s.name}</td><td>\\${s.sourceLabel || s.source}</td><td><span class=\"status-badge \\${badgeClass}\">\\${s.validationStatus}</span></td><td>\\${formatAgentTargets(s.agentTargets)}</td><td>\\${formatMappingStatus(s.mappingTargets, 'codex')}</td><td>\\${formatMappingStatus(s.mappingTargets, 'claude')}</td><td style=\"font-size:0.75rem;color:#888;\">\\${s.path}</td></tr>\\`;\n  }).join('');\n  table.innerHTML = \\`<table><thead><tr><th>\\${t('tableNumber')}</th><th>\\${t('tableSkill')}</th><th>\\${t('tableSource')}</th><th>\\${t('tableValidation')}</th><th>\\${t('tableAgent')}</th><th>\\${t('tableCodexMapping')}</th><th>\\${t('tableClaudeMapping')}</th><th>\\${t('tablePath')}</th></tr></thead><tbody>\\${rows}</tbody></table>\\`;\n\n  const pageInfo = t('pageInfo').replace('{current}', discoverPage + 1).replace('{total}', totalPages);\n  pagination.innerHTML = \\`<div style=\"display:flex;gap:8px;align-items:center;margin-top:8px;\">\n    <button onclick=\"changeDiscoverPage(-1)\" \\${discoverPage === 0 ? 'disabled' : ''}>\\${t('prevPage')}</button>\n    <span>\\${pageInfo}</span>\n    <button onclick=\"changeDiscoverPage(1)\" \\${discoverPage >= totalPages - 1 ? 'disabled' : ''}>\\${t('nextPage')}</button>\n    <span style=\"margin-left:12px;color:#666;\">\\${t('totalSkills').replace('{count}', skills.length)}</span>\n  </div>\\`;\n}\n\nfunction changeDiscoverPage(delta) {\n  const totalPages = Math.ceil(latestDiscoverData.length / PAGE_SIZE);\n  discoverPage = Math.max(0, Math.min(totalPages - 1, discoverPage + delta));\n  renderDiscoverPage();\n}\nasync function callAPI(endpoint) {\n  const output = document.getElementById('output');\n  output.textContent = t('loading');\n\n  const body = {};\n  const fields = {\n    import: { sourcePath: 'import-path' },\n    validate: { path: 'validate-path' },\n    install: { skillName: 'install-skill', target: 'install-target' },\n    uninstall: { skillName: 'install-skill', target: 'install-target' },\n    'task/repair': { skillPath: 'task-path' },\n    'task/overlay': { skillPath: 'task-path', target: 'task-target' },\n    rollback: { target: 'install-target' },\n  };\n\n  if (fields[endpoint]) {\n    for (const [key, elId] of Object.entries(fields[endpoint])) {\n      const el = document.getElementById(elId);\n      if (el) body[key] = el.value || el.value;\n    }\n  }\n\n  if (endpoint === 'compat') {\n    const skill = resolveSkillByNumber(document.getElementById('compat-number').value);\n    const target = document.getElementById('compat-target').value;\n    if (!skill) {\n      output.textContent = t('invalidSkillNumber');\n      return;\n    }\n    body.skillPath = skill.path;\n    body.target = target;\n  }\n\n  try {\n    const res = await fetch('/api/' + endpoint, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify(body),\n    });\n    const data = await res.json();\n    output.textContent = JSON.stringify(data, null, 2);\n    if (endpoint === 'status') {\n      latestStatusData = data;\n      renderStatusSummary(data);\n    }\n    if (endpoint === 'discover' && data.skills) {\n      renderDiscoverTable(data.skills, data.nonSkillDirectories);\n    }\n    if (endpoint === 'discover/import' && data.results) {\n      callAPI('discover');\n    }\n  } catch (err) {\n    output.textContent = t('errorPrefix') + err.message;\n  }\n}\n\n// Load initial status\nwindow.addEventListener('DOMContentLoaded', () => {\n  applyLanguage(getPreferredLanguage());\n  document.getElementById('language-select').addEventListener('change', (event) => {\n    applyLanguage(event.target.value);\n    if (latestStatusData) renderStatusSummary(latestStatusData);\n    if (latestDiscoverData.length > 0) renderDiscoverPage();\n  });\n  const searchParams = new URLSearchParams(window.location.search);\n  const pp = document.getElementById('project-path');\n  fetch('/api/status')\n    .then(r => r.json())\n    .then(data => {\n      pp.textContent = data.projectRoot || t('noProject');\n      renderStatusSummary(data);\n      if (searchParams.get('discover') === '1') callAPI('discover');\n    })\n    .catch(() => { pp.textContent = t('statusLoadFailed'); });\n});";
+const DEFAULT_TARGETS = [
+  { id: 'codex', label: 'Codex' },
+  { id: 'claude', label: 'Claude' },
+];
+
+const STATUS_CLASSES: Record<string, string> = {
+  compatible: 'status-pass',
+  'needs-overlay': 'status-fixable',
+  unsupported: 'status-fail',
+};
+
+function selectSkillNumberBody(value: string): void {
+  const skill = window.resolveSkillByNumber(value);
+  const titleEl = document.getElementById('selected-skill-title');
+  const metaEl = document.getElementById('selected-skill-meta');
+  if (!skill) {
+    if (titleEl) titleEl.textContent = window.t('noSkillSelected');
+    if (metaEl) metaEl.textContent = '';
+    return;
+  }
+  if (titleEl) titleEl.textContent = skill.name;
+  if (metaEl) {
+    const parts = [skill.sourceLabel || skill.source, skill.validationStatus];
+    if (skill.agentTargets && skill.agentTargets.length > 0) {
+      parts.push(skill.agentTargets.join(', '));
+    }
+    metaEl.textContent = parts.join(' · ');
+  }
+  window.populateTargetOptions(skill);
+}
+
+function populateTargetOptionsBody(skill: Record<string, unknown>): void {
+  const select = document.getElementById('target-agent-select');
+  if (!select) return;
+  const targets =
+    Array.isArray(skill.agentTargets) && skill.agentTargets.length > 0
+      ? skill.agentTargets.map((id: string) => {
+          const def = DEFAULT_TARGETS.find((t) => t.id === id);
+          return { id, label: def ? def.label : id };
+        })
+      : DEFAULT_TARGETS;
+  select.innerHTML = '';
+  for (const target of targets) {
+    const option = document.createElement('option');
+    option.value = target.id;
+    option.textContent = target.label;
+    select.appendChild(option);
+  }
+}
+
+function renderCompatibilityResultBody(data: Record<string, unknown>): void {
+  const card = document.getElementById('compat-result-card');
+  const output = document.getElementById('output');
+  if (card) {
+    const status = (data.status as string) || 'unknown';
+    const badgeClass = STATUS_CLASSES[status] || 'status-fail';
+    const statusKey = status + 'Status';
+    const statusLabel = window.t(statusKey) || status;
+    let html = '<div class="compat-card">';
+    html += `<span class="status-badge ${badgeClass}">${statusLabel}</span>`;
+    if (data.reason) {
+      html += `<p class="compat-reason">${data.reason}</p>`;
+    }
+    if (data.suggestedAction) {
+      html += `<p class="compat-action"><strong>${window.t('checkButton')}:</strong> ${data.suggestedAction}</p>`;
+    }
+    html += '</div>';
+    card.innerHTML = html;
+  }
+  if (output) {
+    output.textContent = JSON.stringify(data, null, 2);
+  }
+}
+
+async function checkSelectedCompatibilityBody(): Promise<void> {
+  const selectedSkill = window.selectedSkill;
+  const targetSelect = document.getElementById('target-agent-select');
+  const output = document.getElementById('output');
+  if (!selectedSkill) {
+    if (output) output.textContent = window.t('noSkillSelected');
+    return;
+  }
+  const target = targetSelect ? targetSelect.value : '';
+  if (!target) {
+    if (output) output.textContent = window.t('noTargetAvailable');
+    return;
+  }
+  if (output) output.textContent = window.t('loading');
+  try {
+    const res = await fetch('/api/compat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skillPath: selectedSkill.path, target }),
+    });
+    const data = await res.json();
+    window.renderCompatibilityResult(data);
+  } catch (err) {
+    if (output) output.textContent = window.t('errorPrefix') + (err as Error).message;
+  }
+}
+
+const clientScriptBody = `
+let currentLanguage = 'en';
+let latestStatusData = null;
+let selectedSkill = null;
+
+const DEFAULT_TARGETS = ${JSON.stringify(DEFAULT_TARGETS)};
+const STATUS_CLASSES = ${JSON.stringify(STATUS_CLASSES)};
+
+function getPreferredLanguage() {
+  const stored = localStorage.getItem('skillgov-language');
+  if (stored === 'zh' || stored === 'en') return stored;
+  return navigator.language && navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+}
+
+function t(key) {
+  return translations[currentLanguage][key] || translations.en[key] || key;
+}
+
+function applyLanguage(language) {
+  currentLanguage = language === 'zh' ? 'zh' : 'en';
+  localStorage.setItem('skillgov-language', currentLanguage);
+  document.documentElement.lang = currentLanguage === 'zh' ? 'zh-CN' : 'en';
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+    el.setAttribute('placeholder', t(el.dataset.i18nPlaceholder));
+  });
+  const select = document.getElementById('language-select');
+  if (select) select.value = currentLanguage;
+}
+
+let discoverPage = 0;
+const PAGE_SIZE = 10;
+let latestDiscoverData = [];
+let latestNonSkillDirectories = [];
+
+function renderStatusSummary(data) {
+  latestStatusData = data;
+  const el = document.getElementById('status-summary');
+  if (!el) return;
+  const skills = data.skills || [];
+  const totalManaged = skills.length;
+  const installedClaude = skills.filter((s) => s.installedTargets && s.installedTargets.includes('claude')).length;
+  const installedCodex = skills.filter((s) => s.installedTargets && s.installedTargets.includes('codex')).length;
+  const notInstalled = skills.filter((s) => !s.installedTargets || s.installedTargets.length === 0).length;
+  const withOverlay = skills.filter((s) => s.hasOverlay).length;
+  const excludedDirectories = (data.nonSkillDirectories || []).length;
+  el.innerHTML = \`<table><tbody>
+    <tr><td><strong>\${t('totalManaged')}</strong></td><td>\${totalManaged}</td></tr>
+    <tr><td><strong>\${t('installedClaude')}</strong></td><td>\${installedClaude}</td></tr>
+    <tr><td><strong>\${t('installedCodex')}</strong></td><td>\${installedCodex}</td></tr>
+    <tr><td><strong>\${t('notInstalled')}</strong></td><td>\${notInstalled}</td></tr>
+    <tr><td><strong>\${t('withOverlay')}</strong></td><td>\${withOverlay}</td></tr>
+    <tr><td><strong>\${t('excludedDirectories')}</strong></td><td>\${excludedDirectories}</td></tr>
+  </tbody></table>\`;
+}
+
+function renderDiscoverTable(skills, nonSkillDirectories) {
+  latestDiscoverData = skills || [];
+  latestNonSkillDirectories = nonSkillDirectories || [];
+  discoverPage = 0;
+  renderDiscoverPage();
+}
+
+function formatAgentTargets(agentTargets) {
+  const labels = { codex: 'Codex', claude: 'Claude' };
+  if (!agentTargets || agentTargets.length === 0) return t('none');
+  return agentTargets.map((target) => labels[target] || target).join(', ');
+}
+
+function resolveSkillByNumber(value) {
+  const number = Number.parseInt(value, 10);
+  if (!Number.isInteger(number) || number < 1 || number > latestDiscoverData.length) return null;
+  return latestDiscoverData[number - 1];
+}
+
+function selectSkillNumber(value) {
+  ${selectSkillNumberBody.toString().replace(/^function\s*\w*\s*\(value\)\s*\{/, '').replace(/\}$/, '')}
+}
+
+function populateTargetOptions(skill) {
+  ${populateTargetOptionsBody.toString().replace(/^function\s*\w*\s*\(skill\)\s*\{/, '').replace(/\}$/, '')}
+}
+
+function renderCompatibilityResult(data) {
+  ${renderCompatibilityResultBody.toString().replace(/^function\s*\w*\s*\(data\)\s*\{/, '').replace(/\}$/, '')}
+}
+
+async function checkSelectedCompatibility() {
+  ${checkSelectedCompatibilityBody.toString().replace(/^async\s+function\s*\w*\s*\(\)\s*\{/, '').replace(/\}$/, '')}
+}
+
+function renderDiscoverPage() {
+  const skills = latestDiscoverData;
+  const summary = document.getElementById('discover-summary');
+  const table = document.getElementById('discover-table');
+  const pagination = document.getElementById('discover-pagination');
+
+  if (!skills || skills.length === 0) {
+    if (summary) summary.innerHTML = '';
+    if (table) table.innerHTML = \`<p>\${t('noSkills')}</p>\`;
+    if (pagination) pagination.innerHTML = '';
+    return;
+  }
+
+  const totalPages = Math.ceil(skills.length / PAGE_SIZE);
+  const passCount = skills.filter((s) => s.validationStatus === 'pass').length;
+  const fixableCount = skills.filter((s) => s.validationStatus === 'fixable').length;
+  const failCount = skills.filter((s) => s.validationStatus === 'fail').length;
+
+  if (summary) {
+    summary.innerHTML = \`<table><tbody>
+      <tr><td><strong>\${t('totalDiscovered')}</strong></td><td>\${skills.length}</td></tr>
+      <tr><td><strong>\${t('validationPass')}</strong></td><td>\${passCount}</td></tr>
+      <tr><td><strong>\${t('validationFixable')}</strong></td><td>\${fixableCount}</td></tr>
+      <tr><td><strong>\${t('validationFail')}</strong></td><td>\${failCount}</td></tr>
+      <tr><td><strong>\${t('excludedDirectories')}</strong></td><td>\${latestNonSkillDirectories.length}</td></tr>
+    </tbody></table>\`;
+  }
+
+  const start = discoverPage * PAGE_SIZE;
+  const page = skills.slice(start, start + PAGE_SIZE);
+  const rows = page.map((s, index) => {
+    const badgeClass = s.validationStatus === 'pass' ? 'status-pass' : s.validationStatus === 'fixable' ? 'status-fixable' : 'status-fail';
+    const rowNumber = start + index + 1;
+    return \`<tr data-skill-number="\${rowNumber}" onclick="selectSkillNumber('\${rowNumber}')" style="cursor:pointer;"><td>\${rowNumber}</td><td>\${s.name}</td><td>\${s.sourceLabel || s.source}</td><td><span class="status-badge \${badgeClass}">\${s.validationStatus}</span></td><td>\${formatAgentTargets(s.agentTargets)}</td></tr>\`;
+  }).join('');
+  if (table) {
+    table.innerHTML = \`<table><thead><tr><th>\${t('tableNumber')}</th><th>\${t('tableSkill')}</th><th>\${t('tableSource')}</th><th>\${t('tableValidation')}</th><th>\${t('tableAgent')}</th></tr></thead><tbody>\${rows}</tbody></table>\`;
+  }
+
+  const pageInfo = t('pageInfo').replace('{current}', discoverPage + 1).replace('{total}', totalPages);
+  if (pagination) {
+    pagination.innerHTML = \`<div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+      <button onclick="changeDiscoverPage(-1)" \${discoverPage === 0 ? 'disabled' : ''}>\${t('prevPage')}</button>
+      <span>\${pageInfo}</span>
+      <button onclick="changeDiscoverPage(1)" \${discoverPage >= totalPages - 1 ? 'disabled' : ''}>\${t('nextPage')}</button>
+      <span style="margin-left:12px;color:#666;">\${t('totalSkills').replace('{count}', skills.length)}</span>
+    </div>\`;
+  }
+}
+
+function changeDiscoverPage(delta) {
+  const totalPages = Math.ceil(latestDiscoverData.length / PAGE_SIZE);
+  discoverPage = Math.max(0, Math.min(totalPages - 1, discoverPage + delta));
+  renderDiscoverPage();
+}
+
+async function callAPI(endpoint) {
+  const output = document.getElementById('output');
+  if (output) output.textContent = t('loading');
+
+  const body = {};
+
+  if (endpoint === 'compat') {
+    await checkSelectedCompatibility();
+    return;
+  }
+
+  if (endpoint === 'install' || endpoint === 'uninstall') {
+    if (!selectedSkill) {
+      if (output) output.textContent = t('noSkillSelected');
+      return;
+    }
+    const targetSelect = document.getElementById('target-agent-select');
+    const target = targetSelect ? targetSelect.value : '';
+    if (!target) {
+      if (output) output.textContent = t('noTargetAvailable');
+      return;
+    }
+    body.skillName = selectedSkill.name;
+    body.target = target;
+  }
+
+  if (endpoint === 'map') {
+    await callAPI('install');
+    return;
+  }
+  if (endpoint === 'unmap') {
+    await callAPI('uninstall');
+    return;
+  }
+
+  if (endpoint === 'doctor' || endpoint === 'rollback') {
+    const targetSelect = document.getElementById('target-agent-select');
+    if (endpoint === 'rollback' && targetSelect) {
+      body.target = targetSelect.value;
+    }
+  }
+
+  try {
+    const res = await fetch('/api/' + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (output) output.textContent = JSON.stringify(data, null, 2);
+    if (endpoint === 'status') {
+      latestStatusData = data;
+      renderStatusSummary(data);
+    }
+    if (endpoint === 'discover' && data.skills) {
+      renderDiscoverTable(data.skills, data.nonSkillDirectories);
+    }
+    if (endpoint === 'discover/import' && data.results) {
+      callAPI('discover');
+    }
+  } catch (err) {
+    if (output) output.textContent = t('errorPrefix') + err.message;
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  applyLanguage(getPreferredLanguage());
+  document.getElementById('language-select')?.addEventListener('change', (event) => {
+    applyLanguage(event.target.value);
+    if (latestStatusData) renderStatusSummary(latestStatusData);
+    if (latestDiscoverData.length > 0) renderDiscoverPage();
+  });
+  const searchParams = new URLSearchParams(window.location.search);
+  const pp = document.getElementById('project-path');
+  fetch('/api/status')
+    .then(r => r.json())
+    .then(data => {
+      if (pp) pp.textContent = data.projectRoot || t('noProject');
+      renderStatusSummary(data);
+      if (searchParams.get('discover') === '1') callAPI('discover');
+    })
+    .catch(() => { if (pp) pp.textContent = t('statusLoadFailed'); });
+});
+`;
 
 export const controlPanelClientScript = `const translations = ${JSON.stringify(translations, null, 2)};\n\n${clientScriptBody}`;
+
+export const clientScriptFunctions = {
+  selectSkillNumber: selectSkillNumberBody,
+  populateTargetOptions: populateTargetOptionsBody,
+  renderCompatibilityResult: renderCompatibilityResultBody,
+  checkSelectedCompatibility: checkSelectedCompatibilityBody,
+  DEFAULT_TARGETS,
+  STATUS_CLASSES,
+};

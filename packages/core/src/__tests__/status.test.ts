@@ -146,6 +146,27 @@ describe('getProjectStatus', () => {
     expect(status.skills.find((s) => s.name === 'codex-only')?.installedTargets).toEqual(['codex']);
   });
 
+  it('derives installedTargets from appliedAgents when skill is in both agent directories', () => {
+    mkdirSync(join(tmpDir, '.codex', 'skills', 'shared-skill'), { recursive: true });
+    writeFileSync(
+      join(tmpDir, '.codex', 'skills', 'shared-skill', 'SKILL.md'),
+      '---\nname: shared-skill\ndescription: shared\n---\n\nShared.\n',
+      'utf-8',
+    );
+    mkdirSync(join(tmpDir, '.claude', 'skills', 'shared-skill'), { recursive: true });
+    writeFileSync(
+      join(tmpDir, '.claude', 'skills', 'shared-skill', 'SKILL.md'),
+      '---\nname: shared-skill\ndescription: shared\n---\n\nShared.\n',
+      'utf-8',
+    );
+
+    const status = getProjectStatus(tmpDir, { home: tmpDir });
+    const shared = status.skills.find((s) => s.name === 'shared-skill');
+    expect(shared).toBeDefined();
+    expect(shared?.installedTargets).toEqual(expect.arrayContaining(['codex', 'claude']));
+    expect(shared?.installedTargets).toHaveLength(2);
+  });
+
   it('reports non-skill directories without counting them as skills', () => {
     mkdirSync(join(tmpDir, 'skills', 'not-a-skill'), { recursive: true });
     writeFileSync(join(tmpDir, 'skills', 'not-a-skill', 'README.md'), 'notes', 'utf-8');

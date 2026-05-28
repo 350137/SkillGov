@@ -1,6 +1,6 @@
 // Tests for local skill discovery using Codex and Claude user skill directories.
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -190,5 +190,115 @@ describe('discoverSkills', () => {
     const result = discoverSkills({ home: tmpDir });
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('real-skill');
+  });
+
+  it('populates appliedAgents with both codex and claude when same skill exists in both directories', () => {
+    createSkill(join(tmpDir, '.codex', 'skills', 'shared-skill'), 'shared-skill');
+    createSkill(join(tmpDir, '.claude', 'skills', 'shared-skill'), 'shared-skill');
+    const result = discoverSkills({ home: tmpDir });
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('shared-skill');
+    expect(result[0].appliedAgents).toEqual(
+      expect.arrayContaining([
+        { id: 'codex', label: 'Codex 本地', source: 'local' },
+        { id: 'claude', label: 'Claude 本地', source: 'local' },
+      ]),
+    );
+    expect(result[0].appliedAgents).toHaveLength(2);
+  });
+
+  it('includes mapping-linked targets in appliedAgents for managed skills', () => {
+    createSkill(join(tmpDir, 'project', 'skills', 'managed-skill'), 'managed-skill');
+    // Create a junction so assessExistingLink finds it as 'linked'
+    const linkPath = join(tmpDir, '.codex', 'skills', 'managed-skill');
+    mkdirSync(join(tmpDir, '.codex', 'skills'), { recursive: true });
+    symlinkSync(join(tmpDir, 'project', 'skills', 'managed-skill'), linkPath, 'junction');
+
+    const mappingsPath = join(tmpDir, 'registry', 'mappings.json');
+    mkdirSync(join(tmpDir, 'registry'), { recursive: true });
+    writeFileSync(
+      mappingsPath,
+      JSON.stringify({
+        mappings: {
+          'managed-skill': {
+            skillName: 'managed-skill',
+            canonicalPath: join(tmpDir, 'project', 'skills', 'managed-skill'),
+            links: {
+              codex: {
+                path: linkPath,
+                mode: 'junction',
+                status: 'linked',
+                updatedAt: '2025-01-01',
+              },
+            },
+            updatedAt: '2025-01-01',
+          },
+        },
+      }),
+      'utf-8',
+    );
+
+    const result = discoverSkills({
+      home: tmpDir,
+      projectRoot: join(tmpDir, 'project'),
+      mappingsPath,
+    });
+    expect(result).toHaveLength(1);
+    // Junction is also found by codex local scan, so source is 'local' (first-wins merge)
+    expect(result[0].appliedAgents).toEqual([
+      { id: 'codex', label: 'Codex 本地', source: 'local' },
+    ]);
+  });
+
+  it('returns mappingSummary with total, linked, missing, and conflict counts', () => {
+    createSkill(join(tmpDir, 'project', 'skills', 'summary-skill'), 'summary-skill');
+    // Create a real junction for codex so assessExistingLink finds it as 'linked'
+    const codexLinkPath = join(tmpDir, '.codex', 'skills', 'summary-skill');
+    mkdirSync(join(tmpDir, '.codex', 'skills'), { recursive: true });
+    symlinkSync(join(tmpDir, 'project', 'skills', 'summary-skill'), codexLinkPath, 'junction');
+    // Do NOT create the claude directory — it will be assessed as 'missing'
+
+    const mappingsPath = join(tmpDir, 'registry', 'mappings.json');
+    mkdirSync(join(tmpDir, 'registry'), { recursive: true });
+    writeFileSync(
+      mappingsPath,
+      JSON.stringify({
+        mappings: {
+          'summary-skill': {
+            skillName: 'summary-skill',
+            canonicalPath: join(tmpDir, 'project', 'skills', 'summary-skill'),
+            links: {
+              codex: {
+                path: codexLinkPath,
+                mode: 'junction',
+                status: 'linked',
+                updatedAt: '2025-01-01',
+              },
+              claude: {
+                path: join(tmpDir, '.claude', 'skills', 'summary-skill'),
+                mode: 'junction',
+                status: 'missing',
+                updatedAt: '2025-01-01',
+              },
+            },
+            updatedAt: '2025-01-01',
+          },
+        },
+      }),
+      'utf-8',
+    );
+
+    const result = discoverSkills({
+      home: tmpDir,
+      projectRoot: join(tmpDir, 'project'),
+      mappingsPath,
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].mappingSummary).toEqual({
+      total: 2,
+      linked: 1,
+      missing: 1,
+      conflict: 0,
+    });
   });
 });

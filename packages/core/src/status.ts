@@ -67,7 +67,11 @@ export function getProjectStatus(
       hasOverlay: overlayTargets.length > 0,
       overlayTargets,
       installedTargets:
-        skill.agentTargets.length > 0 ? skill.agentTargets : installedBySkill.get(skill.name) || [],
+        skill.appliedAgents.length > 0
+          ? skill.appliedAgents.map((a) => a.id)
+          : skill.agentTargets.length > 0
+            ? skill.agentTargets
+            : installedBySkill.get(skill.name) || [],
     };
   });
 

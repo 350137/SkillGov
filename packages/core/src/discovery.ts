@@ -10,13 +10,28 @@ import { validateSkill } from './validator.js';
 type SkillSource = 'skillgov-project' | 'codex-user' | 'claude-user';
 type AgentTarget = 'codex' | 'claude';
 
+export interface AppliedAgent {
+  id: string;
+  label: string;
+  source: 'local' | 'install' | 'mapping';
+}
+
+export interface MappingSummary {
+  total: number;
+  linked: number;
+  missing: number;
+  conflict: number;
+}
+
 export interface DiscoveredSkill {
   name: string;
   path: string;
   source: SkillSource;
   sourceLabel: string;
   agentTargets: AgentTarget[];
+  appliedAgents: AppliedAgent[];
   mappingTargets: ReturnType<typeof getMappingTargets>;
+  mappingSummary: MappingSummary;
   validationStatus: 'pass' | 'fixable' | 'fail';
   issues: string[];
   alreadyImported: boolean;
@@ -62,6 +77,7 @@ interface SkillCandidate {
   source: SkillSource;
   sourceLabel: string;
   agentTargets: AgentTarget[];
+  appliedAgents: AppliedAgent[];
 }
 
 function scanSkillDir(
@@ -96,9 +112,15 @@ function scanSkillDir(
       sourceLabel: SOURCE_METADATA[source].sourceLabel,
     };
     if (existsSync(join(fullPath, 'SKILL.md'))) {
+      const agentTargets = [...SOURCE_METADATA[source].agentTargets];
       skills.push({
         ...base,
-        agentTargets: [...SOURCE_METADATA[source].agentTargets],
+        agentTargets,
+        appliedAgents: agentTargets.map((id) => ({
+          id,
+          label: SOURCE_METADATA[source].sourceLabel,
+          source: 'local' as const,
+        })),
       });
     } else {
       nonSkillDirectories.push({
@@ -175,13 +197,23 @@ function labelForOrigin(origin?: string): string {
   return ORIGIN_LABELS[origin] || origin;
 }
 
+function mergeAppliedAgents(existing: AppliedAgent[], incoming: AppliedAgent[]): AppliedAgent[] {
+  const merged = [...existing];
+  for (const agent of incoming) {
+    if (!merged.some((a) => a.id === agent.id)) {
+      merged.push(agent);
+    }
+  }
+  return merged;
+}
+
 function mergeCandidates(candidates: SkillCandidate[]): SkillCandidate[] {
   const byName = new Map<string, (typeof candidates)[number]>();
 
   for (const candidate of candidates) {
     const existing = byName.get(candidate.name);
     if (!existing) {
-      byName.set(candidate.name, { ...candidate });
+      byName.set(candidate.name, { ...candidate, appliedAgents: [...candidate.appliedAgents] });
       continue;
     }
 
@@ -197,6 +229,7 @@ function mergeCandidates(candidates: SkillCandidate[]): SkillCandidate[] {
       }
     }
     existing.agentTargets = addUnique(existing.agentTargets, candidate.agentTargets);
+    existing.appliedAgents = mergeAppliedAgents(existing.appliedAgents, candidate.appliedAgents);
   }
 
   return [...byName.values()];
@@ -242,6 +275,15 @@ export function discoverSkillInventory(options: DiscoveryOptions = {}): SkillInv
   for (const candidate of candidates) {
     const validation = validateSkill(candidate.path);
     const mappingTargets = getMappingTargets(candidate.name, mappingsPath);
+
+    const mappingSummary: MappingSummary = { total: 0, linked: 0, missing: 0, conflict: 0 };
+    for (const mapping of mappingTargets) {
+      mappingSummary.total++;
+      if (mapping.status === 'linked') mappingSummary.linked++;
+      else if (mapping.status === 'missing') mappingSummary.missing++;
+      else if (mapping.status === 'conflict') mappingSummary.conflict++;
+    }
+
     const linkedMappingTargets = mappingTargets
       .filter((mapping) => mapping.status === 'linked')
       .map((mapping) => mapping.target);
@@ -249,13 +291,30 @@ export function discoverSkillInventory(options: DiscoveryOptions = {}): SkillInv
       addUnique(candidate.agentTargets, installedBySkill.get(candidate.name) || []),
       linkedMappingTargets,
     );
+
+    // Build appliedAgents from candidate's local scan, installs, and mappings
+    let appliedAgents = [...candidate.appliedAgents];
+    const installTargets = installedBySkill.get(candidate.name) || [];
+    for (const target of installTargets) {
+      if (!appliedAgents.some((a) => a.id === target)) {
+        appliedAgents.push({ id: target, label: target, source: 'install' });
+      }
+    }
+    for (const mapping of mappingTargets) {
+      if (mapping.status === 'linked' && !appliedAgents.some((a) => a.id === mapping.target)) {
+        appliedAgents.push({ id: mapping.target, label: mapping.target, source: 'mapping' });
+      }
+    }
+
     results.push({
       name: candidate.name,
       path: candidate.path,
       source: candidate.source,
       sourceLabel: candidate.sourceLabel,
       agentTargets,
+      appliedAgents,
       mappingTargets,
+      mappingSummary,
       validationStatus: validation.status,
       issues: validation.issues.map((i) => i.message),
       alreadyImported: importedNames.has(candidate.name) || candidate.source === 'skillgov-project',

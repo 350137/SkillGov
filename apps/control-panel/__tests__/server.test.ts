@@ -253,7 +253,7 @@ describe('Control Panel API', () => {
     expect(res).toContain('function formatAgentTargets');
     expect(res).toContain('tableNumber');
     expect(res).toContain('s.sourceLabel || s.source');
-    expect(res).toContain('formatAgentTargets(s.agentTargets)');
+    expect(res).toContain('formatAppliedAgents(s)');
     expect(res).toContain('function selectSkillNumber');
     expect(res).toContain('function populateTargetOptions');
     expect(res).toContain('function renderCompatibilityResult');

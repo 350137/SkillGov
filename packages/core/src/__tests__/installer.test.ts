@@ -12,6 +12,7 @@ import {
 } from '../installer.js';
 import { readRegistry } from '../registry.js';
 import type { InstallsRegistry } from '../registry.js';
+import type { TargetProfile } from '../targets.js';
 
 let tmpDir: string;
 
@@ -126,6 +127,37 @@ describe('installSkill', () => {
     expect(mappings.mappings['test-skill'].links.opencode).toBeDefined();
     expect(mappings.mappings['test-skill'].links.opencode.path).toBe(
       join(tmpDir, 'target-skills', 'test-skill'),
+    );
+  });
+
+  it('installs to a configured custom target profile without targetSkillRoot override', () => {
+    const targetSkillRoot = join(tmpDir, 'configured-opencode-skills');
+    const targetProfiles: TargetProfile[] = [
+      {
+        id: 'opencode',
+        label: 'OpenCode',
+        skillDirs: [targetSkillRoot],
+        linkMode: 'copy',
+        supports: { skillMd: true, allowedTools: 'partial', scripts: 'unknown' },
+      },
+    ];
+    const options: InstallOptions = {
+      projectRoot: tmpDir,
+      registryPath: join(tmpDir, 'registry', 'installs.json'),
+      operationsPath: join(tmpDir, 'registry', 'operations.jsonl'),
+      mappingsPath: join(tmpDir, 'registry', 'mappings.json'),
+      targetProfiles,
+    };
+
+    const result = installSkill('test-skill', 'opencode', 'copy', options);
+
+    expect(result.status).toBe('installed');
+    expect(result.linkPath).toBe(join(targetSkillRoot, 'test-skill'));
+    expect(existsSync(join(targetSkillRoot, 'test-skill', 'SKILL.md'))).toBe(true);
+
+    const mappings = JSON.parse(readFileSync(join(tmpDir, 'registry', 'mappings.json'), 'utf-8'));
+    expect(mappings.mappings['test-skill'].links.opencode.path).toBe(
+      join(targetSkillRoot, 'test-skill'),
     );
   });
 });

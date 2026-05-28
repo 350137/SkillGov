@@ -15,7 +15,7 @@ import { appendOperation, readOperations } from './operations.js';
 import type { Operation } from './operations.js';
 import { readRegistry, writeRegistry } from './registry.js';
 import type { InstallRecord, InstallsRegistry } from './registry.js';
-import { getTargetProfile } from './targets.js';
+import { type TargetProfile, getTargetProfile } from './targets.js';
 
 export type LinkMode = 'junction' | 'symlink' | 'copy';
 
@@ -25,6 +25,7 @@ export interface InstallOptions {
   operationsPath: string;
   mappingsPath?: string;
   targetSkillRoot?: string;
+  targetProfiles?: TargetProfile[];
 }
 
 export interface InstallResult {
@@ -54,9 +55,10 @@ function getTargetSkillDir(
   targetName: string,
   skillName: string,
   targetSkillRoot?: string,
+  targetProfiles?: TargetProfile[],
 ): string | null {
   if (targetSkillRoot) return resolve(targetSkillRoot, skillName);
-  const profile = getTargetProfile(targetName);
+  const profile = getTargetProfile(targetName, targetProfiles);
   if (!profile || profile.skillDirs.length === 0) return null;
   return resolve(profile.skillDirs[0], skillName);
 }
@@ -129,7 +131,12 @@ export function installSkill(
   }
 
   // 3. Determine target directory
-  const targetSkillDir = getTargetSkillDir(targetName, skillName, options.targetSkillRoot);
+  const targetSkillDir = getTargetSkillDir(
+    targetName,
+    skillName,
+    options.targetSkillRoot,
+    options.targetProfiles,
+  );
   if (!targetSkillDir) {
     return {
       status: 'blocked',
@@ -148,6 +155,7 @@ export function installSkill(
       projectRoot,
       mappingsPath: options.mappingsPath || resolve(projectRoot, 'registry', 'mappings.json'),
       targetSkillRoot: options.targetSkillRoot,
+      targetProfiles: options.targetProfiles,
       linkMode,
     });
     if (mapping.status !== 'linked') {

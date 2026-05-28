@@ -171,12 +171,8 @@ describe('populateTargetOptions', () => {
 
   it('prefers window.targetProfiles over window.availableTargets', () => {
     const select = createElement('target-agent-select', 'select') as HTMLSelectElement;
-    testWindow().targetProfiles = [
-      { id: 'from-profiles', label: 'From Profiles' },
-    ];
-    testWindow().availableTargets = [
-      { id: 'from-available', label: 'From Available' },
-    ];
+    testWindow().targetProfiles = [{ id: 'from-profiles', label: 'From Profiles' }];
+    testWindow().availableTargets = [{ id: 'from-available', label: 'From Available' }];
 
     populateTargetOptions({ name: 'test-skill' });
 
@@ -240,6 +236,10 @@ describe('renderCompatibilityResult', () => {
 });
 
 describe('script structure', () => {
+  it('emits syntactically valid browser JavaScript', () => {
+    expect(() => new Function(controlPanelClientScript)).not.toThrow();
+  });
+
   it('does not use fixed formatMappingStatus with hardcoded codex/claude', () => {
     expect(controlPanelClientScript).not.toContain(
       "formatMappingStatus(s.mappingTargets, 'codex')",
@@ -294,7 +294,7 @@ describe('script structure', () => {
   });
 
   it('appliedAgents and mappingSummary columns appear in discover table', () => {
-    expect(controlPanelClientScript).toContain('formatAgentTargets(s.agentTargets)');
+    expect(controlPanelClientScript).toContain('formatAppliedAgents(s)');
     expect(controlPanelClientScript).toContain('formatMappingSummary(s.mappingSummary)');
   });
 });

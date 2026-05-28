@@ -17,12 +17,13 @@ import type {
   SkillMappingTarget,
   SkillMappingsRegistry,
 } from './registry.js';
-import { getTargetProfile } from './targets.js';
+import { type TargetProfile, getTargetProfile } from './targets.js';
 
 export interface LinkManagedSkillOptions {
   projectRoot: string;
   mappingsPath: string;
   targetSkillRoot?: string;
+  targetProfiles?: TargetProfile[];
   backupsRoot?: string;
   linkMode?: SkillMappingLink['mode'];
 }
@@ -140,7 +141,7 @@ export function linkManagedSkillToAgent(
 ): LinkManagedSkillResult {
   const canonicalPath = resolve(options.projectRoot, 'skills', skillName);
   const canonicalSkillMd = join(canonicalPath, 'SKILL.md');
-  const profile = getTargetProfile(targetName);
+  const profile = getTargetProfile(targetName, options.targetProfiles);
   const targetRoot = options.targetSkillRoot || profile?.skillDirs[0];
   const linkMode = options.linkMode || profile?.linkMode || 'junction';
 

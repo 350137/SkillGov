@@ -31,7 +31,10 @@ const apiRoutes: Record<string, ApiHandler> = {
   status: () => {
     const config = loadConfig();
     const status = getProjectStatus(config.projectRoot);
-    return { ...status, targetProfiles: listTargetProfiles(config.targets) } as unknown as Record<string, unknown>;
+    return { ...status, targetProfiles: listTargetProfiles(config.targets) } as unknown as Record<
+      string,
+      unknown
+    >;
   },
 
   targets: () => {
@@ -75,11 +78,13 @@ const apiRoutes: Record<string, ApiHandler> = {
     const target = body.target as string;
     if (!skillName || !target) return { error: 'Missing "skillName" or "target" field' };
     const config = loadConfig();
+    const targetProfiles = listTargetProfiles(config.targets);
     return installSkill(skillName, target, config.defaultLinkMode, {
       projectRoot: config.projectRoot,
       registryPath: `${config.projectRoot}/registry/installs.json`,
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
       mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+      targetProfiles,
     }) as unknown as Record<string, unknown>;
   },
 
@@ -145,7 +150,10 @@ const apiRoutes: Record<string, ApiHandler> = {
       installsPath: `${config.projectRoot}/registry/installs.json`,
       mappingsPath: `${config.projectRoot}/registry/mappings.json`,
     });
-    return { ...inventory, targetProfiles: listTargetProfiles(config.targets) } as unknown as Record<string, unknown>;
+    return {
+      ...inventory,
+      targetProfiles: listTargetProfiles(config.targets),
+    } as unknown as Record<string, unknown>;
   },
 
   'discover/import': () => {

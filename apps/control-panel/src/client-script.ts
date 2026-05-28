@@ -56,9 +56,10 @@ function selectSkillNumberBody(value: string): void {
   if (titleEl) titleEl.textContent = skill.name;
   if (metaEl) {
     const parts = [skill.sourceLabel || skill.source, skill.validationStatus];
-    const agents = skill.appliedAgents && skill.appliedAgents.length > 0
-      ? skill.appliedAgents.map((a) => a.label || a.id)
-      : skill.agentTargets || [];
+    const agents =
+      skill.appliedAgents && skill.appliedAgents.length > 0
+        ? skill.appliedAgents.map((a) => a.label || a.id)
+        : skill.agentTargets || [];
     if (agents.length > 0) {
       parts.push(agents.join(', '));
     }
@@ -70,11 +71,12 @@ function selectSkillNumberBody(value: string): void {
 function populateTargetOptionsBody(_skill: BrowserSkill): void {
   const select = document.getElementById('target-agent-select');
   if (!select) return;
-  const targets = Array.isArray(window.targetProfiles) && window.targetProfiles.length > 0
-    ? window.targetProfiles
-    : Array.isArray(window.availableTargets) && window.availableTargets.length > 0
-      ? window.availableTargets
-      : DEFAULT_TARGETS;
+  const targets =
+    Array.isArray(window.targetProfiles) && window.targetProfiles.length > 0
+      ? window.targetProfiles
+      : Array.isArray(window.availableTargets) && window.availableTargets.length > 0
+        ? window.availableTargets
+        : DEFAULT_TARGETS;
   select.innerHTML = '';
   for (const target of targets) {
     const option = document.createElement('option');
@@ -133,6 +135,13 @@ async function checkSelectedCompatibilityBody(): Promise<void> {
   } catch (err) {
     if (output) output.textContent = window.t('errorPrefix') + (err as Error).message;
   }
+}
+
+function extractFunctionBody(fn: (...args: never[]) => unknown): string {
+  return fn
+    .toString()
+    .replace(/^(?:async\s+)?function\s*\w*\s*\([^)]*\)\s*\{/, '')
+    .replace(/\}$/, '');
 }
 
 const clientScriptBody = `
@@ -235,31 +244,19 @@ function resolveSkillByNumber(value) {
 }
 
 function selectSkillNumber(value) {
-  ${selectSkillNumberBody
-    .toString()
-    .replace(/^function\s*\w*\s*\(value\)\s*\{/, '')
-    .replace(/\}$/, '')}
+  ${extractFunctionBody(selectSkillNumberBody)}
 }
 
 function populateTargetOptions(skill) {
-  ${populateTargetOptionsBody
-    .toString()
-    .replace(/^function\s*\w*\s*\(skill\)\s*\{/, '')
-    .replace(/\}$/, '')}
+  ${extractFunctionBody(populateTargetOptionsBody)}
 }
 
 function renderCompatibilityResult(data) {
-  ${renderCompatibilityResultBody
-    .toString()
-    .replace(/^function\s*\w*\s*\(data\)\s*\{/, '')
-    .replace(/\}$/, '')}
+  ${extractFunctionBody(renderCompatibilityResultBody)}
 }
 
 async function checkSelectedCompatibility() {
-  ${checkSelectedCompatibilityBody
-    .toString()
-    .replace(/^async\s+function\s*\w*\s*\(\)\s*\{/, '')
-    .replace(/\}$/, '')}
+  ${extractFunctionBody(checkSelectedCompatibilityBody)}
 }
 
 function renderDiscoverPage() {
@@ -295,7 +292,7 @@ function renderDiscoverPage() {
   const rows = page.map((s, index) => {
     const badgeClass = s.validationStatus === 'pass' ? 'status-pass' : s.validationStatus === 'fixable' ? 'status-fixable' : 'status-fail';
     const rowNumber = start + index + 1;
-    return \`<tr data-skill-number="\${rowNumber}" onclick="selectSkillNumber('\${rowNumber}')" style="cursor:pointer;"><td>\${rowNumber}</td><td>\${s.name}</td><td>\${s.sourceLabel || s.source}</td><td><span class="status-badge \${badgeClass}">\${s.validationStatus}</span></td><td>\${formatAgentTargets(s.agentTargets)}</td><td>\${formatMappingSummary(s.mappingSummary)}</td></tr>\`;
+    return \`<tr data-skill-number="\${rowNumber}" onclick="selectSkillNumber('\${rowNumber}')" style="cursor:pointer;"><td>\${rowNumber}</td><td>\${s.name}</td><td>\${s.sourceLabel || s.source}</td><td><span class="status-badge \${badgeClass}">\${s.validationStatus}</span></td><td>\${formatAppliedAgents(s)}</td><td>\${formatMappingSummary(s.mappingSummary)}</td></tr>\`;
   }).join('');
   if (table) {
     table.innerHTML = \`<table><thead><tr><th>\${t('tableNumber')}</th><th>\${t('tableSkill')}</th><th>\${t('tableSource')}</th><th>\${t('tableValidation')}</th><th>\${t('tableAppliedAgents')}</th><th>\${t('tableMappingSummary')}</th></tr></thead><tbody>\${rows}</tbody></table>\`;

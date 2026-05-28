@@ -63,14 +63,11 @@ export function checkCompatibility(skillPath: string, targetName: string): Compa
   const target = getTargetProfile(targetName);
 
   if (!target) {
-    return {
-      status: 'unknown',
-      skillName: '',
-      targetName,
-      issues: [
-        { severity: 'error', message: `Unknown target: "${targetName}"`, category: 'target' },
-      ],
-    };
+    issues.push({
+      severity: 'info',
+      message: `Unknown target: "${targetName}". Generic compatibility checks applied.`,
+      category: 'target',
+    });
   }
 
   const skillMdPath = resolve(skillPath, 'SKILL.md');

@@ -143,7 +143,7 @@ export function installSkill(
   const isOverlay = skillSource.includes('overlays');
   if (isOverlay) {
     createLink(skillSource, targetSkillDir, linkMode);
-  } else if (targetName === 'codex' || targetName === 'claude') {
+  } else {
     const mapping = linkManagedSkillToAgent(skillName, targetName, {
       projectRoot,
       mappingsPath: options.mappingsPath || resolve(projectRoot, 'registry', 'mappings.json'),
@@ -159,8 +159,6 @@ export function installSkill(
         message: mapping.message,
       };
     }
-  } else {
-    createLink(skillSource, targetSkillDir, linkMode);
   }
 
   // 5. Record install in registry

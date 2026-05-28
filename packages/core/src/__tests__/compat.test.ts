@@ -51,10 +51,11 @@ describe('checkCompatibility', () => {
     expect(result.targetName).toBe('codex');
   });
 
-  it('returns unknown for invalid target', () => {
+  it('returns compatible with info for unknown target', () => {
     const dir = createSkill('any-skill');
     const result = checkCompatibility(dir, 'unknown-target');
-    expect(result.status).toBe('unknown');
+    expect(result.status).toBe('compatible');
+    expect(result.issues.some((i) => i.severity === 'info' && i.category === 'target')).toBe(true);
   });
 
   it('returns needs-overlay for claude-only skill on Codex', () => {

@@ -1,6 +1,6 @@
 // Tests for installer module — install, uninstall, rollback, and compatibility blocking.
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -38,6 +38,7 @@ function makeOptions(): InstallOptions {
     projectRoot: tmpDir,
     registryPath: join(tmpDir, 'registry', 'installs.json'),
     operationsPath: join(tmpDir, 'registry', 'operations.jsonl'),
+    mappingsPath: join(tmpDir, 'registry', 'mappings.json'),
     targetSkillRoot: join(tmpDir, 'target-skills'),
   };
 }
@@ -105,6 +106,27 @@ describe('installSkill', () => {
     // Verify overlay type
     const installs = readRegistry<InstallsRegistry>(options.registryPath, { installs: {} });
     expect(installs.installs['test-skill@codex'].type).toBe('overlay');
+  });
+
+  it('installs a standard skill to a custom target via mapping logic', () => {
+    const options = makeOptions();
+    const result = installSkill('test-skill', 'opencode', 'copy', options);
+    expect(result.status).toBe('installed');
+    expect(result.targetName).toBe('opencode');
+    expect(existsSync(join(tmpDir, 'target-skills', 'test-skill', 'SKILL.md'))).toBe(true);
+
+    // Verify install record
+    const installs = readRegistry<InstallsRegistry>(options.registryPath, { installs: {} });
+    expect(installs.installs['test-skill@opencode']).toBeDefined();
+    expect(installs.installs['test-skill@opencode'].type).toBe('standard');
+
+    // Verify mapping was written
+    const mappings = JSON.parse(readFileSync(join(tmpDir, 'registry', 'mappings.json'), 'utf-8'));
+    expect(mappings.mappings['test-skill']).toBeDefined();
+    expect(mappings.mappings['test-skill'].links.opencode).toBeDefined();
+    expect(mappings.mappings['test-skill'].links.opencode.path).toBe(
+      join(tmpDir, 'target-skills', 'test-skill'),
+    );
   });
 });
 

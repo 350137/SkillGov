@@ -39,7 +39,7 @@ export interface InstallsRegistry {
   installs: Record<string, InstallRecord>;
 }
 
-export type SkillMappingTarget = 'codex' | 'claude';
+export type SkillMappingTarget = string;
 
 export interface SkillMappingLink {
   path: string;

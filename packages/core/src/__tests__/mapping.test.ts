@@ -84,4 +84,26 @@ describe('linkManagedSkillToAgent', () => {
 
     expect(result.status).toBe('not-found');
   });
+
+  it('links a skill to a custom target (opencode) and writes to mappings registry', () => {
+    createManagedSkill('custom-skill');
+    const targetSkillRoot = join(tmpDir, 'opencode-skills');
+
+    const result = linkManagedSkillToAgent('custom-skill', 'opencode', {
+      projectRoot: join(tmpDir, 'project'),
+      mappingsPath: join(tmpDir, 'project', 'registry', 'mappings.json'),
+      targetSkillRoot,
+      linkMode: 'junction',
+    });
+
+    expect(result.status).toBe('linked');
+    expect(result.targetName).toBe('opencode');
+    expect(existsSync(join(targetSkillRoot, 'custom-skill', 'SKILL.md'))).toBe(true);
+
+    const mappings = readSkillMappings(join(tmpDir, 'project', 'registry', 'mappings.json'));
+    expect(mappings.mappings['custom-skill'].links.opencode?.path).toBe(
+      join(targetSkillRoot, 'custom-skill'),
+    );
+    expect(mappings.mappings['custom-skill'].links.opencode?.status).toBe('linked');
+  });
 });

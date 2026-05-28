@@ -40,7 +40,15 @@ const DEFAULT_TARGETS: Record<string, TargetProfile> = {
 
 function resolveTargetEntry(entry: TargetEntry): TargetProfile {
   if (typeof entry === 'string') {
-    return DEFAULT_TARGETS[entry] ?? { id: entry, label: entry, skillDirs: [], linkMode: 'junction', supports: { skillMd: false, allowedTools: 'none', scripts: 'unknown' } };
+    return (
+      DEFAULT_TARGETS[entry] ?? {
+        id: entry,
+        label: entry,
+        skillDirs: [],
+        linkMode: 'junction',
+        supports: { skillMd: false, allowedTools: 'none', scripts: 'unknown' },
+      }
+    );
   }
   return {
     id: entry.id,

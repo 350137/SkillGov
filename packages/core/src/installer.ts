@@ -24,6 +24,7 @@ export interface InstallOptions {
   registryPath: string;
   operationsPath: string;
   mappingsPath?: string;
+  targetSkillRoot?: string;
 }
 
 export interface InstallResult {
@@ -49,7 +50,12 @@ function resolveSkillSource(
   return null;
 }
 
-function getTargetSkillDir(targetName: string, skillName: string): string | null {
+function getTargetSkillDir(
+  targetName: string,
+  skillName: string,
+  targetSkillRoot?: string,
+): string | null {
+  if (targetSkillRoot) return resolve(targetSkillRoot, skillName);
   const profile = getTargetProfile(targetName);
   if (!profile || profile.skillDirs.length === 0) return null;
   return resolve(profile.skillDirs[0], skillName);
@@ -123,7 +129,7 @@ export function installSkill(
   }
 
   // 3. Determine target directory
-  const targetSkillDir = getTargetSkillDir(targetName, skillName);
+  const targetSkillDir = getTargetSkillDir(targetName, skillName, options.targetSkillRoot);
   if (!targetSkillDir) {
     return {
       status: 'blocked',
@@ -141,6 +147,7 @@ export function installSkill(
     const mapping = linkManagedSkillToAgent(skillName, targetName, {
       projectRoot,
       mappingsPath: options.mappingsPath || resolve(projectRoot, 'registry', 'mappings.json'),
+      targetSkillRoot: options.targetSkillRoot,
       linkMode,
     });
     if (mapping.status !== 'linked') {

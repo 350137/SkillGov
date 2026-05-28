@@ -12,15 +12,42 @@ const STATUS_CLASSES: Record<string, string> = {
   unsupported: 'status-fail',
 };
 
+interface BrowserSkill {
+  name: string;
+  path?: string;
+  source?: string;
+  sourceLabel?: string;
+  validationStatus?: string;
+  agentTargets?: string[];
+}
+
+interface BrowserTarget {
+  id: string;
+  label: string;
+}
+
+declare global {
+  interface Window {
+    selectedSkill: BrowserSkill | null;
+    availableTargets?: BrowserTarget[];
+    t: (key: string) => string;
+    resolveSkillByNumber: (value: string) => BrowserSkill | null;
+    populateTargetOptions: (skill: BrowserSkill) => void;
+    renderCompatibilityResult: (data: Record<string, unknown>) => void;
+  }
+}
+
 function selectSkillNumberBody(value: string): void {
   const skill = window.resolveSkillByNumber(value);
   const titleEl = document.getElementById('selected-skill-title');
   const metaEl = document.getElementById('selected-skill-meta');
   if (!skill) {
+    window.selectedSkill = null;
     if (titleEl) titleEl.textContent = window.t('noSkillSelected');
     if (metaEl) metaEl.textContent = '';
     return;
   }
+  window.selectedSkill = skill;
   if (titleEl) titleEl.textContent = skill.name;
   if (metaEl) {
     const parts = [skill.sourceLabel || skill.source, skill.validationStatus];
@@ -32,16 +59,13 @@ function selectSkillNumberBody(value: string): void {
   window.populateTargetOptions(skill);
 }
 
-function populateTargetOptionsBody(skill: Record<string, unknown>): void {
+function populateTargetOptionsBody(skill: BrowserSkill): void {
+  void skill;
   const select = document.getElementById('target-agent-select');
   if (!select) return;
-  const targets =
-    Array.isArray(skill.agentTargets) && skill.agentTargets.length > 0
-      ? skill.agentTargets.map((id: string) => {
-          const def = DEFAULT_TARGETS.find((t) => t.id === id);
-          return { id, label: def ? def.label : id };
-        })
-      : DEFAULT_TARGETS;
+  const targets = Array.isArray(window.availableTargets)
+    ? window.availableTargets
+    : DEFAULT_TARGETS;
   select.innerHTML = '';
   for (const target of targets) {
     const option = document.createElement('option');
@@ -57,7 +81,7 @@ function renderCompatibilityResultBody(data: Record<string, unknown>): void {
   if (card) {
     const status = (data.status as string) || 'unknown';
     const badgeClass = STATUS_CLASSES[status] || 'status-fail';
-    const statusKey = status + 'Status';
+    const statusKey = `${status}Status`;
     const statusLabel = window.t(statusKey) || status;
     let html = '<div class="compat-card">';
     html += `<span class="status-badge ${badgeClass}">${statusLabel}</span>`;
@@ -180,19 +204,31 @@ function resolveSkillByNumber(value) {
 }
 
 function selectSkillNumber(value) {
-  ${selectSkillNumberBody.toString().replace(/^function\s*\w*\s*\(value\)\s*\{/, '').replace(/\}$/, '')}
+  ${selectSkillNumberBody
+    .toString()
+    .replace(/^function\s*\w*\s*\(value\)\s*\{/, '')
+    .replace(/\}$/, '')}
 }
 
 function populateTargetOptions(skill) {
-  ${populateTargetOptionsBody.toString().replace(/^function\s*\w*\s*\(skill\)\s*\{/, '').replace(/\}$/, '')}
+  ${populateTargetOptionsBody
+    .toString()
+    .replace(/^function\s*\w*\s*\(skill\)\s*\{/, '')
+    .replace(/\}$/, '')}
 }
 
 function renderCompatibilityResult(data) {
-  ${renderCompatibilityResultBody.toString().replace(/^function\s*\w*\s*\(data\)\s*\{/, '').replace(/\}$/, '')}
+  ${renderCompatibilityResultBody
+    .toString()
+    .replace(/^function\s*\w*\s*\(data\)\s*\{/, '')
+    .replace(/\}$/, '')}
 }
 
 async function checkSelectedCompatibility() {
-  ${checkSelectedCompatibilityBody.toString().replace(/^async\s+function\s*\w*\s*\(\)\s*\{/, '').replace(/\}$/, '')}
+  ${checkSelectedCompatibilityBody
+    .toString()
+    .replace(/^async\s+function\s*\w*\s*\(\)\s*\{/, '')
+    .replace(/\}$/, '')}
 }
 
 function renderDiscoverPage() {
@@ -263,7 +299,8 @@ async function callAPI(endpoint) {
   }
 
   if (endpoint === 'install' || endpoint === 'uninstall') {
-    if (!selectedSkill) {
+    const activeSkill = window.selectedSkill || selectedSkill;
+    if (!activeSkill) {
       if (output) output.textContent = t('noSkillSelected');
       return;
     }
@@ -273,7 +310,7 @@ async function callAPI(endpoint) {
       if (output) output.textContent = t('noTargetAvailable');
       return;
     }
-    body.skillName = selectedSkill.name;
+    body.skillName = activeSkill.name;
     body.target = target;
   }
 

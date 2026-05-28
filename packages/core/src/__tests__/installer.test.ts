@@ -38,13 +38,12 @@ function makeOptions(): InstallOptions {
     projectRoot: tmpDir,
     registryPath: join(tmpDir, 'registry', 'installs.json'),
     operationsPath: join(tmpDir, 'registry', 'operations.jsonl'),
+    targetSkillRoot: join(tmpDir, 'target-skills'),
   };
 }
 
 describe('installSkill', () => {
   it('installs a skill using copy mode', () => {
-    const targetDir = join(tmpDir, 'target-skills');
-    mkdirSync(targetDir, { recursive: true });
     // Patch target profile — we need a valid target dir
     // We test through copy mode by specifying it directly
     const options = makeOptions();
@@ -54,6 +53,8 @@ describe('installSkill', () => {
     expect(result.status).toBe('installed');
     expect(result.skillName).toBe('test-skill');
     expect(result.targetName).toBe('claude');
+    expect(result.linkPath).toBe(join(tmpDir, 'target-skills', 'test-skill'));
+    expect(existsSync(join(tmpDir, 'target-skills', 'test-skill', 'SKILL.md'))).toBe(true);
 
     // Verify registry was updated
     const installs = readRegistry<InstallsRegistry>(options.registryPath, { installs: {} });
@@ -99,6 +100,8 @@ describe('installSkill', () => {
     const options = makeOptions();
     const result = installSkill('test-skill', 'codex', 'copy', options);
     expect(result.status).toBe('installed');
+    expect(result.linkPath).toBe(join(tmpDir, 'target-skills', 'test-skill'));
+    expect(existsSync(join(tmpDir, 'target-skills', 'test-skill', 'SKILL.md'))).toBe(true);
     // Verify overlay type
     const installs = readRegistry<InstallsRegistry>(options.registryPath, { installs: {} });
     expect(installs.installs['test-skill@codex'].type).toBe('overlay');

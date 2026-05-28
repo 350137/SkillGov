@@ -1,11 +1,37 @@
 // @vitest-environment jsdom
 // Tests for the control panel client script — skill selection, target population, and compatibility result rendering.
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clientScriptFunctions, controlPanelClientScript } from '../src/client-script.js';
 import { translations } from '../src/i18n.js';
 
-const { selectSkillNumber, populateTargetOptions, renderCompatibilityResult, DEFAULT_TARGETS, STATUS_CLASSES } =
-  clientScriptFunctions;
+const {
+  selectSkillNumber,
+  populateTargetOptions,
+  renderCompatibilityResult,
+  DEFAULT_TARGETS,
+  STATUS_CLASSES,
+} = clientScriptFunctions;
+
+interface TestSkill {
+  name: string;
+  source?: string;
+  sourceLabel?: string;
+  validationStatus?: string;
+  agentTargets?: string[];
+}
+
+interface TestWindow extends Window {
+  t: (key: string) => string;
+  latestDiscoverData: TestSkill[];
+  selectedSkill: TestSkill | null;
+  resolveSkillByNumber: (value: string) => TestSkill | null;
+  populateTargetOptions: typeof populateTargetOptions;
+  renderCompatibilityResult: typeof renderCompatibilityResult;
+}
+
+function testWindow(): TestWindow {
+  return window as unknown as TestWindow;
+}
 
 function createElement(id: string, tag = 'div'): HTMLElement {
   const el = document.createElement(tag);
@@ -16,15 +42,16 @@ function createElement(id: string, tag = 'div'): HTMLElement {
 
 beforeEach(() => {
   document.body.innerHTML = '';
-  (window as any).t = (key: string) => translations.en[key] || key;
-  (window as any).latestDiscoverData = [];
-  (window as any).selectedSkill = null;
-  (window as any).resolveSkillByNumber = (value: string) => {
+  const browserWindow = testWindow();
+  browserWindow.t = (key: string) => (translations.en as Record<string, string>)[key] || key;
+  browserWindow.latestDiscoverData = [];
+  browserWindow.selectedSkill = null;
+  browserWindow.resolveSkillByNumber = (value: string) => {
     const idx = Number.parseInt(value, 10) - 1;
-    return (window as any).latestDiscoverData[idx] || null;
+    return browserWindow.latestDiscoverData[idx] || null;
   };
-  (window as any).populateTargetOptions = populateTargetOptions;
-  (window as any).renderCompatibilityResult = renderCompatibilityResult;
+  browserWindow.populateTargetOptions = populateTargetOptions;
+  browserWindow.renderCompatibilityResult = renderCompatibilityResult;
 });
 
 describe('selectSkillNumber', () => {
@@ -32,8 +59,14 @@ describe('selectSkillNumber', () => {
     const titleEl = createElement('selected-skill-title');
     const metaEl = createElement('selected-skill-meta');
     createElement('target-agent-select', 'select');
-    (window as any).latestDiscoverData = [
-      { name: 'test-skill', source: 'codex-user', sourceLabel: 'Codex 本地', validationStatus: 'pass', agentTargets: ['codex'] },
+    testWindow().latestDiscoverData = [
+      {
+        name: 'test-skill',
+        source: 'codex-user',
+        sourceLabel: 'Codex 本地',
+        validationStatus: 'pass',
+        agentTargets: ['codex'],
+      },
     ];
 
     selectSkillNumber('1');
@@ -42,6 +75,7 @@ describe('selectSkillNumber', () => {
     expect(metaEl.textContent).toContain('Codex 本地');
     expect(metaEl.textContent).toContain('pass');
     expect(metaEl.textContent).toContain('codex');
+    expect(testWindow().selectedSkill?.name).toBe('test-skill');
   });
 
   it('shows noSkillSelected message when skill number is invalid', () => {
@@ -52,27 +86,31 @@ describe('selectSkillNumber', () => {
 
     expect(titleEl.textContent).toBe('Select a skill from the library.');
     expect(metaEl.textContent).toBe('');
+    expect(testWindow().selectedSkill).toBeNull();
   });
 
   it('does not crash when DOM elements are missing', () => {
-    (window as any).latestDiscoverData = [{ name: 'x', source: 'a', validationStatus: 'pass', agentTargets: [] }];
+    testWindow().latestDiscoverData = [
+      { name: 'x', source: 'a', validationStatus: 'pass', agentTargets: [] },
+    ];
     expect(() => selectSkillNumber('1')).not.toThrow();
   });
 });
 
 describe('populateTargetOptions', () => {
-  it('uses agentTargets from skill when available', () => {
+  it('keeps all default targets available even when a skill is already used by one agent', () => {
     const select = createElement('target-agent-select', 'select') as HTMLSelectElement;
-    populateTargetOptions({ agentTargets: ['codex'] } as any);
+    populateTargetOptions({ name: 'test-skill', agentTargets: ['codex'] });
 
-    expect(select.options.length).toBe(1);
+    expect(select.options.length).toBe(DEFAULT_TARGETS.length);
     expect(select.options[0].value).toBe('codex');
     expect(select.options[0].textContent).toBe('Codex');
+    expect([...select.options].map((option) => option.value)).toContain('claude');
   });
 
   it('falls back to DEFAULT_TARGETS when agentTargets is empty', () => {
     const select = createElement('target-agent-select', 'select') as HTMLSelectElement;
-    populateTargetOptions({ agentTargets: [] } as any);
+    populateTargetOptions({ name: 'test-skill', agentTargets: [] });
 
     expect(select.options.length).toBe(DEFAULT_TARGETS.length);
     expect(select.options[0].value).toBe('codex');
@@ -81,13 +119,15 @@ describe('populateTargetOptions', () => {
 
   it('falls back to DEFAULT_TARGETS when agentTargets is missing', () => {
     const select = createElement('target-agent-select', 'select') as HTMLSelectElement;
-    populateTargetOptions({} as any);
+    populateTargetOptions({ name: 'test-skill' });
 
     expect(select.options.length).toBe(DEFAULT_TARGETS.length);
   });
 
   it('does not crash when target-agent-select is missing', () => {
-    expect(() => populateTargetOptions({ agentTargets: ['codex'] } as any)).not.toThrow();
+    expect(() =>
+      populateTargetOptions({ name: 'test-skill', agentTargets: ['codex'] }),
+    ).not.toThrow();
   });
 });
 
@@ -141,8 +181,12 @@ describe('renderCompatibilityResult', () => {
 
 describe('script structure', () => {
   it('does not use fixed formatMappingStatus with hardcoded codex/claude', () => {
-    expect(controlPanelClientScript).not.toContain("formatMappingStatus(s.mappingTargets, 'codex')");
-    expect(controlPanelClientScript).not.toContain("formatMappingStatus(s.mappingTargets, 'claude')");
+    expect(controlPanelClientScript).not.toContain(
+      "formatMappingStatus(s.mappingTargets, 'codex')",
+    );
+    expect(controlPanelClientScript).not.toContain(
+      "formatMappingStatus(s.mappingTargets, 'claude')",
+    );
   });
 
   it('contains selectSkillNumber function', () => {
@@ -162,7 +206,8 @@ describe('script structure', () => {
   });
 
   it('uses selectedSkill for install/uninstall instead of fixed input fields', () => {
-    expect(controlPanelClientScript).toContain('selectedSkill.name');
+    expect(controlPanelClientScript).toContain('activeSkill.name');
+    expect(controlPanelClientScript).toContain('window.selectedSkill');
     expect(controlPanelClientScript).not.toContain("getElementById('install-skill')");
   });
 });

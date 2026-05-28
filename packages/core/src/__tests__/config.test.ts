@@ -107,9 +107,7 @@ describe('loadConfig', () => {
     writeFileSync(
       configPath,
       JSON.stringify({
-        targets: [
-          { id: 'opencode', label: 'OpenCode', skillDirs: ['D:/OpenCode/skills'] },
-        ],
+        targets: [{ id: 'opencode', label: 'OpenCode', skillDirs: ['D:/OpenCode/skills'] }],
       }),
       'utf-8',
     );
@@ -125,7 +123,10 @@ describe('loadConfig', () => {
     writeFileSync(
       configPath,
       JSON.stringify({
-        targets: ['claude', { id: 'opencode', label: 'OpenCode', skillDirs: ['D:/OpenCode/skills'] }],
+        targets: [
+          'claude',
+          { id: 'opencode', label: 'OpenCode', skillDirs: ['D:/OpenCode/skills'] },
+        ],
       }),
       'utf-8',
     );

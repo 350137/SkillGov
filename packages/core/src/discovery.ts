@@ -293,7 +293,7 @@ export function discoverSkillInventory(options: DiscoveryOptions = {}): SkillInv
     );
 
     // Build appliedAgents from candidate's local scan, installs, and mappings
-    let appliedAgents = [...candidate.appliedAgents];
+    const appliedAgents = [...candidate.appliedAgents];
     const installTargets = installedBySkill.get(candidate.name) || [];
     for (const target of installTargets) {
       if (!appliedAgents.some((a) => a.id === target)) {

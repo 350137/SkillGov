@@ -36,6 +36,12 @@ describe('two-pane layout structure', () => {
     expect(bodyHtml).toContain('id="system-diagnostics-panel"');
   });
 
+  it('renders selected-skill-title with a valid closing div tag', () => {
+    expect(bodyHtml).toMatch(
+      /<div id="selected-skill-title" class="selected-skill-name">[\s\S]*?<\/div>/,
+    );
+  });
+
   it('does not contain removed legacy element IDs', () => {
     expect(bodyHtml).not.toContain('id="install-skill"');
     expect(bodyHtml).not.toContain('id="task-path"');

@@ -1,4 +1,4 @@
-// Tests that the control panel HTML page uses a two-pane layout with skill library and action panel.
+// Tests that the control panel HTML page uses a console layout with status cards, skill library card, and action card.
 import { describe, expect, it } from 'vitest';
 import { controlPanelClientScript } from '../src/client-script.js';
 import { translations } from '../src/i18n.js';
@@ -21,19 +21,32 @@ describe('control panel page composition', () => {
   });
 });
 
-describe('two-pane layout structure', () => {
-  it('contains skill-library-pane and skill-action-pane', () => {
-    expect(bodyHtml).toContain('id="skill-library-pane"');
-    expect(bodyHtml).toContain('id="skill-action-pane"');
+describe('console layout structure', () => {
+  it('contains status-cards, skill-library-card, skill-action-card, and system-diagnostics-drawer', () => {
+    expect(bodyHtml).toContain('id="status-cards"');
+    expect(bodyHtml).toContain('id="skill-library-card"');
+    expect(bodyHtml).toContain('id="skill-action-card"');
+    expect(bodyHtml).toContain('id="system-diagnostics-drawer"');
   });
 
-  it('contains required action panel element IDs', () => {
+  it('contains toolbar filter elements', () => {
+    expect(bodyHtml).toContain('id="skill-search-input"');
+    expect(bodyHtml).toContain('id="skill-status-filter"');
+    expect(bodyHtml).toContain('id="skill-source-filter"');
+    expect(bodyHtml).toContain('id="skill-mapping-filter"');
+    expect(bodyHtml).toContain('id="skill-agent-filter"');
+  });
+
+  it('contains required action card element IDs', () => {
     expect(bodyHtml).toContain('id="target-agent-select"');
     expect(bodyHtml).toContain('id="selected-skill-title"');
     expect(bodyHtml).toContain('id="selected-skill-meta"');
     expect(bodyHtml).toContain('id="compat-result-card"');
+  });
+
+  it('contains raw-output-details inside diagnostics drawer', () => {
     expect(bodyHtml).toContain('id="raw-output-details"');
-    expect(bodyHtml).toContain('id="system-diagnostics-panel"');
+    expect(bodyHtml).toMatch(/<details[^>]*id="system-diagnostics-drawer"[\s\S]*?<\/details>/);
   });
 
   it('renders selected-skill-title with a valid closing div tag', () => {
@@ -47,14 +60,21 @@ describe('two-pane layout structure', () => {
     expect(bodyHtml).not.toContain('id="task-path"');
     expect(bodyHtml).not.toContain('id="compat-number"');
     expect(bodyHtml).not.toContain('id="compat-target"');
+    expect(bodyHtml).not.toContain('id="status-summary"');
   });
 
-  it('target-agent-select is an empty select placeholder for future dynamic agents', () => {
+  it('target-agent-select is an empty select placeholder', () => {
     expect(bodyHtml).toMatch(/<select[^>]*id="target-agent-select"[^>]*>\s*<\/select>/);
   });
 
-  it('system-diagnostics-panel is a collapsed details element', () => {
-    expect(bodyHtml).toMatch(/<details[^>]*id="system-diagnostics-panel"[\s\S]*?<\/details>/);
+  it('system-diagnostics-drawer is a collapsed details element', () => {
+    expect(bodyHtml).toMatch(/<details[^>]*id="system-diagnostics-drawer"[\s\S]*?<\/details>/);
     expect(bodyHtml).toContain('<summary');
+  });
+
+  it('does not use the old two-pane class', () => {
+    expect(bodyHtml).not.toContain('class="two-pane"');
+    expect(bodyHtml).not.toContain('class="pane-left"');
+    expect(bodyHtml).not.toContain('class="pane-right"');
   });
 });

@@ -77,7 +77,7 @@ describe('selectSkillNumber', () => {
 
     selectSkillNumber('1');
 
-    expect(titleEl.textContent).toBe('test-skill');
+    expect(titleEl.textContent).toBe('#1 test-skill');
     expect(metaEl.textContent).toContain('Codex 本地');
     expect(metaEl.textContent).toContain('pass');
     expect(metaEl.textContent).toContain('Codex');
@@ -271,16 +271,12 @@ describe('script structure', () => {
     expect(controlPanelClientScript).not.toContain("getElementById('install-skill')");
   });
 
-  it('contains formatAppliedAgents function for dynamic agent display', () => {
-    expect(controlPanelClientScript).toContain('function formatAppliedAgents(');
+  it('contains formatAppliedAgentsChip function for dynamic agent display', () => {
+    expect(controlPanelClientScript).toContain('function formatAppliedAgentsChip(');
   });
 
-  it('contains formatAgentTargets function as backward-compatible alias', () => {
-    expect(controlPanelClientScript).toContain('function formatAgentTargets(');
-  });
-
-  it('contains formatMappingSummary function for mapping overview', () => {
-    expect(controlPanelClientScript).toContain('function formatMappingSummary(');
+  it('contains formatMappingBadge function for mapping overview', () => {
+    expect(controlPanelClientScript).toContain('function formatMappingBadge(');
   });
 
   it('does not contain hardcoded installedClaude or installedCodex counters', () => {
@@ -288,14 +284,13 @@ describe('script structure', () => {
     expect(controlPanelClientScript).not.toContain('installedCodex');
   });
 
-  it('uses targetProfiles for dynamic agent stats in renderStatusSummary', () => {
+  it('uses targetProfiles for dynamic agent stats in renderStatusCards', () => {
     expect(controlPanelClientScript).toContain('targetProfiles');
-    expect(controlPanelClientScript).toContain('usedByAgent');
   });
 
-  it('appliedAgents and mappingSummary columns appear in discover table', () => {
-    expect(controlPanelClientScript).toContain('formatAppliedAgents(s)');
-    expect(controlPanelClientScript).toContain('formatMappingSummary(s.mappingSummary)');
+  it('appliedAgents and mapping columns appear in discover table', () => {
+    expect(controlPanelClientScript).toContain('formatAppliedAgentsChip(s)');
+    expect(controlPanelClientScript).toContain('formatMappingBadge(s.mappingSummary)');
   });
 });
 

@@ -74,7 +74,7 @@ describe('Control Panel API', () => {
     expect(res).toContain('id="language-select"');
     expect(res).toContain('中文');
     expect(res).toContain('English');
-    expect(res).toContain('data-i18n="refreshStatus"');
+    expect(res).toContain('data-i18n="scanLocal"');
   });
 
   it('places the language switcher in the top-right header actions area', async () => {
@@ -240,7 +240,7 @@ describe('Control Panel API', () => {
     });
     expect(res).toContain('data-i18n="scanLocal"');
     expect(res).toContain('id="discover-table"');
-    expect(res).toContain('id="status-summary"');
+    expect(res).toContain('id="status-cards"');
     expect(res).toContain('id="discover-summary"');
     expect(res).toContain('id="discover-pagination"');
     expect(res).toContain('function resolveSkillByNumber');
@@ -250,10 +250,10 @@ describe('Control Panel API', () => {
     expect(res).toContain('prevPage');
     expect(res).toContain('nextPage');
     expect(res).toContain('changeDiscoverPage');
-    expect(res).toContain('function formatAgentTargets');
+    expect(res).toContain('function formatAppliedAgentsChip');
     expect(res).toContain('tableNumber');
     expect(res).toContain('s.sourceLabel || s.source');
-    expect(res).toContain('formatAppliedAgents(s)');
+    expect(res).toContain('formatAppliedAgentsChip(s)');
     expect(res).toContain('function selectSkillNumber');
     expect(res).toContain('function populateTargetOptions');
     expect(res).toContain('function renderCompatibilityResult');

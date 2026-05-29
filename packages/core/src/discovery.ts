@@ -118,7 +118,7 @@ function scanSkillDir(
         agentTargets,
         appliedAgents: agentTargets.map((id) => ({
           id,
-          label: SOURCE_METADATA[source].sourceLabel,
+          label: id,
           source: 'local' as const,
         })),
       });

@@ -117,6 +117,13 @@ export const translations = {
     mappingStatusConflict: 'Conflict',
     compatIssues: '{count} issue(s)',
     compatNoIssues: 'No issues',
+    batchSelected: '{count} selected',
+    batchCheckCompat: 'Batch Check',
+    batchMap: 'Batch Map',
+    batchUnmap: 'Batch Unmap',
+    selectAll: 'Select All',
+    deselectAll: 'Deselect',
+    noSkillsSelected: 'No skills selected.',
   },
   zh: {
     title: 'SkillGov 控制面板',
@@ -235,6 +242,13 @@ export const translations = {
     mappingStatusConflict: '冲突',
     compatIssues: '{count} 个问题',
     compatNoIssues: '无问题',
+    batchSelected: '已选 {count} 个',
+    batchCheckCompat: '批量检测',
+    batchMap: '批量映射',
+    batchUnmap: '批量取消',
+    selectAll: '全选',
+    deselectAll: '取消选择',
+    noSkillsSelected: '未选择技能。',
   },
 } as const;
 

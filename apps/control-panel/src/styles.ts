@@ -237,6 +237,23 @@ pre {
   margin-top: 8px;
 }
 
+/* --- Batch Bar --- */
+.batch-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: #e3f2fd;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+.batch-bar span { font-weight: 600; color: #1565c0; }
+
+/* --- Checkbox column --- */
+th.cb-col, td.cb-col { width: 32px; text-align: center; padding: 7px 4px; }
+td.cb-col input[type="checkbox"], th.cb-col input[type="checkbox"] { cursor: pointer; }
+
 /* --- Responsive --- */
 @media (max-width: 768px) {
   .page-header { flex-direction: column; margin-bottom: 16px; }

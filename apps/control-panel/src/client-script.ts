@@ -251,6 +251,143 @@ let filterSource = '';
 let filterMapping = '';
 let filterAgent = '';
 
+// Batch selection state
+const selectedSkillNames = new Set();
+
+function updateBatchBar() {
+  const bar = document.getElementById('batch-bar');
+  const count = document.getElementById('batch-count');
+  if (!bar || !count) return;
+  if (selectedSkillNames.size > 0) {
+    bar.style.display = 'flex';
+    count.textContent = t('batchSelected').replace('{count}', selectedSkillNames.size);
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function toggleSkillSelection(name, checked) {
+  if (checked) selectedSkillNames.add(name);
+  else selectedSkillNames.delete(name);
+  updateBatchBar();
+}
+
+function selectAll() {
+  const filtered = getFilteredSkills();
+  for (const s of filtered) selectedSkillNames.add(s.name);
+  updateBatchBar();
+  renderDiscoverPage();
+}
+
+function deselectAll() {
+  selectedSkillNames.clear();
+  updateBatchBar();
+  renderDiscoverPage();
+}
+
+function togglePageSelection(checked) {
+  const filtered = getFilteredSkills();
+  const start = discoverPage * PAGE_SIZE;
+  const page = filtered.slice(start, start + PAGE_SIZE);
+  for (const s of page) {
+    if (checked) selectedSkillNames.add(s.name);
+    else selectedSkillNames.delete(s.name);
+  }
+  updateBatchBar();
+  renderDiscoverPage();
+}
+
+async function batchCheckCompat() {
+  const output = document.getElementById('output');
+  const targetSelect = document.getElementById('target-agent-select');
+  const target = targetSelect ? targetSelect.value : '';
+  if (!target) {
+    if (output) output.textContent = t('noTargetAvailable');
+    return;
+  }
+  if (selectedSkillNames.size === 0) {
+    if (output) output.textContent = t('noSkillsSelected');
+    return;
+  }
+  if (output) output.textContent = t('loading');
+  try {
+    const res = await fetch('/api/compat/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skillNames: [...selectedSkillNames], target }),
+    });
+    const data = await res.json();
+    if (output) output.textContent = JSON.stringify(data, null, 2);
+  } catch (err) {
+    if (output) output.textContent = t('errorPrefix') + err.message;
+  }
+}
+
+async function batchMap() {
+  const output = document.getElementById('output');
+  const targetSelect = document.getElementById('target-agent-select');
+  const target = targetSelect ? targetSelect.value : '';
+  if (!target) {
+    if (output) output.textContent = t('noTargetAvailable');
+    return;
+  }
+  if (selectedSkillNames.size === 0) {
+    if (output) output.textContent = t('noSkillsSelected');
+    return;
+  }
+  if (output) output.textContent = t('loading');
+  try {
+    const res = await fetch('/api/install/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skillNames: [...selectedSkillNames], target }),
+    });
+    const data = await res.json();
+    if (output) output.textContent = JSON.stringify(data, null, 2);
+    refreshAfterBatch();
+  } catch (err) {
+    if (output) output.textContent = t('errorPrefix') + err.message;
+  }
+}
+
+async function batchUnmap() {
+  const output = document.getElementById('output');
+  const targetSelect = document.getElementById('target-agent-select');
+  const target = targetSelect ? targetSelect.value : '';
+  if (!target) {
+    if (output) output.textContent = t('noTargetAvailable');
+    return;
+  }
+  if (selectedSkillNames.size === 0) {
+    if (output) output.textContent = t('noSkillsSelected');
+    return;
+  }
+  if (output) output.textContent = t('loading');
+  try {
+    const res = await fetch('/api/uninstall/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skillNames: [...selectedSkillNames], target }),
+    });
+    const data = await res.json();
+    if (output) output.textContent = JSON.stringify(data, null, 2);
+    refreshAfterBatch();
+  } catch (err) {
+    if (output) output.textContent = t('errorPrefix') + err.message;
+  }
+}
+
+function refreshAfterBatch() {
+  fetch('/api/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then((r) => r.json())
+    .then((statusData) => { renderStatusCards(statusData); })
+    .catch(() => {});
+  fetch('/api/discover', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then((r) => r.json())
+    .then((discData) => { if (discData.skills) renderDiscoverTable(discData.skills, discData.nonSkillDirectories, true); })
+    .catch(() => {});
+}
+
 function getPreferredLanguage() {
   const stored = localStorage.getItem('skillgov-language');
   if (stored === 'zh' || stored === 'en') return stored;
@@ -385,10 +522,15 @@ function getFilteredSkills() {
   return skills;
 }
 
-function renderDiscoverTable(skills, nonSkillDirectories) {
+function renderDiscoverTable(skills, nonSkillDirectories, preservePage) {
   latestDiscoverData = skills || [];
   latestNonSkillDirectories = nonSkillDirectories || [];
-  discoverPage = 0;
+  if (preservePage) {
+    const totalPages = Math.ceil(getFilteredSkills().length / PAGE_SIZE);
+    discoverPage = Math.max(0, Math.min(totalPages - 1, discoverPage));
+  } else {
+    discoverPage = 0;
+  }
   populateSourceFilter(latestDiscoverData);
   renderDiscoverPage();
   // Refresh status cards with discover data for accurate metrics
@@ -481,18 +623,22 @@ function renderDiscoverPage() {
     const escSource = escapeHtml(s.sourceLabel || s.source || '');
     const escPath = escapeHtml(s.path || '');
     const escPathDisplay = escapeHtml(s.path || '-');
-    return '<tr data-skill-number="' + rowNumber + '" onclick="selectSkillNumber(\\'' + rowNumber + '\\')" style="cursor:pointer;">' +
-      '<td>' + rowNumber + '</td>' +
-      '<td>' + escName + '</td>' +
-      '<td><span class="status-badge ' + badgeClass + '">' + escStatus + '</span></td>' +
-      '<td>' + formatAppliedAgentsChip(s) + '</td>' +
-      '<td>' + formatMappingBadge(s.mappingSummary) + '</td>' +
-      '<td>' + escSource + '</td>' +
-      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escPath + '">' + escPathDisplay + '</td>' +
+    const checked = selectedSkillNames.has(s.name) ? 'checked' : '';
+    return '<tr data-skill-number="' + rowNumber + '" style="cursor:pointer;">' +
+      '<td class="cb-col"><input type="checkbox" ' + checked + ' onclick="event.stopPropagation(); toggleSkillSelection(\\'' + escName + '\\', this.checked)" /></td>' +
+      '<td onclick="selectSkillNumber(\\'' + rowNumber + '\\')">' + rowNumber + '</td>' +
+      '<td onclick="selectSkillNumber(\\'' + rowNumber + '\\')">' + escName + '</td>' +
+      '<td onclick="selectSkillNumber(\\'' + rowNumber + '\\')"><span class="status-badge ' + badgeClass + '">' + escStatus + '</span></td>' +
+      '<td onclick="selectSkillNumber(\\'' + rowNumber + '\\')">' + formatAppliedAgentsChip(s) + '</td>' +
+      '<td onclick="selectSkillNumber(\\'' + rowNumber + '\\')">' + formatMappingBadge(s.mappingSummary) + '</td>' +
+      '<td onclick="selectSkillNumber(\\'' + rowNumber + '\\')">' + escSource + '</td>' +
+      '<td onclick="selectSkillNumber(\\'' + rowNumber + '\\')" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escPath + '">' + escPathDisplay + '</td>' +
       '</tr>';
   }).join('');
   if (table) {
+    const allPageSelected = page.length > 0 && page.every((s) => selectedSkillNames.has(s.name));
     table.innerHTML = '<table><thead><tr>' +
+      '<th class="cb-col"><input type="checkbox" ' + (allPageSelected ? 'checked' : '') + ' onclick="togglePageSelection(this.checked)" title="' + escapeHtml(t('selectAll')) + '" /></th>' +
       '<th>' + t('tableNumber') + '</th>' +
       '<th>' + t('tableSkill') + '</th>' +
       '<th>' + t('tableStatus') + '</th>' +
@@ -589,7 +735,7 @@ async function callAPI(endpoint) {
         .catch(() => {});
       fetch('/api/discover', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
         .then((r) => r.json())
-        .then((discData) => { if (discData.skills) renderDiscoverTable(discData.skills, discData.nonSkillDirectories); })
+        .then((discData) => { if (discData.skills) renderDiscoverTable(discData.skills, discData.nonSkillDirectories, true); })
         .catch(() => {});
     }
   } catch (err) {
@@ -613,6 +759,8 @@ window.addEventListener('DOMContentLoaded', () => {
     searchInput.addEventListener('input', (event) => {
       filterSearch = event.target.value || '';
       discoverPage = 0;
+      selectedSkillNames.clear();
+      updateBatchBar();
       renderDiscoverPage();
     });
   }
@@ -621,6 +769,8 @@ window.addEventListener('DOMContentLoaded', () => {
     statusFilter.addEventListener('change', (event) => {
       filterStatus = event.target.value || '';
       discoverPage = 0;
+      selectedSkillNames.clear();
+      updateBatchBar();
       renderDiscoverPage();
     });
   }
@@ -629,6 +779,8 @@ window.addEventListener('DOMContentLoaded', () => {
     sourceFilter.addEventListener('change', (event) => {
       filterSource = event.target.value || '';
       discoverPage = 0;
+      selectedSkillNames.clear();
+      updateBatchBar();
       renderDiscoverPage();
     });
   }
@@ -637,6 +789,8 @@ window.addEventListener('DOMContentLoaded', () => {
     mappingFilter.addEventListener('change', (event) => {
       filterMapping = event.target.value || '';
       discoverPage = 0;
+      selectedSkillNames.clear();
+      updateBatchBar();
       renderDiscoverPage();
     });
   }
@@ -645,6 +799,8 @@ window.addEventListener('DOMContentLoaded', () => {
     agentFilter.addEventListener('change', (event) => {
       filterAgent = event.target.value || '';
       discoverPage = 0;
+      selectedSkillNames.clear();
+      updateBatchBar();
       renderDiscoverPage();
     });
   }

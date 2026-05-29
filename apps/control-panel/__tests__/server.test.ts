@@ -226,6 +226,76 @@ describe('Control Panel API', () => {
     expect(profiles.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('returns error for compat/batch without skillNames', async () => {
+    const data = await fetchJson('/api/compat/batch', { target: 'codex' });
+    expect(data).toHaveProperty('error');
+  });
+
+  it('returns error for compat/batch without target', async () => {
+    const data = await fetchJson('/api/compat/batch', { skillNames: ['x'] });
+    expect(data).toHaveProperty('error');
+  });
+
+  it('returns error for install/batch without skillNames', async () => {
+    const data = await fetchJson('/api/install/batch', { target: 'codex' });
+    expect(data).toHaveProperty('error');
+  });
+
+  it('returns error for install/batch without target', async () => {
+    const data = await fetchJson('/api/install/batch', { skillNames: ['x'] });
+    expect(data).toHaveProperty('error');
+  });
+
+  it('returns error for uninstall/batch without skillNames', async () => {
+    const data = await fetchJson('/api/uninstall/batch', { target: 'codex' });
+    expect(data).toHaveProperty('error');
+  });
+
+  it('returns error for uninstall/batch without target', async () => {
+    const data = await fetchJson('/api/uninstall/batch', { skillNames: ['x'] });
+    expect(data).toHaveProperty('error');
+  });
+
+  it('returns batch compat results with total and results array', async () => {
+    const data = await fetchJson('/api/compat/batch', {
+      skillNames: ['nonexistent-skill'],
+      target: 'codex',
+    });
+    expect(data).toHaveProperty('total');
+    expect(data).toHaveProperty('results');
+    expect(Array.isArray(data.results)).toBe(true);
+    const results = data.results as Array<Record<string, unknown>>;
+    expect(results.length).toBe(1);
+    expect(results[0].name).toBe('nonexistent-skill');
+    expect(results[0]).toHaveProperty('status');
+  });
+
+  it('returns batch install results with total and results array', async () => {
+    const data = await fetchJson('/api/install/batch', {
+      skillNames: ['nonexistent-skill'],
+      target: 'codex',
+    });
+    expect(data).toHaveProperty('total');
+    expect(data).toHaveProperty('results');
+    const results = data.results as Array<Record<string, unknown>>;
+    expect(results.length).toBe(1);
+    expect(results[0]).toHaveProperty('name');
+    expect(results[0]).toHaveProperty('status');
+  });
+
+  it('returns batch uninstall results with total and results array', async () => {
+    const data = await fetchJson('/api/uninstall/batch', {
+      skillNames: ['nonexistent-skill'],
+      target: 'codex',
+    });
+    expect(data).toHaveProperty('total');
+    expect(data).toHaveProperty('results');
+    const results = data.results as Array<Record<string, unknown>>;
+    expect(results.length).toBe(1);
+    expect(results[0]).toHaveProperty('name');
+    expect(results[0]).toHaveProperty('status');
+  });
+
   it('includes Scan Local Skills button in HTML', async () => {
     const res = await new Promise<string>((resolve, reject) => {
       http
@@ -243,6 +313,12 @@ describe('Control Panel API', () => {
     expect(res).toContain('id="status-cards"');
     expect(res).toContain('id="discover-summary"');
     expect(res).toContain('id="discover-pagination"');
+    expect(res).toContain('id="batch-bar"');
+    expect(res).toContain('id="batch-count"');
+    expect(res).toContain('batchCheckCompat()');
+    expect(res).toContain('batchMap()');
+    expect(res).toContain('batchUnmap()');
+    expect(res).toContain('deselectAll()');
     expect(res).toContain('function resolveSkillByNumber');
     expect(res).toContain("searchParams.get('discover') === '1'");
     expect(res).toContain('totalManaged');

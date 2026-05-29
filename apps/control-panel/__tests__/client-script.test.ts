@@ -324,6 +324,53 @@ describe('script structure', () => {
   it('search filter includes appliedAgents label matching', () => {
     expect(controlPanelClientScript).toContain('(a.label || a.id).toLowerCase()');
   });
+
+  it('contains selectedSkillNames Set for batch selection', () => {
+    expect(controlPanelClientScript).toContain('selectedSkillNames');
+    expect(controlPanelClientScript).toContain('new Set()');
+  });
+
+  it('contains batchCheckCompat function', () => {
+    expect(controlPanelClientScript).toContain('async function batchCheckCompat(');
+    expect(controlPanelClientScript).toContain("'/api/compat/batch'");
+  });
+
+  it('contains batchMap function', () => {
+    expect(controlPanelClientScript).toContain('async function batchMap(');
+    expect(controlPanelClientScript).toContain("'/api/install/batch'");
+  });
+
+  it('contains batchUnmap function', () => {
+    expect(controlPanelClientScript).toContain('async function batchUnmap(');
+    expect(controlPanelClientScript).toContain("'/api/uninstall/batch'");
+  });
+
+  it('contains toggleSkillSelection for checkbox handling', () => {
+    expect(controlPanelClientScript).toContain('function toggleSkillSelection(');
+  });
+
+  it('contains togglePageSelection for select-all checkbox', () => {
+    expect(controlPanelClientScript).toContain('function togglePageSelection(');
+  });
+
+  it('contains selectAll and deselectAll functions', () => {
+    expect(controlPanelClientScript).toContain('function selectAll(');
+    expect(controlPanelClientScript).toContain('function deselectAll(');
+  });
+
+  it('contains preservePage parameter in renderDiscoverTable', () => {
+    expect(controlPanelClientScript).toContain('preservePage');
+  });
+
+  it('batch-bar element referenced for show/hide', () => {
+    expect(controlPanelClientScript).toContain("getElementById('batch-bar')");
+  });
+
+  it('passes preservePage=true after map/unmap operations', () => {
+    expect(controlPanelClientScript).toContain(
+      'renderDiscoverTable(discData.skills, discData.nonSkillDirectories, true)',
+    );
+  });
 });
 
 describe('filterSkills', () => {
@@ -406,6 +453,13 @@ describe('i18n compatibility keys', () => {
     'tableAppliedAgents',
     'tableMappingSummary',
     'tableNumber',
+    'batchSelected',
+    'batchCheckCompat',
+    'batchMap',
+    'batchUnmap',
+    'selectAll',
+    'deselectAll',
+    'noSkillsSelected',
   ];
 
   const forbiddenKeys = [

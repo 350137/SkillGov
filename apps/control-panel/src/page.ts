@@ -65,6 +65,13 @@ ${controlPanelStyles}
       <button onclick="callAPI('discover')" class="primary" data-i18n="scanLocal">Refresh Skill Library</button>
       <button onclick="handleExport()" data-i18n="exportButton">Export</button>
     </div>
+    <div id="batch-bar" class="batch-bar" style="display:none;">
+      <span id="batch-count"></span>
+      <button onclick="batchCheckCompat()" data-i18n="batchCheckCompat">Batch Check</button>
+      <button onclick="batchMap()" class="primary" data-i18n="batchMap">Batch Map</button>
+      <button onclick="batchUnmap()" class="danger" data-i18n="batchUnmap">Batch Unmap</button>
+      <button onclick="deselectAll()" data-i18n="deselectAll">Deselect</button>
+    </div>
     <div id="discover-summary"></div>
     <div id="discover-table"></div>
     <div id="discover-pagination"></div>

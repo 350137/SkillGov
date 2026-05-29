@@ -164,6 +164,82 @@ const apiRoutes: Record<string, ApiHandler> = {
     } as unknown as Record<string, unknown>;
   },
 
+  'compat/batch': (body) => {
+    const skillNames = body.skillNames as string[];
+    const target = body.target as string;
+    if (!skillNames?.length || !target) return { error: 'Missing "skillNames" or "target" field' };
+    const config = loadConfig();
+    const inventory = discoverSkillInventory({
+      projectRoot: config.projectRoot,
+      installsPath: `${config.projectRoot}/registry/installs.json`,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+    });
+    const skillMap = new Map(inventory.skills.map((s) => [s.name, s]));
+    const results: Array<{ name: string; status: string; error?: string }> = [];
+    for (const name of skillNames) {
+      const skill = skillMap.get(name);
+      if (!skill) {
+        results.push({ name, status: 'error', error: `Skill "${name}" not found` });
+        continue;
+      }
+      try {
+        const result = checkCompatibility(skill.path, target, {
+          targetProfiles: listTargetProfiles(config.targets),
+          mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+        });
+        results.push({ name, status: result.status as string });
+      } catch (err) {
+        results.push({ name, status: 'error', error: (err as Error).message });
+      }
+    }
+    return { total: results.length, results } as unknown as Record<string, unknown>;
+  },
+
+  'install/batch': (body) => {
+    const skillNames = body.skillNames as string[];
+    const target = body.target as string;
+    if (!skillNames?.length || !target) return { error: 'Missing "skillNames" or "target" field' };
+    const config = loadConfig();
+    const targetProfiles = listTargetProfiles(config.targets);
+    const results: Array<{ name: string; status: string; error?: string }> = [];
+    for (const name of skillNames) {
+      try {
+        const result = installSkill(name, target, config.defaultLinkMode, {
+          projectRoot: config.projectRoot,
+          registryPath: `${config.projectRoot}/registry/installs.json`,
+          operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
+          mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+          targetProfiles,
+        });
+        results.push({ name, status: result.status as string });
+      } catch (err) {
+        results.push({ name, status: 'error', error: (err as Error).message });
+      }
+    }
+    return { total: results.length, results } as unknown as Record<string, unknown>;
+  },
+
+  'uninstall/batch': (body) => {
+    const skillNames = body.skillNames as string[];
+    const target = body.target as string;
+    if (!skillNames?.length || !target) return { error: 'Missing "skillNames" or "target" field' };
+    const config = loadConfig();
+    const results: Array<{ name: string; status: string; error?: string }> = [];
+    for (const name of skillNames) {
+      try {
+        const result = uninstallSkill(name, target, {
+          projectRoot: config.projectRoot,
+          registryPath: `${config.projectRoot}/registry/installs.json`,
+          operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
+        });
+        results.push({ name, status: result.status as string });
+      } catch (err) {
+        results.push({ name, status: 'error', error: (err as Error).message });
+      }
+    }
+    return { total: results.length, results } as unknown as Record<string, unknown>;
+  },
+
   'discover/import': () => {
     const config = loadConfig();
     const registryPath = `${config.projectRoot}/registry/skills.json`;

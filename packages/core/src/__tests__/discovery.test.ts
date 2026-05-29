@@ -200,8 +200,8 @@ describe('discoverSkills', () => {
     expect(result[0].name).toBe('shared-skill');
     expect(result[0].appliedAgents).toEqual(
       expect.arrayContaining([
-        { id: 'codex', label: 'Codex 本地', source: 'local' },
-        { id: 'claude', label: 'Claude 本地', source: 'local' },
+        { id: 'codex', label: 'codex', source: 'local' },
+        { id: 'claude', label: 'claude', source: 'local' },
       ]),
     );
     expect(result[0].appliedAgents).toHaveLength(2);
@@ -245,9 +245,7 @@ describe('discoverSkills', () => {
     });
     expect(result).toHaveLength(1);
     // Junction is also found by codex local scan, so source is 'local' (first-wins merge)
-    expect(result[0].appliedAgents).toEqual([
-      { id: 'codex', label: 'Codex 本地', source: 'local' },
-    ]);
+    expect(result[0].appliedAgents).toEqual([{ id: 'codex', label: 'codex', source: 'local' }]);
   });
 
   it('returns mappingSummary with total, linked, missing, and conflict counts', () => {

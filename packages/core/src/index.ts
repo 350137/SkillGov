@@ -4,7 +4,7 @@ export { defaultConfig, loadConfig, writeConfig, normalizePath } from './config.
 export type { SkillGovConfig } from './config.js';
 export { getTargetProfile, listTargetProfiles } from './targets.js';
 export type { CapabilitySupport, TargetEntry, TargetProfile, TargetSupports } from './targets.js';
-export { readRegistry, writeRegistry, addSkillEntry } from './registry.js';
+export { readRegistry, writeRegistry, addSkillEntry, RegistryCorruptedError } from './registry.js';
 export type {
   SkillEntry,
   SkillsRegistry,

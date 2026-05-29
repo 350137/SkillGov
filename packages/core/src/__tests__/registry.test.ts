@@ -1,6 +1,6 @@
 // Tests for JSON registry read/write — skills, installs, and duplicate detection.
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // Tests for registry state file read/write operations — skills, compatibility, and installs.
@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   type CompatibilityRegistry,
   type InstallsRegistry,
+  RegistryCorruptedError,
   type SkillsRegistry,
   addSkillEntry,
   readRegistry,
@@ -99,6 +100,24 @@ describe('readRegistry / writeRegistry', () => {
     const nestedPath = join(tmpDir, 'sub', 'skills.json');
     writeRegistry(nestedPath, { skills: {} });
     expect(existsSync(nestedPath)).toBe(true);
+  });
+
+  it('throws RegistryCorruptedError when file contains invalid JSON', () => {
+    const path = join(tmpDir, 'corrupted.json');
+    writeFileSync(path, '{broken json!!!', 'utf-8');
+    expect(() => readRegistry(path, { skills: {} })).toThrow(RegistryCorruptedError);
+  });
+
+  it('RegistryCorruptedError includes the file path', () => {
+    const path = join(tmpDir, 'bad.json');
+    writeFileSync(path, 'not json', 'utf-8');
+    try {
+      readRegistry(path, {});
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(RegistryCorruptedError);
+      expect((err as RegistryCorruptedError).filePath).toBe(path);
+    }
   });
 });
 

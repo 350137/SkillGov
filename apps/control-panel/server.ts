@@ -336,7 +336,7 @@ export function startServer(port: number = PORT): http.Server {
       }
       const body = req.method === 'GET' ? {} : await parseBody(req);
       try {
-        const result = handler(body);
+        const result = await handler(body);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result));
       } catch (err) {

@@ -1,7 +1,7 @@
 // Project diagnostics — checks project structure, registry integrity, link validity, and reports issues for repair.
 import { existsSync, readlinkSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { readRegistry } from './registry.js';
+import { RegistryCorruptedError, readRegistry } from './registry.js';
 import type { InstallsRegistry } from './registry.js';
 
 export interface DoctorIssue {
@@ -40,6 +40,19 @@ export function runDoctor(projectRoot: string): DoctorReport {
         message: `Registry file "${file}" not found. It will be created when needed.`,
         category: 'registry',
       });
+    } else {
+      // Check if the file is valid JSON
+      try {
+        readRegistry(regPath, null);
+      } catch (err) {
+        if (err instanceof RegistryCorruptedError) {
+          issues.push({
+            severity: 'error',
+            message: `Registry file "${file}" is corrupted: ${(err.cause as Error)?.message || 'invalid JSON'}. Delete or repair it to continue.`,
+            category: 'registry',
+          });
+        }
+      }
     }
   }
 

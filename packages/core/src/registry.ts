@@ -67,15 +67,28 @@ function ensureDir(path: string): void {
   }
 }
 
+export class RegistryCorruptedError extends Error {
+  constructor(
+    public readonly filePath: string,
+    cause?: unknown,
+  ) {
+    super(
+      `Registry file "${filePath}" is corrupted and cannot be parsed. Repair or delete it to continue.`,
+    );
+    this.name = 'RegistryCorruptedError';
+    this.cause = cause;
+  }
+}
+
 export function readRegistry<T>(filePath: string, defaultValue: T): T {
   if (!existsSync(filePath)) {
     return defaultValue;
   }
+  const raw = readFileSync(filePath, 'utf-8');
   try {
-    const raw = readFileSync(filePath, 'utf-8');
     return JSON.parse(raw) as T;
-  } catch {
-    return defaultValue;
+  } catch (err) {
+    throw new RegistryCorruptedError(filePath, err);
   }
 }
 

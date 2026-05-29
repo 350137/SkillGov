@@ -10,7 +10,7 @@ import {
   rollbackLastInstall,
   uninstallSkill,
 } from '../installer.js';
-import { readRegistry } from '../registry.js';
+import { readRegistry, writeRegistry } from '../registry.js';
 import type { InstallsRegistry } from '../registry.js';
 import type { TargetProfile } from '../targets.js';
 
@@ -227,6 +227,29 @@ describe('uninstallSkill', () => {
     const options = makeOptions();
     const result = uninstallSkill('never-installed', 'claude', options);
     expect(result.status).toBe('not-found');
+  });
+
+  it('refuses to delete linkPath outside known target skill directories', () => {
+    const options = makeOptions();
+    // Manually write a corrupted install record with an arbitrary path
+    const registryPath = options.registryPath;
+    writeRegistry(registryPath, {
+      installs: {
+        'evil-skill@claude': {
+          skillName: 'evil-skill',
+          target: 'claude',
+          installedAt: new Date().toISOString(),
+          type: 'standard',
+          linkPath: join(tmpDir, 'important-data'),
+        },
+      },
+    });
+    mkdirSync(join(tmpDir, 'important-data'), { recursive: true });
+
+    const result = uninstallSkill('evil-skill', 'claude', options);
+    expect(result.status).toBe('not-found');
+    expect(result.message).toContain('Refusing to delete');
+    expect(existsSync(join(tmpDir, 'important-data'))).toBe(true);
   });
 });
 

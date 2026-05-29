@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type SkillGovConfig, loadConfig, writeConfig } from '../config.js';
 import { importSkill } from '../import.js';
+import { type SkillsRegistry, readRegistry } from '../registry.js';
 
 let tmpDir: string;
 
@@ -140,5 +141,32 @@ describe('importSkill', () => {
     const result = importSkill(source, { incoming, skills });
     expect(result.status).toBe('pass');
     expect(existsSync(incoming)).toBe(true);
+  });
+
+  it('re-importing a skill replaces old files and updates registry', () => {
+    const source = createSourceSkill('reimport-skill');
+    const { incoming, skills, registry } = createProjectDirs();
+    const registryPath = join(registry, 'skills.json');
+
+    // First import
+    const result1 = importSkill(source, { incoming, skills, registryPath, origin: 'v1' });
+    expect(result1.status).toBe('pass');
+    expect(existsSync(join(skills, 'reimport-skill', 'helper.sh'))).toBe(true);
+
+    // Modify source: remove helper.sh, add new file
+    rmSync(join(source, 'helper.sh'), { force: true });
+    writeFileSync(join(source, 'extra.txt'), 'new content', 'utf-8');
+
+    // Re-import
+    const result2 = importSkill(source, { incoming, skills, registryPath, origin: 'v2' });
+    expect(result2.status).toBe('pass');
+
+    // Old file should be gone, new file should exist
+    expect(existsSync(join(skills, 'reimport-skill', 'helper.sh'))).toBe(false);
+    expect(existsSync(join(skills, 'reimport-skill', 'extra.txt'))).toBe(true);
+
+    // Registry should be updated with new origin
+    const reg = readRegistry<SkillsRegistry>(registryPath, { skills: {} });
+    expect(reg.skills['reimport-skill'].origin).toBe('v2');
   });
 });

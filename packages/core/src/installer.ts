@@ -8,7 +8,7 @@ import {
   statSync,
   symlinkSync,
 } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, sep } from 'node:path';
 import { checkCompatibility } from './compat.js';
 import { linkManagedSkillToAgent } from './mapping.js';
 import { appendOperation, readOperations } from './operations.js';
@@ -229,16 +229,41 @@ export function uninstallSkill(
     };
   }
 
-  // 2. Remove link if it exists
+  // 2. Validate linkPath belongs to a known target skill directory before deleting
+  const allowedRoots: string[] = [];
+  if (options.targetSkillRoot) {
+    allowedRoots.push(resolve(options.targetSkillRoot));
+  }
+  const profile = getTargetProfile(targetName, options.targetProfiles);
+  if (profile) {
+    for (const dir of profile.skillDirs) {
+      allowedRoots.push(resolve(dir));
+    }
+  }
+  const resolvedLinkPath = resolve(record.linkPath);
+  const isUnderAllowedRoot = allowedRoots.some(
+    (root) => resolvedLinkPath === root || resolvedLinkPath.startsWith(root + sep),
+  );
+  if (!isUnderAllowedRoot) {
+    return {
+      status: 'not-found',
+      skillName,
+      targetName,
+      linkPath: record.linkPath,
+      message: `Refusing to delete "${record.linkPath}": not under a known skill directory for target "${targetName}". Manual cleanup may be needed.`,
+    };
+  }
+
+  // 3. Remove link if it exists
   if (existsSync(record.linkPath)) {
     rmSync(record.linkPath, { recursive: true, force: true });
   }
 
-  // 3. Remove from registry
+  // 4. Remove from registry
   delete installs.installs[installKey];
   writeRegistry(registryPath, installs);
 
-  // 4. Log operation
+  // 5. Log operation
   const op = appendOperation(operationsPath, {
     action: 'uninstall',
     skill: skillName,

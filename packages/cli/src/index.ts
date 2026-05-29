@@ -286,6 +286,8 @@ export function main(args: string[]): void {
       projectRoot: config.projectRoot,
       registryPath: `${config.projectRoot}/registry/installs.json`,
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+      targetProfiles: listTargetProfiles(config.targets),
     });
     console.log(result.message);
     if (result.status !== 'installed') process.exitCode = 1;
@@ -308,6 +310,7 @@ export function main(args: string[]): void {
       projectRoot: config.projectRoot,
       registryPath: `${config.projectRoot}/registry/installs.json`,
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
+      targetProfiles: listTargetProfiles(config.targets),
     });
     console.log(result.message);
     if (result.status === 'not-found') process.exitCode = 1;

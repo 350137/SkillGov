@@ -78,25 +78,28 @@ export function importSkill(sourcePath: string, options: ImportOptions): ImportR
   const skillsSkillDir = resolve(skillsDir, skillName);
   mkdirSync(skillsDir, { recursive: true });
 
+  // Clean existing skill directory to avoid merging stale files
+  if (existsSync(skillsSkillDir)) {
+    rmSync(skillsSkillDir, { recursive: true, force: true });
+  }
+
   // Move from incoming to skills
   copyDir(incomingSkillDir, skillsSkillDir);
   rmSync(incomingSkillDir, { recursive: true, force: true });
 
-  // 4. Update registry
+  // 4. Update registry (always update on re-import to refresh hash, origin, and timestamp)
   if (registryPath) {
     const fileHash = hashDirectory(skillsSkillDir);
     const registry = readRegistry<SkillsRegistry>(registryPath, { skills: {} });
-    if (!registry.skills[skillName]) {
-      registry.skills[skillName] = {
-        name: skillName,
-        sourcePath: resolvedSource,
-        origin: origin || 'local',
-        fileHash,
-        importedAt: new Date().toISOString(),
-        validationStatus: 'pass',
-      };
-      writeRegistry(registryPath, registry);
-    }
+    registry.skills[skillName] = {
+      name: skillName,
+      sourcePath: resolvedSource,
+      origin: origin || 'local',
+      fileHash,
+      importedAt: new Date().toISOString(),
+      validationStatus: 'pass',
+    };
+    writeRegistry(registryPath, registry);
   }
 
   return { status: 'pass', skillName, issues: [], origin };

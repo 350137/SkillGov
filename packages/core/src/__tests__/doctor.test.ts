@@ -69,4 +69,16 @@ describe('runDoctor', () => {
     const report = runDoctor(tmpDir);
     expect(report.issues.some((i) => i.message.includes('stale'))).toBe(true);
   });
+
+  it('reports corrupted registry files as errors', () => {
+    createMinimalProject();
+    writeFileSync(join(tmpDir, 'registry', 'skills.json'), '{invalid json!!!', 'utf-8');
+    const report = runDoctor(tmpDir);
+    expect(report.healthy).toBe(false);
+    const corruptionIssue = report.issues.find(
+      (i) => i.category === 'registry' && i.message.includes('corrupted'),
+    );
+    expect(corruptionIssue).toBeDefined();
+    expect(corruptionIssue?.severity).toBe('error');
+  });
 });

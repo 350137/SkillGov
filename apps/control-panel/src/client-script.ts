@@ -89,7 +89,7 @@ function selectSkillNumberBody(value: string): void {
   window.populateTargetOptions(skill);
 }
 
-function populateTargetOptionsBody(_skill: BrowserSkill): void {
+function populateTargetOptionsBody(_skill?: BrowserSkill): void {
   const select = document.getElementById('target-agent-select');
   if (!select) return;
   const targets =
@@ -625,20 +625,20 @@ function renderDiscoverPage() {
     const escPathDisplay = escapeHtml(s.path || '-');
     const checked = selectedSkillNames.has(s.name) ? 'checked' : '';
     return '<tr data-skill-number="' + rowNumber + '" style="cursor:pointer;">' +
-      '<td class="cb-col"><input type="checkbox" ' + checked + ' onclick="event.stopPropagation(); toggleSkillSelection(\\'' + escName + '\\', this.checked)" /></td>' +
-      '<td onclick="selectSkillNumber(\\'' + rowNumber + '\\')">' + rowNumber + '</td>' +
-      '<td onclick="selectSkillNumber(\\'' + rowNumber + '\\')">' + escName + '</td>' +
-      '<td onclick="selectSkillNumber(\\'' + rowNumber + '\\')"><span class="status-badge ' + badgeClass + '">' + escStatus + '</span></td>' +
-      '<td onclick="selectSkillNumber(\\'' + rowNumber + '\\')">' + formatAppliedAgentsChip(s) + '</td>' +
-      '<td onclick="selectSkillNumber(\\'' + rowNumber + '\\')">' + formatMappingBadge(s.mappingSummary) + '</td>' +
-      '<td onclick="selectSkillNumber(\\'' + rowNumber + '\\')">' + escSource + '</td>' +
-      '<td onclick="selectSkillNumber(\\'' + rowNumber + '\\')" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escPath + '">' + escPathDisplay + '</td>' +
+      '<td class="cb-col"><input type="checkbox" ' + checked + ' data-skill-name="' + escName + '" /></td>' +
+      '<td>' + rowNumber + '</td>' +
+      '<td>' + escName + '</td>' +
+      '<td><span class="status-badge ' + badgeClass + '">' + escStatus + '</span></td>' +
+      '<td>' + formatAppliedAgentsChip(s) + '</td>' +
+      '<td>' + formatMappingBadge(s.mappingSummary) + '</td>' +
+      '<td>' + escSource + '</td>' +
+      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escPath + '">' + escPathDisplay + '</td>' +
       '</tr>';
   }).join('');
   if (table) {
     const allPageSelected = page.length > 0 && page.every((s) => selectedSkillNames.has(s.name));
     table.innerHTML = '<table><thead><tr>' +
-      '<th class="cb-col"><input type="checkbox" ' + (allPageSelected ? 'checked' : '') + ' onclick="togglePageSelection(this.checked)" title="' + escapeHtml(t('selectAll')) + '" /></th>' +
+      '<th class="cb-col"><input type="checkbox" ' + (allPageSelected ? 'checked' : '') + ' id="select-all-checkbox" title="' + escapeHtml(t('selectAll')) + '" /></th>' +
       '<th>' + t('tableNumber') + '</th>' +
       '<th>' + t('tableSkill') + '</th>' +
       '<th>' + t('tableStatus') + '</th>' +
@@ -805,6 +805,25 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Event delegation for discover-table checkboxes and row clicks
+  const tableContainer = document.getElementById('discover-table');
+  if (tableContainer) {
+    tableContainer.addEventListener('change', (event) => {
+      const target = event.target;
+      if (target && target.type === 'checkbox' && target.id === 'select-all-checkbox') {
+        togglePageSelection(target.checked);
+      } else if (target && target.type === 'checkbox' && target.dataset.skillName) {
+        toggleSkillSelection(target.dataset.skillName, target.checked);
+      }
+    });
+    tableContainer.addEventListener('click', (event) => {
+      const target = event.target;
+      if (target && target.closest('.cb-col')) return;
+      const row = target ? target.closest('tr[data-skill-number]') : null;
+      if (row) selectSkillNumber(row.dataset.skillNumber);
+    });
+  }
+
   const searchParams = new URLSearchParams(window.location.search);
   const pp = document.getElementById('project-path');
   fetch('/api/status')
@@ -813,6 +832,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (pp) pp.textContent = data.projectRoot || t('noProject');
       if (Array.isArray(data.targetProfiles)) {
         window.targetProfiles = data.targetProfiles;
+        populateTargetOptions();
       }
       renderStatusCards(data);
       if (searchParams.get('discover') === '1') callAPI('discover');

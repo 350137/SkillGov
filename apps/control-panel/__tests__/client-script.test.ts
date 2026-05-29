@@ -182,6 +182,20 @@ describe('populateTargetOptions', () => {
     expect(select.options[0].value).toBe('from-profiles');
   });
 
+  it('works without a skill argument for page-load population', () => {
+    const select = createElement('target-agent-select', 'select') as HTMLSelectElement;
+    testWindow().targetProfiles = [
+      { id: 'codex', label: 'Codex' },
+      { id: 'custom', label: 'Custom Agent' },
+    ];
+
+    populateTargetOptions();
+
+    expect(select.options.length).toBe(2);
+    expect(select.options[0].value).toBe('codex');
+    expect(select.options[1].value).toBe('custom');
+  });
+
   it('does not crash when target-agent-select is missing', () => {
     expect(() =>
       populateTargetOptions({ name: 'test-skill', agentTargets: ['codex'] }),
@@ -370,6 +384,32 @@ describe('script structure', () => {
     expect(controlPanelClientScript).toContain(
       'renderDiscoverTable(discData.skills, discData.nonSkillDirectories, true)',
     );
+  });
+
+  it('uses data-skill-name attribute instead of inline onclick for checkboxes', () => {
+    expect(controlPanelClientScript).toContain('data-skill-name="');
+    expect(controlPanelClientScript).not.toContain("toggleSkillSelection(\\\\'");
+  });
+
+  it('uses event delegation for checkbox changes on discover-table', () => {
+    expect(controlPanelClientScript).toContain("getElementById('discover-table')");
+    expect(controlPanelClientScript).toContain("addEventListener('change'");
+    expect(controlPanelClientScript).toContain('target.dataset.skillName');
+  });
+
+  it('uses event delegation for row clicks instead of inline onclick on td', () => {
+    expect(controlPanelClientScript).toContain("addEventListener('click'");
+    expect(controlPanelClientScript).toContain('closest');
+    expect(controlPanelClientScript).not.toContain('onclick="selectSkillNumber(');
+  });
+
+  it('populates target-agent-select on page load after status fetch', () => {
+    expect(controlPanelClientScript).toContain('populateTargetOptions()');
+  });
+
+  it('uses select-all-checkbox id instead of inline togglePageSelection onclick', () => {
+    expect(controlPanelClientScript).toContain('id="select-all-checkbox"');
+    expect(controlPanelClientScript).not.toContain('onclick="togglePageSelection(');
   });
 });
 

@@ -81,4 +81,15 @@ describe('runDoctor', () => {
     expect(corruptionIssue).toBeDefined();
     expect(corruptionIssue?.severity).toBe('error');
   });
+
+  it('does not throw when installs.json is corrupted', () => {
+    createMinimalProject();
+    writeFileSync(join(tmpDir, 'registry', 'installs.json'), '{broken!!!', 'utf-8');
+    const report = runDoctor(tmpDir);
+    expect(report.healthy).toBe(false);
+    const corruptionIssue = report.issues.find(
+      (i) => i.category === 'registry' && i.message.includes('corrupted'),
+    );
+    expect(corruptionIssue).toBeDefined();
+  });
 });

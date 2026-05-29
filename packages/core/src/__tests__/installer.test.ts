@@ -251,6 +251,31 @@ describe('uninstallSkill', () => {
     expect(result.message).toContain('Refusing to delete');
     expect(existsSync(join(tmpDir, 'important-data'))).toBe(true);
   });
+
+  it('refuses to delete when linkPath equals the target skill root directory', () => {
+    const options = makeOptions();
+    const targetRoot = join(tmpDir, 'target-skills');
+    mkdirSync(targetRoot, { recursive: true });
+    writeFileSync(join(targetRoot, 'keep.txt'), 'important', 'utf-8');
+    // Corrupt registry: linkPath points to the root itself, not a child
+    writeRegistry(options.registryPath, {
+      installs: {
+        'root-attack@claude': {
+          skillName: 'root-attack',
+          target: 'claude',
+          installedAt: new Date().toISOString(),
+          type: 'standard',
+          linkPath: targetRoot,
+        },
+      },
+    });
+
+    const result = uninstallSkill('root-attack', 'claude', options);
+    expect(result.status).toBe('not-found');
+    expect(result.message).toContain('Refusing to delete');
+    expect(existsSync(targetRoot)).toBe(true);
+    expect(existsSync(join(targetRoot, 'keep.txt'))).toBe(true);
+  });
 });
 
 describe('rollbackLastInstall', () => {

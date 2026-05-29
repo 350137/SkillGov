@@ -56,9 +56,18 @@ export function runDoctor(projectRoot: string): DoctorReport {
     }
   }
 
-  // 3. Check install links
+  // 3. Check install links (skip if installs.json is corrupted — already reported above)
   const installsPath = resolve(projectRoot, 'registry', 'installs.json');
-  const installsReg = readRegistry<InstallsRegistry>(installsPath, { installs: {} });
+  let installsReg: InstallsRegistry;
+  try {
+    installsReg = readRegistry<InstallsRegistry>(installsPath, { installs: {} });
+  } catch {
+    // Corrupted installs.json already reported in step 2
+    return {
+      issues,
+      healthy: false,
+    };
+  }
   for (const [key, record] of Object.entries(installsReg.installs)) {
     if (!existsSync(record.linkPath)) {
       issues.push({

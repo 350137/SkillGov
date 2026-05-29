@@ -241,9 +241,7 @@ export function uninstallSkill(
     }
   }
   const resolvedLinkPath = resolve(record.linkPath);
-  const isUnderAllowedRoot = allowedRoots.some(
-    (root) => resolvedLinkPath === root || resolvedLinkPath.startsWith(root + sep),
-  );
+  const isUnderAllowedRoot = allowedRoots.some((root) => resolvedLinkPath.startsWith(root + sep));
   if (!isUnderAllowedRoot) {
     return {
       status: 'not-found',

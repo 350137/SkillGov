@@ -8,7 +8,7 @@ import {
   statSync,
   symlinkSync,
 } from 'node:fs';
-import { dirname, resolve, sep } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { checkCompatibility } from './compat.js';
 import { linkManagedSkillToAgent } from './mapping.js';
 import { appendOperation, readOperations } from './operations.js';
@@ -241,8 +241,11 @@ export function uninstallSkill(
     }
   }
   const resolvedLinkPath = resolve(record.linkPath);
-  const isUnderAllowedRoot = allowedRoots.some((root) => resolvedLinkPath.startsWith(root + sep));
-  if (!isUnderAllowedRoot) {
+  const expectedLinkPaths = allowedRoots.map((root) => resolve(root, skillName));
+  const isExpectedLinkPath = expectedLinkPaths.some(
+    (expectedPath) => resolvedLinkPath === expectedPath,
+  );
+  if (!isExpectedLinkPath) {
     return {
       status: 'not-found',
       skillName,

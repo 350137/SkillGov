@@ -276,6 +276,30 @@ describe('uninstallSkill', () => {
     expect(existsSync(targetRoot)).toBe(true);
     expect(existsSync(join(targetRoot, 'keep.txt'))).toBe(true);
   });
+
+  it('refuses to delete a different skill directory under the target root', () => {
+    const options = makeOptions();
+    const otherSkillDir = join(tmpDir, 'target-skills', 'other-skill');
+    mkdirSync(otherSkillDir, { recursive: true });
+    writeFileSync(join(otherSkillDir, 'keep.txt'), 'important', 'utf-8');
+    writeRegistry(options.registryPath, {
+      installs: {
+        'evil-skill@claude': {
+          skillName: 'evil-skill',
+          target: 'claude',
+          installedAt: new Date().toISOString(),
+          type: 'standard',
+          linkPath: otherSkillDir,
+        },
+      },
+    });
+
+    const result = uninstallSkill('evil-skill', 'claude', options);
+    expect(result.status).toBe('not-found');
+    expect(result.message).toContain('Refusing to delete');
+    expect(existsSync(otherSkillDir)).toBe(true);
+    expect(existsSync(join(otherSkillDir, 'keep.txt'))).toBe(true);
+  });
 });
 
 describe('rollbackLastInstall', () => {

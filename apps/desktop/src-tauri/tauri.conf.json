@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SkillGov",
+  "version": "0.1.0",
+  "identifier": "com.skillgov.desktop",
+  "build": {
+    "frontendDist": "http://127.0.0.1:4280/?discover=1"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all"
+  }
+}

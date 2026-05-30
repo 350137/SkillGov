@@ -34,6 +34,8 @@ importers:
         specifier: ^3.2.0
         version: 3.2.4(@types/node@22.19.19)(jsdom@29.1.1)(tsx@4.22.3)
 
+  apps/desktop: {}
+
   packages/cli:
     dependencies:
       '@skillgov/core':

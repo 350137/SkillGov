@@ -164,6 +164,7 @@ All mapping state is stored in `registry/mappings.json`. The legacy
 - JSON registry files for skills, mappings, and operations.
 - CLI first.
 - A simple button-based local web UI over the core operations.
+- A lightweight local desktop shell that hosts the same control panel UI.
 
 ### MVP Does Not Include
 
@@ -173,7 +174,7 @@ All mapping state is stored in `registry/mappings.json`. The legacy
 - Full MCP server management.
 - Full plugin management.
 - Full workflow management.
-- Desktop app packaging as the first milestone.
+- A full desktop installer or auto-updater as the first milestone.
 - Direct modification of plugin cache directories.
 
 ## AI Relationship
@@ -297,6 +298,25 @@ Implemented controls:
 The UI is a convenience layer over the same core used by the CLI. Both use the
 same mapping semantics (map/unmap/adopt) backed by `mappings.json`.
 
+## Desktop Shell
+
+SkillGov also includes a lightweight Tauri desktop shell in `apps/desktop`.
+
+The desktop shell does not create a second UI. It starts the local
+`apps/control-panel` service and opens the existing control panel in a native
+window. This follows the same central-skill-library idea as tools like
+skills-hub, while keeping SkillGov's current TypeScript core and web UI as the
+source of truth.
+
+Development command:
+
+```text
+pnpm desktop:dev
+```
+
+The shell uses port `4280` by default. Set `SKILLGOV_DESKTOP_PORT` to override
+the local port.
+
 ## Design Principles
 
 - Standard-first: prefer one valid Agent Skill over many duplicated variants.
@@ -343,7 +363,9 @@ Implemented areas:
 7. A central SkillGov skill library with mappings from target agent directories
    back to managed skills.
 8. A button-based local web control panel backed by the same core operations.
-9. Automated coverage across core, CLI, and control panel behavior.
+9. A lightweight Tauri desktop shell that hosts the existing control panel.
+10. Automated coverage across core, CLI, control panel, and desktop shell
+    behavior.
 
 Known gaps:
 
@@ -353,14 +375,16 @@ Known gaps:
    not roll back an arbitrary operation id.
 3. The CLI tests focus heavily on command routing and usage output; broader
    end-to-end CLI tests with fixture skills would improve confidence.
-4. The project is not packaged as a standalone command or desktop app.
+4. The desktop shell is available for local development, but the project does
+   not yet provide a polished installer, signed release, or auto-updater.
 5. `docs/mvp-plan.md` is a historical plan and still contains some older command
    examples and UI acceptance items that are not fully reflected in the current
    implementation.
 
 Latest verified state:
 
-- Unit and API tests: 23 test files, 403 tests passing.
+- Unit and API tests: 23 test files, 409 tests passing.
+- Desktop shell tests: 4 Rust tests passing.
 - Lint: Biome check passing.
 - TypeScript: project build with `tsc -b` passing.
 - Runtime smoke checks: local API and control panel checks are covered by the

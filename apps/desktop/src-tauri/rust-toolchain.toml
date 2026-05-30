@@ -1,0 +1,3 @@
+# Pins the desktop shell to the stable Rust toolchain without requiring a global rustup default.
+[toolchain]
+channel = "stable"

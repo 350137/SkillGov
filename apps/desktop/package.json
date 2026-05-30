@@ -1,0 +1,12 @@
+{
+  "name": "@skillgov/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SkillGov local desktop shell that hosts the existing control panel UI.",
+  "scripts": {
+    "dev": "cd src-tauri && cargo run",
+    "build": "cd src-tauri && cargo build --release",
+    "test": "cd src-tauri && cargo test"
+  }
+}

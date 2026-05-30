@@ -1,0 +1,12 @@
+# Cargo manifest for the SkillGov Tauri desktop shell crate.
+[package]
+name = "skillgov-desktop"
+version = "0.1.0"
+description = "SkillGov desktop shell"
+edition = "2021"
+
+[dependencies]
+tauri = { version = "2.11.1" }
+
+[build-dependencies]
+tauri-build = { version = "2.6.1" }

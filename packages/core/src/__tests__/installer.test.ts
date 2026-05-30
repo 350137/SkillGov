@@ -15,6 +15,7 @@ import { writeRegistry } from '../registry.js';
 import type { TargetProfile } from '../targets.js';
 
 let tmpDir: string;
+const WINDOWS_LINK_TEST_TIMEOUT = process.platform === 'win32' ? 20_000 : 5_000;
 
 beforeEach(() => {
   tmpDir = join(tmpdir(), `skillgov-install-${randomUUID()}`);
@@ -207,15 +208,19 @@ describe('installSkill', () => {
 });
 
 describe('uninstallSkill', () => {
-  it('uninstalls a previously installed skill', () => {
-    const options = makeOptions();
-    installSkill('test-skill', 'claude', 'junction', options);
-    const result = uninstallSkill('test-skill', 'claude', options);
-    expect(result.skillName).toBe('test-skill');
-    // Verify removed from mappings
-    const mappings = readSkillMappings(options.mappingsPath);
-    expect(mappings.mappings['test-skill']?.links.claude).toBeUndefined();
-  });
+  it(
+    'uninstalls a previously installed skill',
+    () => {
+      const options = makeOptions();
+      installSkill('test-skill', 'claude', 'junction', options);
+      const result = uninstallSkill('test-skill', 'claude', options);
+      expect(result.skillName).toBe('test-skill');
+      // Verify removed from mappings
+      const mappings = readSkillMappings(options.mappingsPath);
+      expect(mappings.mappings['test-skill']?.links.claude).toBeUndefined();
+    },
+    WINDOWS_LINK_TEST_TIMEOUT,
+  );
 
   it('returns not-found for non-installed skill', () => {
     const options = makeOptions();

@@ -156,6 +156,14 @@ table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
 th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid #f0f0f0; }
 th { font-weight: 600; background: #fafafa; color: #555; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.3px; }
 tr:hover { background: #f8f9fa; }
+.skill-description-cell {
+  max-width: 260px;
+  min-width: 180px;
+  color: #666;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+}
 
 /* --- Status Badge --- */
 .status-badge {

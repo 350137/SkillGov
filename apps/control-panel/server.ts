@@ -1,5 +1,6 @@
 // Local web control panel server — provides a button-based UI over @skillgov/core operations via HTTP API endpoints.
 import http from 'node:http';
+import { join } from 'node:path';
 import { URL } from 'node:url';
 import {
   VERSION,
@@ -7,6 +8,7 @@ import {
   checkCompatibility,
   discoverSkillInventory,
   discoverSkills,
+  emptySkillDescriptionsRegistry,
   generateOverlayTask,
   generateRepairTask,
   getProjectStatus,
@@ -16,12 +18,16 @@ import {
   listTargetProfiles,
   loadConfig,
   mapSkill,
+  parseFrontmatter,
+  readSkillDescriptions,
+  resolveSkillDescription,
   rollbackLastInstall,
   runDoctor,
   uninstallSkill,
   unmapSkill,
   validateSkill,
 } from '@skillgov/core';
+import type { SkillDescriptionsRegistry } from '@skillgov/core';
 import { renderControlPanelPage } from './src/page.js';
 
 const PORT = Number.parseInt(process.env.PORT || '4173', 10);
@@ -29,6 +35,54 @@ const PORT = Number.parseInt(process.env.PORT || '4173', 10);
 type ApiHandler = (
   body: Record<string, unknown>,
 ) => Promise<Record<string, unknown>> | Record<string, unknown>;
+
+function readDescriptionRegistry(projectRoot: string): SkillDescriptionsRegistry {
+  try {
+    return readSkillDescriptions(join(projectRoot, 'registry', 'skill-descriptions.json'));
+  } catch {
+    return emptySkillDescriptionsRegistry();
+  }
+}
+
+function frontmatterDescription(skillPath: unknown): string {
+  if (typeof skillPath !== 'string' || !skillPath) return '';
+  const parsed = parseFrontmatter(join(skillPath, 'SKILL.md'));
+  return parsed.data.description || '';
+}
+
+function withDisplayDescriptions<T extends { name: string; path?: string }>(
+  skills: T[],
+  registry: SkillDescriptionsRegistry,
+): Array<
+  T & {
+    displayDescription: {
+      zh?: string;
+      en?: string;
+      fallback: string;
+      resolvedZh: string;
+      resolvedEn: string;
+      reviewStatus: string;
+      source: string;
+    };
+  }
+> {
+  return skills.map((skill) => {
+    const entry = registry.descriptions[skill.name];
+    const fallback = frontmatterDescription(skill.path);
+    return {
+      ...skill,
+      displayDescription: {
+        zh: entry?.zh,
+        en: entry?.en,
+        fallback,
+        resolvedZh: resolveSkillDescription(entry, 'zh', fallback),
+        resolvedEn: resolveSkillDescription(entry, 'en', fallback),
+        reviewStatus: entry?.reviewStatus || 'missing',
+        source: entry?.source || (fallback ? 'frontmatter' : 'manual'),
+      },
+    };
+  });
+}
 
 const apiRoutes: Record<string, ApiHandler> = {
   status: () => {
@@ -203,8 +257,10 @@ const apiRoutes: Record<string, ApiHandler> = {
       mappingsPath: `${config.projectRoot}/registry/mappings.json`,
       targets: config.targets,
     });
+    const descriptionRegistry = readDescriptionRegistry(config.projectRoot);
     return {
       ...inventory,
+      skills: withDisplayDescriptions(inventory.skills, descriptionRegistry),
       targetProfiles: listTargetProfiles(config.targets),
     } as unknown as Record<string, unknown>;
   },

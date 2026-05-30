@@ -215,6 +215,7 @@ overlays/
 registry/
   skills.json
   mappings.json
+  skill-descriptions.json
   operations.jsonl
 tasks/
   repair/
@@ -227,6 +228,7 @@ packages/
 apps/
   control-panel/
 scripts/
+  skill-descriptions/
   python/
 skillgov.config.json
 ```
@@ -287,6 +289,7 @@ It should not expose a free-form command input.
 Implemented controls:
 
 - Skill library with search, filter, and pagination
+- Skill purpose column backed by the bilingual description registry
 - Single skill operations: check compatibility, map, unmap, adopt
 - Multi-skill batch operations: batch check, batch map, batch unmap, batch adopt
 - Structured result display with summary cards and detail tables
@@ -297,6 +300,31 @@ Implemented controls:
 
 The UI is a convenience layer over the same core used by the CLI. Both use the
 same mapping semantics (map/unmap/adopt) backed by `mappings.json`.
+
+## Skill Descriptions
+
+SkillGov keeps skill purpose text in `registry/skill-descriptions.json`.
+The table is keyed by skill name and can store both Chinese and English
+descriptions, plus source and review status metadata.
+
+The control panel reads this registry during discovery and shows the best
+description for the active UI language. If a translated description is missing,
+it falls back to the other language or the `description` field from the
+skill's `SKILL.md` frontmatter.
+
+Description workflow scripts:
+
+```text
+pnpm descriptions:generate
+pnpm descriptions:export
+pnpm descriptions:apply <csv-path>
+```
+
+`descriptions:generate` scans `skills/` and fills the description registry from
+`SKILL.md` frontmatter without overwriting existing reviewed text.
+`descriptions:export` creates a CSV worklist for missing Chinese or English
+descriptions. `descriptions:apply` imports translated CSV rows back into the
+registry.
 
 ## Desktop Shell
 
@@ -364,7 +392,9 @@ Implemented areas:
    back to managed skills.
 8. A button-based local web control panel backed by the same core operations.
 9. A lightweight Tauri desktop shell that hosts the existing control panel.
-10. Automated coverage across core, CLI, control panel, and desktop shell
+10. A bilingual skill description registry with CSV export/import workflow for
+    translation review.
+11. Automated coverage across core, CLI, control panel, and desktop shell
     behavior.
 
 Known gaps:
@@ -383,7 +413,7 @@ Known gaps:
 
 Latest verified state:
 
-- Unit and API tests: 23 test files, 409 tests passing.
+- Unit and API tests: 25 test files, 423 tests passing.
 - Desktop shell tests: 4 Rust tests passing.
 - Lint: Biome check passing.
 - TypeScript: project build with `tsc -b` passing.

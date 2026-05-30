@@ -19,6 +19,7 @@ interface TestSkill {
   path?: string;
   source?: string;
   sourceLabel?: string;
+  displayDescription?: { zh?: string; en?: string; fallback?: string; reviewStatus?: string };
   validationStatus?: string;
   agentStates?: Array<{ profileId: string; profileLabel: string; state: string; path: string }>;
   mappingSummary?: { total: number; linked: number; missing: number; conflict: number };
@@ -343,6 +344,12 @@ describe('script structure', () => {
     expect(controlPanelClientScript).toContain('formatMappingBadge(s.mappingSummary)');
   });
 
+  it('skill purpose column appears in discover table', () => {
+    expect(controlPanelClientScript).toContain('tableSkillDescription');
+    expect(controlPanelClientScript).toContain('resolveSkillDisplayDescription(s)');
+    expect(controlPanelClientScript).toContain('class="skill-description-cell"');
+  });
+
   it('renderDiscoverTable calls renderStatusCards to refresh metrics', () => {
     expect(controlPanelClientScript).toContain(
       'if (latestStatusData) renderStatusCards(latestStatusData)',
@@ -357,6 +364,10 @@ describe('script structure', () => {
 
   it('search filter includes path matching', () => {
     expect(controlPanelClientScript).toContain("s.path || '').toLowerCase().includes(q)");
+  });
+
+  it('search filter includes display description matching', () => {
+    expect(controlPanelClientScript).toContain('resolveSkillDisplayDescription(s).toLowerCase()');
   });
 
   it('search filter includes agentStates profileLabel matching', () => {
@@ -587,6 +598,7 @@ describe('i18n compatibility keys', () => {
     'usedByAgent',
     'tableAppliedAgents',
     'tableMappingSummary',
+    'tableSkillDescription',
     'tableNumber',
     'batchSelected',
     'batchCheckCompat',

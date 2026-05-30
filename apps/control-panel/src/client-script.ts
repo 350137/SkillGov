@@ -26,6 +26,15 @@ interface BrowserSkill {
   path?: string;
   source?: string;
   sourceLabel?: string;
+  displayDescription?: {
+    zh?: string;
+    en?: string;
+    fallback?: string;
+    resolvedZh?: string;
+    resolvedEn?: string;
+    reviewStatus?: string;
+    source?: string;
+  };
   validationStatus?: string;
   agentStates?: Array<{ profileId: string; profileLabel: string; state: string; path: string }>;
   mappingSummary?: { total: number; linked: number; missing: number; conflict: number };
@@ -113,6 +122,14 @@ function populateTargetOptionsBody(_skill?: BrowserSkill): void {
 
 const escapeHtml = escapeHtmlBody;
 
+function resolveSkillDisplayDescriptionBody(skill: BrowserSkill, language = 'en'): string {
+  const description = skill.displayDescription || {};
+  if (language === 'zh') {
+    return description.zh || description.en || description.fallback || '';
+  }
+  return description.en || description.zh || description.fallback || '';
+}
+
 function renderCompatibilityResultBody(data: Record<string, unknown>): void {
   const card = document.getElementById('compat-result-card');
   const output = document.getElementById('output');
@@ -192,6 +209,7 @@ export function filterSkillsBody(skills: BrowserSkill[], opts: FilterOptions): B
         s.name.toLowerCase().includes(q) ||
         (s.path || '').toLowerCase().includes(q) ||
         (s.sourceLabel || s.source || '').toLowerCase().includes(q) ||
+        resolveSkillDisplayDescriptionBody(s).toLowerCase().includes(q) ||
         (s.agentStates || []).some((a) =>
           (a.profileLabel || a.profileId).toLowerCase().includes(q),
         ),
@@ -577,6 +595,14 @@ function t(key) {
   return translations[currentLanguage][key] || translations.en[key] || key;
 }
 
+function resolveSkillDisplayDescription(skill) {
+  const description = skill.displayDescription || {};
+  if (currentLanguage === 'zh') {
+    return description.zh || description.en || description.fallback || '';
+  }
+  return description.en || description.zh || description.fallback || '';
+}
+
 function applyLanguage(language) {
   currentLanguage = language === 'zh' ? 'zh' : 'en';
   localStorage.setItem('skillgov-language', currentLanguage);
@@ -672,6 +698,7 @@ function getFilteredSkills() {
       s.name.toLowerCase().includes(q) ||
       (s.path || '').toLowerCase().includes(q) ||
       (s.sourceLabel || s.source || '').toLowerCase().includes(q) ||
+      resolveSkillDisplayDescription(s).toLowerCase().includes(q) ||
       ((s.agentStates || []).some((a) => (a.profileLabel || a.profileId).toLowerCase().includes(q)))
     );
   }
@@ -795,6 +822,7 @@ function renderDiscoverPage() {
     const escName = escapeHtml(s.name);
     const escStatus = escapeHtml(s.validationStatus || '');
     const escSource = escapeHtml(s.sourceLabel || s.source || '');
+    const escDescription = escapeHtml(resolveSkillDisplayDescription(s) || '-');
     const escPath = escapeHtml(s.path || '');
     const escPathDisplay = escapeHtml(s.path || '-');
     const checked = selectedSkillNames.has(s.name) ? 'checked' : '';
@@ -802,6 +830,7 @@ function renderDiscoverPage() {
       '<td class="cb-col"><input type="checkbox" ' + checked + ' data-skill-name="' + escName + '" /></td>' +
       '<td>' + rowNumber + '</td>' +
       '<td>' + escName + '</td>' +
+      '<td class="skill-description-cell" title="' + escDescription + '">' + escDescription + '</td>' +
       '<td><span class="status-badge ' + badgeClass + '">' + escStatus + '</span></td>' +
       '<td>' + formatAppliedAgentsChip(s) + '</td>' +
       '<td>' + formatMappingBadge(s.mappingSummary) + '</td>' +
@@ -815,6 +844,7 @@ function renderDiscoverPage() {
       '<th class="cb-col"><input type="checkbox" ' + (allPageSelected ? 'checked' : '') + ' id="select-all-checkbox" title="' + escapeHtml(t('selectAll')) + '" /></th>' +
       '<th>' + t('tableNumber') + '</th>' +
       '<th>' + t('tableSkill') + '</th>' +
+      '<th>' + t('tableSkillDescription') + '</th>' +
       '<th>' + t('tableStatus') + '</th>' +
       '<th>' + t('tableAppliedAgentsChip') + '</th>' +
       '<th>' + t('tableMappingStatus') + '</th>' +

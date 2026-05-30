@@ -21,6 +21,34 @@ export { initProject } from './init.js';
 export type { InitOptions } from './init.js';
 export { parseFrontmatter } from './frontmatter.js';
 export type { FrontmatterResult } from './frontmatter.js';
+export {
+  detectDescriptionLanguage,
+  emptySkillDescriptionsRegistry,
+  readSkillDescriptions,
+  resolveSkillDescription,
+  upsertSkillDescription,
+  writeSkillDescriptions,
+} from './skill-descriptions.js';
+export type {
+  SkillDescriptionEntry,
+  SkillDescriptionLanguage,
+  SkillDescriptionReviewStatus,
+  SkillDescriptionSource,
+  SkillDescriptionsRegistry,
+} from './skill-descriptions.js';
+export {
+  applyTranslationCsv,
+  exportTranslationWorklist,
+  generateSkillDescriptionTable,
+} from './skill-description-workflow.js';
+export type {
+  ApplyTranslationCsvOptions,
+  ApplyTranslationCsvResult,
+  ExportTranslationWorklistOptions,
+  ExportTranslationWorklistResult,
+  GenerateSkillDescriptionTableOptions,
+  GenerateSkillDescriptionTableResult,
+} from './skill-description-workflow.js';
 export { validateSkill } from './validator.js';
 export type { ValidationResult, ValidationIssue } from './validator.js';
 export { hashFile, hashDirectory } from './hash.js';

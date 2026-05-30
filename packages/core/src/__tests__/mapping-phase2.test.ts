@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { adoptSkill, detectLinkType, mapSkill, readSkillMappings, unmapSkill } from '../mapping.js';
 
 let tmpDir: string;
+const WINDOWS_LINK_TEST_TIMEOUT = process.platform === 'win32' ? 20_000 : 5_000;
 
 beforeEach(() => {
   tmpDir = join(tmpdir(), `skillgov-map2-${randomUUID()}`);
@@ -347,30 +348,34 @@ describe('unmapSkill', () => {
 });
 
 describe('adoptSkill', () => {
-  it('backs up plain directory, replaces with junction, records in mappings', () => {
-    createSkill('alpha');
-    const dir = join(targetRoot(), 'alpha');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'local.txt'), 'local data', 'utf-8');
+  it(
+    'backs up plain directory, replaces with junction, records in mappings',
+    () => {
+      createSkill('alpha');
+      const dir = join(targetRoot(), 'alpha');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'local.txt'), 'local data', 'utf-8');
 
-    const result = adoptSkill('alpha', 'codex', {
-      projectRoot: tmpDir,
-      mappingsPath: mappingsPath(),
-      targetSkillRoot: targetRoot(),
-      backupsRoot: join(tmpDir, 'backups'),
-    });
+      const result = adoptSkill('alpha', 'codex', {
+        projectRoot: tmpDir,
+        mappingsPath: mappingsPath(),
+        targetSkillRoot: targetRoot(),
+        backupsRoot: join(tmpDir, 'backups'),
+      });
 
-    expect(result.status).toBe('adopted');
-    expect(result.backupPath).toBeTruthy();
-    expect(existsSync(join(result.backupPath, 'local.txt'))).toBe(true);
-    expect(readFileSync(join(result.backupPath, 'local.txt'), 'utf-8')).toBe('local data');
-    expect(existsSync(join(targetRoot(), 'alpha', 'SKILL.md'))).toBe(true);
-    expect(detectLinkType(join(targetRoot(), 'alpha')).type).toBe('junction');
+      expect(result.status).toBe('adopted');
+      expect(result.backupPath).toBeTruthy();
+      expect(existsSync(join(result.backupPath, 'local.txt'))).toBe(true);
+      expect(readFileSync(join(result.backupPath, 'local.txt'), 'utf-8')).toBe('local data');
+      expect(existsSync(join(targetRoot(), 'alpha', 'SKILL.md'))).toBe(true);
+      expect(detectLinkType(join(targetRoot(), 'alpha')).type).toBe('junction');
 
-    const mappings = readSkillMappings(mappingsPath());
-    expect(mappings.mappings.alpha).toBeDefined();
-    expect(mappings.mappings.alpha.links.codex?.backupPath).toBe(result.backupPath);
-  });
+      const mappings = readSkillMappings(mappingsPath());
+      expect(mappings.mappings.alpha).toBeDefined();
+      expect(mappings.mappings.alpha.links.codex?.backupPath).toBe(result.backupPath);
+    },
+    WINDOWS_LINK_TEST_TIMEOUT,
+  );
 
   it('returns not-found when skill has no SKILL.md', () => {
     mkdirSync(join(tmpDir, 'skills', 'empty'), { recursive: true });

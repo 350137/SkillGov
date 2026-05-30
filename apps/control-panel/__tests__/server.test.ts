@@ -163,6 +163,7 @@ describe('Control Panel API', () => {
     expect(skills.every((skill) => skill.source !== 'codex-plugin-cache')).toBe(true);
     for (const skill of skills) {
       expect(skill).toHaveProperty('sourceLabel');
+      expect(skill).toHaveProperty('displayDescription');
       expect(Array.isArray(skill.agentStates)).toBe(true);
     }
   });

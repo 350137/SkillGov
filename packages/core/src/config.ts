@@ -1,6 +1,6 @@
 // Config schema, loading, validation, and writing for skillgov.config.json — normalises paths and merges user values with defaults.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import type { TargetEntry } from './targets.js';
 
 export interface SkillGovConfig {
@@ -23,9 +23,24 @@ export function defaultConfig(projectRoot?: string): SkillGovConfig {
   };
 }
 
+function findConfigPath(startDir: string): string | undefined {
+  let current = resolve(startDir);
+  while (true) {
+    const candidate = join(current, 'skillgov.config.json');
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+}
+
 export function loadConfig(configPath?: string): SkillGovConfig {
-  const resolvedConfigPath = configPath || `${process.cwd()}/skillgov.config.json`;
-  const defaults = defaultConfig();
+  const discoveredConfigPath = configPath || findConfigPath(process.cwd());
+  const resolvedConfigPath = discoveredConfigPath || `${process.cwd()}/skillgov.config.json`;
+  const defaults =
+    !configPath && discoveredConfigPath
+      ? defaultConfig(dirname(resolvedConfigPath))
+      : defaultConfig();
 
   if (!existsSync(resolvedConfigPath)) {
     return defaults;

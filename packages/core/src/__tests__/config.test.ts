@@ -51,6 +51,26 @@ describe('loadConfig', () => {
     expect(cfg.defaultLinkMode).toBe('junction');
   });
 
+  it('finds skillgov.config.json from a parent directory when called without a path', () => {
+    const configPath = join(tmpDir, 'skillgov.config.json');
+    const childDir = join(tmpDir, 'apps', 'control-panel');
+    mkdirSync(childDir, { recursive: true });
+    writeFileSync(
+      configPath,
+      JSON.stringify({ projectRoot: tmpDir, defaultLinkMode: 'junction', targets: ['codex'] }),
+      'utf-8',
+    );
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(childDir);
+      const cfg = loadConfig();
+      expect(cfg.projectRoot).toBe(normalizePath(tmpDir));
+      expect(cfg.targets).toEqual(['codex']);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
   it('loads config from a valid JSON file', () => {
     const configPath = join(tmpDir, 'skillgov.config.json');
     writeFileSync(

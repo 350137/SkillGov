@@ -239,10 +239,16 @@ export function discoverSkillInventory(options: DiscoveryOptions = {}): SkillInv
 
     const mappingSummary: MappingSummary = { total: 0, linked: 0, missing: 0, conflict: 0 };
     for (const state of agentStates) {
-      mappingSummary.total++;
-      if (state.state === 'managed-linked') mappingSummary.linked++;
-      else if (state.state === 'missing') mappingSummary.missing++;
-      else if (state.state === 'conflict') mappingSummary.conflict++;
+      if (
+        state.state === 'managed-linked' ||
+        state.state === 'missing' ||
+        state.state === 'conflict'
+      ) {
+        mappingSummary.total++;
+        if (state.state === 'managed-linked') mappingSummary.linked++;
+        else if (state.state === 'missing') mappingSummary.missing++;
+        else if (state.state === 'conflict') mappingSummary.conflict++;
+      }
     }
 
     const origin = importedOrigins.get(candidate.name);

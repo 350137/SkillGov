@@ -249,7 +249,7 @@ describe('discoverSkills', () => {
     });
     expect(result).toHaveLength(1);
     expect(result[0].mappingSummary).toEqual({
-      total: 2,
+      total: 1,
       linked: 1,
       missing: 0,
       conflict: 0,

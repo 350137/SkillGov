@@ -129,10 +129,11 @@ describe('getProjectStatus', () => {
 
     expect(names).toEqual(['alpha-skill', 'beta-skill', 'cached-skill', 'codex-only']);
     expect(status.registryEntries).toBe(2);
-    expect(status.skills.find((s) => s.name === 'codex-only')?.installedTargets).toEqual(['codex']);
+    // codex-only is a plain directory (unmanaged-local), not a managed link
+    expect(status.skills.find((s) => s.name === 'codex-only')?.installedTargets).toEqual([]);
   });
 
-  it('derives installedTargets from agentStates when skill is in both agent directories', () => {
+  it('installedTargets only counts managed-linked, not unmanaged-local', () => {
     mkdirSync(join(tmpDir, '.codex', 'skills', 'shared-skill'), { recursive: true });
     writeFileSync(
       join(tmpDir, '.codex', 'skills', 'shared-skill', 'SKILL.md'),
@@ -149,8 +150,8 @@ describe('getProjectStatus', () => {
     const status = getProjectStatus(tmpDir, { home: tmpDir });
     const shared = status.skills.find((s) => s.name === 'shared-skill');
     expect(shared).toBeDefined();
-    expect(shared?.installedTargets).toEqual(expect.arrayContaining(['codex', 'claude']));
-    expect(shared?.installedTargets).toHaveLength(2);
+    // Both are plain directories (unmanaged-local), not managed links
+    expect(shared?.installedTargets).toEqual([]);
   });
 
   it('reports non-skill directories without counting them as skills', () => {

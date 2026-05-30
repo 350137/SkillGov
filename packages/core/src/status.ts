@@ -85,9 +85,7 @@ export function getProjectStatus(
       overlayTargets,
       installedTargets:
         skill.agentStates.length > 0
-          ? skill.agentStates
-              .filter((s) => s.state === 'managed-linked' || s.state === 'unmanaged-local')
-              .map((s) => s.profileId)
+          ? skill.agentStates.filter((s) => s.state === 'managed-linked').map((s) => s.profileId)
           : installedBySkill.get(skill.name) || [],
     };
   });

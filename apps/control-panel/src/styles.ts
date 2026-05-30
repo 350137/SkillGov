@@ -1,4 +1,4 @@
-// Stylesheet string used by the control panel HTML page — console layout with status cards, two-column skill library and action panel.
+// Stylesheet string used by the control panel HTML page — console layout with status cards, two-column skill library and operations panel.
 export const controlPanelStyles = `
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -120,6 +120,7 @@ button:disabled { opacity: 0.5; cursor: default; }
   display: flex;
   gap: 8px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
 }
 
 /* --- Task suggestions (muted) --- */
@@ -159,12 +160,33 @@ tr:hover { background: #f8f9fa; }
   margin-right: 3px;
 }
 
+/* --- Mapping Chip --- */
+.mapping-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.mapping-chip-linked { background: #d4edda; color: #155724; }
+.mapping-chip-unmapped { background: #f0f0f0; color: #888; }
+.mapping-chip-conflict { background: #f8d7da; color: #721c24; }
+
+/* --- Panel hint --- */
+.panel-hint {
+  font-size: 0.85rem;
+  color: #999;
+  text-align: center;
+  padding: 20px 10px;
+}
+
 /* --- Selected Skill --- */
 .selected-skill-name { font-size: 1rem; font-weight: 600; margin-bottom: 2px; }
 .selected-skill-info { font-size: 0.82rem; color: #888; margin-bottom: 10px; }
 
 /* --- Right panel select --- */
-#target-agent-select {
+#target-agent-select,
+#target-agent-select-multi {
   width: 100%;
   padding: 7px 8px;
   border: 1px solid #ccc;
@@ -178,6 +200,8 @@ tr:hover { background: #f8f9fa; }
 .compat-card { padding: 8px; background: #fafafa; border-radius: 6px; border: 1px solid #eee; }
 .compat-reason { font-size: 0.82rem; color: #666; margin-top: 6px; }
 .compat-action { font-size: 0.82rem; color: #555; margin-top: 4px; }
+.compat-issues-list { list-style: none; padding: 0; margin: 6px 0 0; }
+.compat-issues-list li { font-size: 0.82rem; padding: 3px 0; }
 
 /* --- Status summary table inside cards --- */
 #discover-summary table { margin-bottom: 8px; }
@@ -236,19 +260,6 @@ pre {
 #discover-pagination {
   margin-top: 8px;
 }
-
-/* --- Batch Bar --- */
-.batch-bar {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 8px 12px;
-  margin-bottom: 8px;
-  background: #e3f2fd;
-  border-radius: 6px;
-  font-size: 0.82rem;
-}
-.batch-bar span { font-weight: 600; color: #1565c0; }
 
 /* --- Checkbox column --- */
 th.cb-col, td.cb-col { width: 32px; text-align: center; padding: 7px 4px; }

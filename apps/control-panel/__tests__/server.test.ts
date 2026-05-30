@@ -312,11 +312,13 @@ describe('Control Panel API', () => {
     expect(res).toContain('id="status-cards"');
     expect(res).toContain('id="discover-summary"');
     expect(res).toContain('id="discover-pagination"');
-    expect(res).toContain('id="batch-bar"');
-    expect(res).toContain('id="batch-count"');
+    expect(res).toContain('id="panel-no-selection"');
+    expect(res).toContain('id="panel-single"');
+    expect(res).toContain('id="panel-multi"');
     expect(res).toContain('batchCheckCompat()');
     expect(res).toContain('batchMap()');
     expect(res).toContain('batchUnmap()');
+    expect(res).toContain('batchAdopt()');
     expect(res).toContain('deselectAll()');
     expect(res).toContain('function resolveSkillByNumber');
     expect(res).toContain("searchParams.get('discover') === '1'");

@@ -71,7 +71,14 @@ describe('selectSkillNumber', () => {
         source: 'agent',
         sourceLabel: 'agent',
         validationStatus: 'pass',
-        agentStates: [{ profileId: 'codex', profileLabel: 'Codex', state: 'unmanaged-local', path: '/tmp/codex/skills/test-skill' }],
+        agentStates: [
+          {
+            profileId: 'codex',
+            profileLabel: 'Codex',
+            state: 'unmanaged-local',
+            path: '/tmp/codex/skills/test-skill',
+          },
+        ],
       },
     ];
 
@@ -94,8 +101,18 @@ describe('selectSkillNumber', () => {
         source: 'project',
         validationStatus: 'pass',
         agentStates: [
-          { profileId: 'codex', profileLabel: 'Codex', state: 'managed-linked', path: '/tmp/codex/skills/multi-agent-skill' },
-          { profileId: 'claude', profileLabel: 'Claude', state: 'managed-linked', path: '/tmp/claude/skills/multi-agent-skill' },
+          {
+            profileId: 'codex',
+            profileLabel: 'Codex',
+            state: 'managed-linked',
+            path: '/tmp/codex/skills/multi-agent-skill',
+          },
+          {
+            profileId: 'claude',
+            profileLabel: 'Claude',
+            state: 'managed-linked',
+            path: '/tmp/claude/skills/multi-agent-skill',
+          },
         ],
       },
     ];
@@ -129,7 +146,12 @@ describe('selectSkillNumber', () => {
 describe('populateTargetOptions', () => {
   it('keeps all default targets available even when a skill is already used by one agent', () => {
     const select = createElement('target-agent-select', 'select') as HTMLSelectElement;
-    populateTargetOptions({ name: 'test-skill', agentStates: [{ profileId: 'codex', profileLabel: 'Codex', state: 'managed-linked', path: '/tmp' }] });
+    populateTargetOptions({
+      name: 'test-skill',
+      agentStates: [
+        { profileId: 'codex', profileLabel: 'Codex', state: 'managed-linked', path: '/tmp' },
+      ],
+    });
 
     expect(select.options.length).toBe(DEFAULT_TARGETS.length);
     expect(select.options[0].value).toBe('codex');
@@ -195,7 +217,12 @@ describe('populateTargetOptions', () => {
 
   it('does not crash when target-agent-select is missing', () => {
     expect(() =>
-      populateTargetOptions({ name: 'test-skill', agentStates: [{ profileId: 'codex', profileLabel: 'Codex', state: 'managed-linked', path: '/tmp' }] }),
+      populateTargetOptions({
+        name: 'test-skill',
+        agentStates: [
+          { profileId: 'codex', profileLabel: 'Codex', state: 'managed-linked', path: '/tmp' },
+        ],
+      }),
     ).not.toThrow();
   });
 });
@@ -348,12 +375,17 @@ describe('script structure', () => {
 
   it('contains batchMap function', () => {
     expect(controlPanelClientScript).toContain('async function batchMap(');
-    expect(controlPanelClientScript).toContain("'/api/install/batch'");
+    expect(controlPanelClientScript).toContain("'/api/map/batch'");
   });
 
   it('contains batchUnmap function', () => {
     expect(controlPanelClientScript).toContain('async function batchUnmap(');
-    expect(controlPanelClientScript).toContain("'/api/uninstall/batch'");
+    expect(controlPanelClientScript).toContain("'/api/unmap/batch'");
+  });
+
+  it('contains batchAdopt function', () => {
+    expect(controlPanelClientScript).toContain('async function batchAdopt(');
+    expect(controlPanelClientScript).toContain("'/api/adopt/batch'");
   });
 
   it('contains toggleSkillSelection for checkbox handling', () => {
@@ -373,8 +405,11 @@ describe('script structure', () => {
     expect(controlPanelClientScript).toContain('preservePage');
   });
 
-  it('batch-bar element referenced for show/hide', () => {
-    expect(controlPanelClientScript).toContain("getElementById('batch-bar')");
+  it('panel visibility managed by updatePanelVisibility', () => {
+    expect(controlPanelClientScript).toContain('function updatePanelVisibility(');
+    expect(controlPanelClientScript).toContain("getElementById('panel-no-selection')");
+    expect(controlPanelClientScript).toContain("getElementById('panel-single')");
+    expect(controlPanelClientScript).toContain("getElementById('panel-multi')");
   });
 
   it('passes preservePage=true after map/unmap operations', () => {
@@ -417,14 +452,28 @@ describe('filterSkills', () => {
       path: 'D:\\\\SkillGov\\\\skills\\\\alpha',
       source: 'project',
       validationStatus: 'pass',
-      agentStates: [{ profileId: 'codex', profileLabel: 'Codex', state: 'managed-linked', path: '/tmp/codex/alpha' }],
+      agentStates: [
+        {
+          profileId: 'codex',
+          profileLabel: 'Codex',
+          state: 'managed-linked',
+          path: '/tmp/codex/alpha',
+        },
+      ],
     },
     {
       name: 'beta',
       path: 'D:\\\\SkillGov\\\\skills\\\\beta',
       source: 'project',
       validationStatus: 'fail',
-      agentStates: [{ profileId: 'claude', profileLabel: 'Claude', state: 'managed-linked', path: '/tmp/claude/beta' }],
+      agentStates: [
+        {
+          profileId: 'claude',
+          profileLabel: 'Claude',
+          state: 'managed-linked',
+          path: '/tmp/claude/beta',
+        },
+      ],
     },
     {
       name: 'gamma',
@@ -597,7 +646,9 @@ describe('XSS prevention in rendered HTML', () => {
         source: 'project',
         sourceLabel: '"><script>alert("xss")</script>',
         validationStatus: 'pass',
-        agentStates: [{ profileId: 'codex', profileLabel: 'Codex', state: 'managed-linked', path: '/tmp' }],
+        agentStates: [
+          { profileId: 'codex', profileLabel: 'Codex', state: 'managed-linked', path: '/tmp' },
+        ],
         mappingSummary: { total: 1, linked: 1, missing: 0, conflict: 0 },
       },
     ];
@@ -651,9 +702,13 @@ describe('XSS prevention in rendered HTML', () => {
         .replace(/'/g, '&#39;');
     };
     const chipFn = (s: TestSkill) => {
-      const active = (s.agentStates || []).filter((a) => a.state === 'managed-linked' || a.state === 'unmanaged-local');
+      const active = (s.agentStates || []).filter(
+        (a) => a.state === 'managed-linked' || a.state === 'unmanaged-local',
+      );
       if (active.length === 0) return '<span class="agent-chip">-</span>';
-      return active.map((a) => `<span class="agent-chip">${escFn(a.profileLabel || a.profileId)}</span>`).join('');
+      return active
+        .map((a) => `<span class="agent-chip">${escFn(a.profileLabel || a.profileId)}</span>`)
+        .join('');
     };
     const badgeFn = (summary: TestSkill['mappingSummary']) => {
       if (!summary || summary.total === 0)

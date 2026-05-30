@@ -65,10 +65,12 @@ function selectSkillNumberBody(value: string): void {
   const skill = window.resolveSkillByNumber(value);
   const titleEl = document.getElementById('selected-skill-title');
   const metaEl = document.getElementById('selected-skill-meta');
+  if (typeof selectedSkillNames !== 'undefined') selectedSkillNames.clear();
   if (!skill) {
     window.selectedSkill = null;
     if (titleEl) titleEl.textContent = window.t('noSkillSelected');
     if (metaEl) metaEl.textContent = '';
+    if (typeof updatePanelVisibility === 'function') updatePanelVisibility();
     return;
   }
   window.selectedSkill = skill;
@@ -85,23 +87,27 @@ function selectSkillNumberBody(value: string): void {
     metaEl.textContent = parts.join(' · ');
   }
   window.populateTargetOptions(skill);
+  if (typeof updatePanelVisibility === 'function') updatePanelVisibility();
+  if (typeof renderDiscoverPage === 'function') renderDiscoverPage();
 }
 
 function populateTargetOptionsBody(_skill?: BrowserSkill): void {
-  const select = document.getElementById('target-agent-select');
-  if (!select) return;
   const targets =
     Array.isArray(window.targetProfiles) && window.targetProfiles.length > 0
       ? window.targetProfiles
       : Array.isArray(window.availableTargets) && window.availableTargets.length > 0
         ? window.availableTargets
         : DEFAULT_TARGETS;
-  select.innerHTML = '';
-  for (const target of targets) {
-    const option = document.createElement('option');
-    option.value = target.id;
-    option.textContent = target.label;
-    select.appendChild(option);
+  for (const selectId of ['target-agent-select', 'target-agent-select-multi']) {
+    const select = document.getElementById(selectId);
+    if (!select) continue;
+    select.innerHTML = '';
+    for (const target of targets) {
+      const option = document.createElement('option');
+      option.value = target.id;
+      option.textContent = target.label;
+      select.appendChild(option);
+    }
   }
 }
 
@@ -253,34 +259,69 @@ let filterAgent = '';
 // Batch selection state
 const selectedSkillNames = new Set();
 
-function updateBatchBar() {
-  const bar = document.getElementById('batch-bar');
-  const count = document.getElementById('batch-count');
-  if (!bar || !count) return;
-  if (selectedSkillNames.size > 0) {
-    bar.style.display = 'flex';
-    count.textContent = t('batchSelected').replace('{count}', selectedSkillNames.size);
+function updatePanelVisibility() {
+  const noSel = document.getElementById('panel-no-selection');
+  const single = document.getElementById('panel-single');
+  const multi = document.getElementById('panel-multi');
+  const count = selectedSkillNames.size;
+
+  if (count > 1) {
+    if (noSel) noSel.style.display = 'none';
+    if (single) single.style.display = 'none';
+    if (multi) multi.style.display = '';
+    const countEl = document.getElementById('panel-multi-count');
+    if (countEl) countEl.textContent = t('batchSelected').replace('{count}', count);
+  } else if (count === 1) {
+    if (noSel) noSel.style.display = 'none';
+    if (single) single.style.display = '';
+    if (multi) multi.style.display = 'none';
+    const name = [...selectedSkillNames][0];
+    const skill = (latestDiscoverData || []).find(function(s) { return s.name === name; });
+    if (skill) {
+      window.selectedSkill = skill;
+      const titleEl = document.getElementById('selected-skill-title');
+      const metaEl = document.getElementById('selected-skill-meta');
+      if (titleEl) titleEl.textContent = skill.name;
+      if (metaEl) {
+        var parts = [skill.sourceLabel || skill.source, skill.validationStatus];
+        var agents = (skill.agentStates || [])
+          .filter(function(s) { return s.state === 'managed-linked' || s.state === 'unmanaged-local'; })
+          .map(function(s) { return s.profileLabel || s.profileId; });
+        if (agents.length > 0) parts.push(agents.join(', '));
+        metaEl.textContent = parts.join(' · ');
+      }
+      window.populateTargetOptions(skill);
+    }
   } else {
-    bar.style.display = 'none';
+    if (window.selectedSkill) {
+      if (noSel) noSel.style.display = 'none';
+      if (single) single.style.display = '';
+      if (multi) multi.style.display = 'none';
+    } else {
+      if (noSel) noSel.style.display = '';
+      if (single) single.style.display = 'none';
+      if (multi) multi.style.display = 'none';
+    }
   }
 }
 
 function toggleSkillSelection(name, checked) {
   if (checked) selectedSkillNames.add(name);
   else selectedSkillNames.delete(name);
-  updateBatchBar();
+  updatePanelVisibility();
 }
 
 function selectAll() {
   const filtered = getFilteredSkills();
   for (const s of filtered) selectedSkillNames.add(s.name);
-  updateBatchBar();
+  updatePanelVisibility();
   renderDiscoverPage();
 }
 
 function deselectAll() {
   selectedSkillNames.clear();
-  updateBatchBar();
+  window.selectedSkill = null;
+  updatePanelVisibility();
   renderDiscoverPage();
 }
 
@@ -292,13 +333,13 @@ function togglePageSelection(checked) {
     if (checked) selectedSkillNames.add(s.name);
     else selectedSkillNames.delete(s.name);
   }
-  updateBatchBar();
+  updatePanelVisibility();
   renderDiscoverPage();
 }
 
 async function batchCheckCompat() {
   const output = document.getElementById('output');
-  const targetSelect = document.getElementById('target-agent-select');
+  const targetSelect = document.getElementById('target-agent-select-multi');
   const target = targetSelect ? targetSelect.value : '';
   if (!target) {
     if (output) output.textContent = t('noTargetAvailable');
@@ -324,7 +365,7 @@ async function batchCheckCompat() {
 
 async function batchMap() {
   const output = document.getElementById('output');
-  const targetSelect = document.getElementById('target-agent-select');
+  const targetSelect = document.getElementById('target-agent-select-multi');
   const target = targetSelect ? targetSelect.value : '';
   if (!target) {
     if (output) output.textContent = t('noTargetAvailable');
@@ -336,7 +377,7 @@ async function batchMap() {
   }
   if (output) output.textContent = t('loading');
   try {
-    const res = await fetch('/api/install/batch', {
+    const res = await fetch('/api/map/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ skillNames: [...selectedSkillNames], target }),
@@ -351,7 +392,7 @@ async function batchMap() {
 
 async function batchUnmap() {
   const output = document.getElementById('output');
-  const targetSelect = document.getElementById('target-agent-select');
+  const targetSelect = document.getElementById('target-agent-select-multi');
   const target = targetSelect ? targetSelect.value : '';
   if (!target) {
     if (output) output.textContent = t('noTargetAvailable');
@@ -363,7 +404,34 @@ async function batchUnmap() {
   }
   if (output) output.textContent = t('loading');
   try {
-    const res = await fetch('/api/uninstall/batch', {
+    const res = await fetch('/api/unmap/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skillNames: [...selectedSkillNames], target }),
+    });
+    const data = await res.json();
+    if (output) output.textContent = JSON.stringify(data, null, 2);
+    refreshAfterBatch();
+  } catch (err) {
+    if (output) output.textContent = t('errorPrefix') + err.message;
+  }
+}
+
+async function batchAdopt() {
+  const output = document.getElementById('output');
+  const targetSelect = document.getElementById('target-agent-select-multi');
+  const target = targetSelect ? targetSelect.value : '';
+  if (!target) {
+    if (output) output.textContent = t('noTargetAvailable');
+    return;
+  }
+  if (selectedSkillNames.size === 0) {
+    if (output) output.textContent = t('noSkillsSelected');
+    return;
+  }
+  if (output) output.textContent = t('loading');
+  try {
+    const res = await fetch('/api/adopt/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ skillNames: [...selectedSkillNames], target }),
@@ -412,7 +480,7 @@ function applyLanguage(language) {
 }
 
 let discoverPage = 0;
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 let latestDiscoverData = [];
 let latestNonSkillDirectories = [];
 
@@ -672,7 +740,7 @@ async function callAPI(endpoint) {
     return;
   }
 
-  if (endpoint === 'install' || endpoint === 'uninstall') {
+  if (endpoint === 'install' || endpoint === 'uninstall' || endpoint === 'map' || endpoint === 'unmap' || endpoint === 'adopt') {
     const activeSkill = window.selectedSkill || selectedSkill;
     if (!activeSkill) {
       if (output) output.textContent = t('noSkillSelected');
@@ -686,15 +754,6 @@ async function callAPI(endpoint) {
     }
     body.skillName = activeSkill.name;
     body.target = target;
-  }
-
-  if (endpoint === 'map') {
-    await callAPI('install');
-    return;
-  }
-  if (endpoint === 'unmap') {
-    await callAPI('uninstall');
-    return;
   }
 
   if (endpoint === 'doctor' || endpoint === 'rollback') {
@@ -722,7 +781,7 @@ async function callAPI(endpoint) {
     if (endpoint === 'discover/import' && data.results) {
       callAPI('discover');
     }
-    if (endpoint === 'install' || endpoint === 'uninstall') {
+    if (endpoint === 'install' || endpoint === 'uninstall' || endpoint === 'map' || endpoint === 'unmap' || endpoint === 'adopt') {
       fetch('/api/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
         .then((r) => r.json())
         .then((statusData) => { renderStatusCards(statusData); })
@@ -754,7 +813,7 @@ window.addEventListener('DOMContentLoaded', () => {
       filterSearch = event.target.value || '';
       discoverPage = 0;
       selectedSkillNames.clear();
-      updateBatchBar();
+      updatePanelVisibility();
       renderDiscoverPage();
     });
   }
@@ -764,7 +823,7 @@ window.addEventListener('DOMContentLoaded', () => {
       filterStatus = event.target.value || '';
       discoverPage = 0;
       selectedSkillNames.clear();
-      updateBatchBar();
+      updatePanelVisibility();
       renderDiscoverPage();
     });
   }
@@ -774,7 +833,7 @@ window.addEventListener('DOMContentLoaded', () => {
       filterSource = event.target.value || '';
       discoverPage = 0;
       selectedSkillNames.clear();
-      updateBatchBar();
+      updatePanelVisibility();
       renderDiscoverPage();
     });
   }
@@ -784,7 +843,7 @@ window.addEventListener('DOMContentLoaded', () => {
       filterMapping = event.target.value || '';
       discoverPage = 0;
       selectedSkillNames.clear();
-      updateBatchBar();
+      updatePanelVisibility();
       renderDiscoverPage();
     });
   }
@@ -794,7 +853,7 @@ window.addEventListener('DOMContentLoaded', () => {
       filterAgent = event.target.value || '';
       discoverPage = 0;
       selectedSkillNames.clear();
-      updateBatchBar();
+      updatePanelVisibility();
       renderDiscoverPage();
     });
   }

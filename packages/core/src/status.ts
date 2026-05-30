@@ -24,6 +24,7 @@ export interface ProjectStatus {
 
 export interface ProjectStatusOptions {
   home?: string;
+  targets?: import('./targets.js').TargetEntry[];
 }
 
 export function getProjectStatus(
@@ -37,6 +38,7 @@ export function getProjectStatus(
     home: options.home,
     projectRoot,
     registryPath,
+    targets: options.targets,
   });
   const discovered = inventory.skills;
   const visibleSkillNames = new Set(discovered.map((skill) => skill.name));
@@ -82,11 +84,11 @@ export function getProjectStatus(
       hasOverlay: overlayTargets.length > 0,
       overlayTargets,
       installedTargets:
-        skill.appliedAgents.length > 0
-          ? skill.appliedAgents.map((a) => a.id)
-          : skill.agentTargets.length > 0
-            ? skill.agentTargets
-            : installedBySkill.get(skill.name) || [],
+        skill.agentStates.length > 0
+          ? skill.agentStates
+              .filter((s) => s.state === 'managed-linked' || s.state === 'unmanaged-local')
+              .map((s) => s.profileId)
+          : installedBySkill.get(skill.name) || [],
     };
   });
 

@@ -20,8 +20,7 @@ interface TestSkill {
   source?: string;
   sourceLabel?: string;
   validationStatus?: string;
-  agentTargets?: string[];
-  appliedAgents?: Array<{ id: string; label: string; source: string }>;
+  agentStates?: Array<{ profileId: string; profileLabel: string; state: string; path: string }>;
   mappingSummary?: { total: number; linked: number; missing: number; conflict: number };
 }
 
@@ -69,18 +68,17 @@ describe('selectSkillNumber', () => {
     testWindow().latestDiscoverData = [
       {
         name: 'test-skill',
-        source: 'codex-user',
-        sourceLabel: 'Codex 本地',
+        source: 'agent',
+        sourceLabel: 'agent',
         validationStatus: 'pass',
-        agentTargets: ['codex'],
-        appliedAgents: [{ id: 'codex', label: 'Codex', source: 'local' }],
+        agentStates: [{ profileId: 'codex', profileLabel: 'Codex', state: 'unmanaged-local', path: '/tmp/codex/skills/test-skill' }],
       },
     ];
 
     selectSkillNumber('1');
 
     expect(titleEl.textContent).toBe('#1 test-skill');
-    expect(metaEl.textContent).toContain('Codex 本地');
+    expect(metaEl.textContent).toContain('agent');
     expect(metaEl.textContent).toContain('pass');
     expect(metaEl.textContent).toContain('Codex');
     expect(testWindow().selectedSkill?.name).toBe('test-skill');
@@ -93,12 +91,11 @@ describe('selectSkillNumber', () => {
     testWindow().latestDiscoverData = [
       {
         name: 'multi-agent-skill',
-        source: 'local',
+        source: 'project',
         validationStatus: 'pass',
-        agentTargets: ['codex', 'claude'],
-        appliedAgents: [
-          { id: 'codex', label: 'Codex', source: 'local' },
-          { id: 'claude', label: 'Claude', source: 'mapping' },
+        agentStates: [
+          { profileId: 'codex', profileLabel: 'Codex', state: 'managed-linked', path: '/tmp/codex/skills/multi-agent-skill' },
+          { profileId: 'claude', profileLabel: 'Claude', state: 'managed-linked', path: '/tmp/claude/skills/multi-agent-skill' },
         ],
       },
     ];
@@ -123,7 +120,7 @@ describe('selectSkillNumber', () => {
 
   it('does not crash when DOM elements are missing', () => {
     testWindow().latestDiscoverData = [
-      { name: 'x', source: 'a', validationStatus: 'pass', agentTargets: [] },
+      { name: 'x', source: 'agent', validationStatus: 'pass', agentStates: [] },
     ];
     expect(() => selectSkillNumber('1')).not.toThrow();
   });
@@ -132,7 +129,7 @@ describe('selectSkillNumber', () => {
 describe('populateTargetOptions', () => {
   it('keeps all default targets available even when a skill is already used by one agent', () => {
     const select = createElement('target-agent-select', 'select') as HTMLSelectElement;
-    populateTargetOptions({ name: 'test-skill', agentTargets: ['codex'] });
+    populateTargetOptions({ name: 'test-skill', agentStates: [{ profileId: 'codex', profileLabel: 'Codex', state: 'managed-linked', path: '/tmp' }] });
 
     expect(select.options.length).toBe(DEFAULT_TARGETS.length);
     expect(select.options[0].value).toBe('codex');
@@ -140,16 +137,16 @@ describe('populateTargetOptions', () => {
     expect([...select.options].map((option) => option.value)).toContain('claude');
   });
 
-  it('falls back to DEFAULT_TARGETS when agentTargets is empty', () => {
+  it('falls back to DEFAULT_TARGETS when agentStates is empty', () => {
     const select = createElement('target-agent-select', 'select') as HTMLSelectElement;
-    populateTargetOptions({ name: 'test-skill', agentTargets: [] });
+    populateTargetOptions({ name: 'test-skill', agentStates: [] });
 
     expect(select.options.length).toBe(DEFAULT_TARGETS.length);
     expect(select.options[0].value).toBe('codex');
     expect(select.options[1].value).toBe('claude');
   });
 
-  it('falls back to DEFAULT_TARGETS when agentTargets is missing', () => {
+  it('falls back to DEFAULT_TARGETS when agentStates is missing', () => {
     const select = createElement('target-agent-select', 'select') as HTMLSelectElement;
     populateTargetOptions({ name: 'test-skill' });
 
@@ -198,7 +195,7 @@ describe('populateTargetOptions', () => {
 
   it('does not crash when target-agent-select is missing', () => {
     expect(() =>
-      populateTargetOptions({ name: 'test-skill', agentTargets: ['codex'] }),
+      populateTargetOptions({ name: 'test-skill', agentStates: [{ profileId: 'codex', profileLabel: 'Codex', state: 'managed-linked', path: '/tmp' }] }),
     ).not.toThrow();
   });
 });
@@ -335,8 +332,8 @@ describe('script structure', () => {
     expect(controlPanelClientScript).toContain("s.path || '').toLowerCase().includes(q)");
   });
 
-  it('search filter includes appliedAgents label matching', () => {
-    expect(controlPanelClientScript).toContain('(a.label || a.id).toLowerCase()');
+  it('search filter includes agentStates profileLabel matching', () => {
+    expect(controlPanelClientScript).toContain('(a.profileLabel || a.profileId).toLowerCase()');
   });
 
   it('contains selectedSkillNames Set for batch selection', () => {
@@ -418,23 +415,23 @@ describe('filterSkills', () => {
     {
       name: 'alpha',
       path: 'D:\\\\SkillGov\\\\skills\\\\alpha',
-      source: 'local',
+      source: 'project',
       validationStatus: 'pass',
-      appliedAgents: [{ id: 'codex', label: 'Codex', source: 'local' }],
+      agentStates: [{ profileId: 'codex', profileLabel: 'Codex', state: 'managed-linked', path: '/tmp/codex/alpha' }],
     },
     {
       name: 'beta',
       path: 'D:\\\\SkillGov\\\\skills\\\\beta',
-      source: 'local',
+      source: 'project',
       validationStatus: 'fail',
-      appliedAgents: [{ id: 'claude', label: 'Claude', source: 'mapping' }],
+      agentStates: [{ profileId: 'claude', profileLabel: 'Claude', state: 'managed-linked', path: '/tmp/claude/beta' }],
     },
     {
       name: 'gamma',
       path: 'C:\\\\Users\\\\docs\\\\gamma',
-      source: 'remote',
+      source: 'agent',
       validationStatus: 'fixable',
-      appliedAgents: [],
+      agentStates: [],
     },
   ];
 
@@ -451,7 +448,7 @@ describe('filterSkills', () => {
     expect(filterSkills(skills, { search: 'SkillGov\\\\skills' })).toHaveLength(2);
   });
 
-  it('searches by appliedAgents label', () => {
+  it('searches by agentStates profileLabel', () => {
     const result = filterSkills(skills, { search: 'Claude' });
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('beta');
@@ -577,7 +574,7 @@ describe('XSS prevention in rendered HTML', () => {
   });
 
   it('formatAppliedAgentsChip uses escapeHtml for agent names', () => {
-    expect(controlPanelClientScript).toContain('escapeHtml(a)');
+    expect(controlPanelClientScript).toContain('escapeHtml(a.profileLabel');
   });
 
   it('formatMappingBadge uses escapeHtml for summary values', () => {
@@ -597,10 +594,10 @@ describe('XSS prevention in rendered HTML', () => {
       {
         name: '<img src=x onerror=alert(1)>',
         path: 'D:\\SkillGov\\skills\\<bad>',
-        source: 'local',
+        source: 'project',
         sourceLabel: '"><script>alert("xss")</script>',
         validationStatus: 'pass',
-        appliedAgents: [{ id: 'codex', label: 'Codex', source: 'local' }],
+        agentStates: [{ profileId: 'codex', profileLabel: 'Codex', state: 'managed-linked', path: '/tmp' }],
         mappingSummary: { total: 1, linked: 1, missing: 0, conflict: 0 },
       },
     ];
@@ -654,9 +651,9 @@ describe('XSS prevention in rendered HTML', () => {
         .replace(/'/g, '&#39;');
     };
     const chipFn = (s: TestSkill) => {
-      const agents = (s.appliedAgents || []).map((a) => a.label || a.id);
-      if (agents.length === 0) return '<span class="agent-chip">-</span>';
-      return agents.map((a) => `<span class="agent-chip">${escFn(a)}</span>`).join('');
+      const active = (s.agentStates || []).filter((a) => a.state === 'managed-linked' || a.state === 'unmanaged-local');
+      if (active.length === 0) return '<span class="agent-chip">-</span>';
+      return active.map((a) => `<span class="agent-chip">${escFn(a.profileLabel || a.profileId)}</span>`).join('');
     };
     const badgeFn = (summary: TestSkill['mappingSummary']) => {
       if (!summary || summary.total === 0)

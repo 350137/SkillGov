@@ -1,6 +1,6 @@
 // Tests for project status reporter — skill discovery, overlay detection, and install listing.
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -69,38 +69,15 @@ describe('getProjectStatus', () => {
     expect(status.registryEntries).toBe(1);
   });
 
-  it('aggregates installedTargets from mappings registry', () => {
-    writeFileSync(
-      join(tmpDir, 'registry', 'mappings.json'),
-      JSON.stringify({
-        mappings: {
-          'alpha-skill': {
-            skillName: 'alpha-skill',
-            canonicalPath: join(tmpDir, 'skills', 'alpha-skill'),
-            links: {
-              claude: {
-                path: '/tmp/claude/alpha',
-                mode: 'junction',
-                status: 'linked',
-                type: 'standard',
-                linkedAt: '2025-01-01',
-                updatedAt: '2025-01-01',
-              },
-              codex: {
-                path: '/tmp/codex/alpha',
-                mode: 'junction',
-                status: 'linked',
-                type: 'standard',
-                linkedAt: '2025-01-02',
-                updatedAt: '2025-01-02',
-              },
-            },
-            updatedAt: '2025-01-02',
-          },
-        },
-      }),
-      'utf-8',
-    );
+  it('aggregates installedTargets from agentStates when junctions exist', () => {
+    const canonicalPath = join(tmpDir, 'skills', 'alpha-skill');
+    const codexDir = join(tmpDir, 'home', '.codex', 'skills');
+    const claudeDir = join(tmpDir, 'home', '.claude', 'skills');
+    mkdirSync(codexDir, { recursive: true });
+    mkdirSync(claudeDir, { recursive: true });
+    symlinkSync(canonicalPath, join(codexDir, 'alpha-skill'), 'junction');
+    symlinkSync(canonicalPath, join(claudeDir, 'alpha-skill'), 'junction');
+
     const status = getProjectStatus(tmpDir, { home: join(tmpDir, 'home') });
     const alpha = status.skills.find((s) => s.name === 'alpha-skill');
     expect(alpha?.installedTargets).toContain('claude');
@@ -155,7 +132,7 @@ describe('getProjectStatus', () => {
     expect(status.skills.find((s) => s.name === 'codex-only')?.installedTargets).toEqual(['codex']);
   });
 
-  it('derives installedTargets from appliedAgents when skill is in both agent directories', () => {
+  it('derives installedTargets from agentStates when skill is in both agent directories', () => {
     mkdirSync(join(tmpDir, '.codex', 'skills', 'shared-skill'), { recursive: true });
     writeFileSync(
       join(tmpDir, '.codex', 'skills', 'shared-skill', 'SKILL.md'),
@@ -187,8 +164,6 @@ describe('getProjectStatus', () => {
       {
         name: 'not-a-skill',
         path: join(tmpDir, 'skills', 'not-a-skill'),
-        source: 'skillgov-project',
-        sourceLabel: 'SkillGov 技能库',
         issue: 'Missing SKILL.md',
       },
     ]);

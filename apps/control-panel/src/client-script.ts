@@ -27,8 +27,7 @@ interface BrowserSkill {
   source?: string;
   sourceLabel?: string;
   validationStatus?: string;
-  agentTargets?: string[];
-  appliedAgents?: Array<{ id: string; label: string; source: string }>;
+  agentStates?: Array<{ profileId: string; profileLabel: string; state: string; path: string }>;
   mappingSummary?: { total: number; linked: number; missing: number; conflict: number };
 }
 
@@ -77,10 +76,9 @@ function selectSkillNumberBody(value: string): void {
   if (titleEl) titleEl.textContent = `#${number} ${skill.name}`;
   if (metaEl) {
     const parts = [skill.sourceLabel || skill.source, skill.validationStatus];
-    const agents =
-      skill.appliedAgents && skill.appliedAgents.length > 0
-        ? skill.appliedAgents.map((a) => a.label || a.id)
-        : skill.agentTargets || [];
+    const agents = (skill.agentStates || [])
+      .filter((s) => s.state === 'managed-linked' || s.state === 'unmanaged-local')
+      .map((s) => s.profileLabel || s.profileId);
     if (agents.length > 0) {
       parts.push(agents.join(', '));
     }
@@ -188,7 +186,9 @@ export function filterSkillsBody(skills: BrowserSkill[], opts: FilterOptions): B
         s.name.toLowerCase().includes(q) ||
         (s.path || '').toLowerCase().includes(q) ||
         (s.sourceLabel || s.source || '').toLowerCase().includes(q) ||
-        (s.appliedAgents || []).some((a) => (a.label || a.id).toLowerCase().includes(q)),
+        (s.agentStates || []).some((a) =>
+          (a.profileLabel || a.profileId).toLowerCase().includes(q),
+        ),
     );
   }
   if (opts.status) {
@@ -210,9 +210,8 @@ export function filterSkillsBody(skills: BrowserSkill[], opts: FilterOptions): B
   }
   if (opts.agent) {
     result = result.filter((s) => {
-      const targets = s.agentTargets || [];
-      const applied = (s.appliedAgents || []).map((a) => a.id);
-      return targets.includes(opts.agent) || applied.includes(opts.agent);
+      const states = s.agentStates || [];
+      return states.some((a) => a.profileId === opts.agent);
     });
   }
   return result;
@@ -430,7 +429,7 @@ function renderStatusCards(data) {
   const useDiscover = latestDiscoverData && latestDiscoverData.length > 0;
   const metricSkills = useDiscover ? latestDiscoverData : (data.skills || []);
   const appliedCount = useDiscover
-    ? metricSkills.filter((s) => s.appliedAgents && s.appliedAgents.length > 0).length
+    ? metricSkills.filter((s) => (s.agentStates || []).some((a) => a.state === 'managed-linked' || a.state === 'unmanaged-local')).length
     : metricSkills.filter((s) => s.installedTargets && s.installedTargets.length > 0).length;
   const problemCount = metricSkills.filter((s) => s.validationStatus && s.validationStatus !== 'pass').length;
   const excludedCount = useDiscover ? latestNonSkillDirectories.length : (data.nonSkillDirectories || []).length;
@@ -493,7 +492,7 @@ function getFilteredSkills() {
       s.name.toLowerCase().includes(q) ||
       (s.path || '').toLowerCase().includes(q) ||
       (s.sourceLabel || s.source || '').toLowerCase().includes(q) ||
-      ((s.appliedAgents || []).some((a) => (a.label || a.id).toLowerCase().includes(q)))
+      ((s.agentStates || []).some((a) => (a.profileLabel || a.profileId).toLowerCase().includes(q)))
     );
   }
   if (filterStatus) {
@@ -514,9 +513,8 @@ function getFilteredSkills() {
   }
   if (filterAgent) {
     skills = skills.filter((s) => {
-      const targets = s.agentTargets || [];
-      const applied = (s.appliedAgents || []).map((a) => a.id);
-      return targets.includes(filterAgent) || applied.includes(filterAgent);
+      const states = s.agentStates || [];
+      return states.some((a) => a.profileId === filterAgent);
     });
   }
   return skills;
@@ -538,21 +536,17 @@ function renderDiscoverTable(skills, nonSkillDirectories, preservePage) {
 }
 
 function formatAppliedAgents(skill) {
-  if (skill.appliedAgents && skill.appliedAgents.length > 0) {
-    return skill.appliedAgents.map((a) => a.label || a.id).join(', ');
+  const active = (skill.agentStates || []).filter((s) => s.state === 'managed-linked' || s.state === 'unmanaged-local');
+  if (active.length > 0) {
+    return active.map((a) => a.profileLabel || a.profileId).join(', ');
   }
-  const labels = { codex: 'Codex', claude: 'Claude' };
-  const targets = skill.agentTargets;
-  if (!targets || targets.length === 0) return t('none');
-  return targets.map((target) => labels[target] || target).join(', ');
+  return t('none');
 }
 
 function formatAppliedAgentsChip(skill) {
-  const agents = skill.appliedAgents && skill.appliedAgents.length > 0
-    ? skill.appliedAgents.map((a) => a.label || a.id)
-    : skill.agentTargets || [];
-  if (agents.length === 0) return '<span class="agent-chip">' + escapeHtml(t('none')) + '</span>';
-  return agents.map((a) => '<span class="agent-chip">' + escapeHtml(a) + '</span>').join('');
+  const active = (skill.agentStates || []).filter((s) => s.state === 'managed-linked' || s.state === 'unmanaged-local');
+  if (active.length === 0) return '<span class="agent-chip">' + escapeHtml(t('none')) + '</span>';
+  return active.map((a) => '<span class="agent-chip">' + escapeHtml(a.profileLabel || a.profileId) + '</span>').join('');
 }
 
 function formatMappingBadge(summary) {

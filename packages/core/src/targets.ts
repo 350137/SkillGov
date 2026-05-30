@@ -33,8 +33,8 @@ export type TargetEntry =
       supports?: Partial<TargetSupports>;
     };
 
-function expandHome(p: string): string {
-  return p.replace(/^~/, homedir().replace(/\\/g, '/'));
+function expandHome(p: string, home?: string): string {
+  return p.replace(/^~/, (home || homedir()).replace(/\\/g, '/'));
 }
 
 const GENERIC_TARGET_SUPPORTS: TargetSupports = {
@@ -53,45 +53,48 @@ function mergeSupports(overrides: Partial<TargetSupports> = {}): TargetSupports 
   return { ...GENERIC_TARGET_SUPPORTS, ...overrides };
 }
 
-const DEFAULT_TARGETS: Record<string, TargetProfile> = {
-  claude: {
-    id: 'claude',
-    label: 'Claude',
-    skillDirs: [expandHome('~/.claude/skills')],
-    linkMode: 'junction',
-    supports: mergeSupports({
-      allowedTools: 'full',
-      scripts: 'unknown',
-      agents: 'native',
-      mcp: 'native',
-      hooks: 'native',
-      dynamicShell: 'native',
-      skillPermissions: 'native',
-      modelSelection: 'native',
-    }),
-  },
-  codex: {
-    id: 'codex',
-    label: 'Codex',
-    skillDirs: [expandHome('~/.codex/skills')],
-    linkMode: 'junction',
-    supports: mergeSupports({
-      allowedTools: 'partial',
-      scripts: 'unknown',
-      agents: 'native',
-      mcp: 'native',
-      hooks: 'none',
-      dynamicShell: 'unknown',
-      skillPermissions: 'unknown',
-      modelSelection: 'unknown',
-    }),
-  },
-};
+function buildDefaultTargets(home?: string): Record<string, TargetProfile> {
+  return {
+    claude: {
+      id: 'claude',
+      label: 'Claude',
+      skillDirs: [expandHome('~/.claude/skills', home)],
+      linkMode: 'junction',
+      supports: mergeSupports({
+        allowedTools: 'full',
+        scripts: 'unknown',
+        agents: 'native',
+        mcp: 'native',
+        hooks: 'native',
+        dynamicShell: 'native',
+        skillPermissions: 'native',
+        modelSelection: 'native',
+      }),
+    },
+    codex: {
+      id: 'codex',
+      label: 'Codex',
+      skillDirs: [expandHome('~/.codex/skills', home)],
+      linkMode: 'junction',
+      supports: mergeSupports({
+        allowedTools: 'partial',
+        scripts: 'unknown',
+        agents: 'native',
+        mcp: 'native',
+        hooks: 'none',
+        dynamicShell: 'unknown',
+        skillPermissions: 'unknown',
+        modelSelection: 'unknown',
+      }),
+    },
+  };
+}
 
-function resolveTargetEntry(entry: TargetEntry): TargetProfile {
+function resolveTargetEntry(entry: TargetEntry, home?: string): TargetProfile {
   if (typeof entry === 'string') {
+    const defaults = buildDefaultTargets(home);
     return (
-      DEFAULT_TARGETS[entry] ?? {
+      defaults[entry] ?? {
         id: entry,
         label: entry,
         skillDirs: [],
@@ -118,16 +121,16 @@ function resolveTargetEntry(entry: TargetEntry): TargetProfile {
   };
 }
 
-export function listTargetProfiles(targets?: TargetEntry[]): TargetProfile[] {
+export function listTargetProfiles(targets?: TargetEntry[], home?: string): TargetProfile[] {
   if (!targets || targets.length === 0) {
-    return Object.values(DEFAULT_TARGETS);
+    return Object.values(buildDefaultTargets(home));
   }
-  return targets.map(resolveTargetEntry);
+  return targets.map((e) => resolveTargetEntry(e, home));
 }
 
 export function getTargetProfile(name: string, targets?: TargetProfile[]): TargetProfile | null {
   if (targets) {
     return targets.find((t) => t.id === name) ?? null;
   }
-  return DEFAULT_TARGETS[name] ?? null;
+  return buildDefaultTargets()[name] ?? null;
 }

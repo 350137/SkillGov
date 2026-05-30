@@ -1,19 +1,29 @@
-// Local skill discovery scans SkillGov-managed skills plus Codex and Claude user skill directories.
+// Local skill discovery scans SkillGov-managed skills and all configured target profile skill directories dynamically.
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { getMappingTargets } from './mapping.js';
+import { pathsResolveToSameLocation } from './mapping.js';
+import { detectLinkType } from './mapping.js';
 import { readRegistry } from './registry.js';
 import type { SkillsRegistry } from './registry.js';
+import type { TargetEntry } from './targets.js';
+import { listTargetProfiles } from './targets.js';
+import type { TargetProfile } from './targets.js';
 import { validateSkill } from './validator.js';
 
-type SkillSource = 'skillgov-project' | 'codex-user' | 'claude-user';
-type AgentTarget = string;
+export type AgentStateStatus =
+  | 'managed-linked'
+  | 'unmanaged-local'
+  | 'unmapped'
+  | 'missing'
+  | 'conflict';
 
-export interface AppliedAgent {
-  id: string;
-  label: string;
-  source: 'local' | 'mapping';
+export interface AgentState {
+  profileId: string;
+  profileLabel: string;
+  state: AgentStateStatus;
+  skillDir: string;
+  path: string;
+  linkTarget?: string;
 }
 
 export interface MappingSummary {
@@ -26,11 +36,10 @@ export interface MappingSummary {
 export interface DiscoveredSkill {
   name: string;
   path: string;
-  source: SkillSource;
+  source: 'project' | 'agent';
   sourceLabel: string;
-  agentTargets: AgentTarget[];
-  appliedAgents: AppliedAgent[];
-  mappingTargets: ReturnType<typeof getMappingTargets>;
+  origin?: string;
+  agentStates: AgentState[];
   mappingSummary: MappingSummary;
   validationStatus: 'pass' | 'fixable' | 'fail';
   issues: string[];
@@ -40,8 +49,6 @@ export interface DiscoveredSkill {
 export interface NonSkillDirectory {
   name: string;
   path: string;
-  source: SkillSource;
-  sourceLabel: string;
   issue: 'Missing SKILL.md';
 }
 
@@ -55,33 +62,23 @@ export interface DiscoveryOptions {
   projectRoot?: string;
   registryPath?: string;
   mappingsPath?: string;
+  targets?: TargetEntry[];
 }
-
-const SOURCE_METADATA: Record<SkillSource, { sourceLabel: string; agentTargets: AgentTarget[] }> = {
-  'skillgov-project': { sourceLabel: 'SkillGov 技能库', agentTargets: [] },
-  'codex-user': { sourceLabel: 'Codex 本地', agentTargets: ['codex'] },
-  'claude-user': { sourceLabel: 'Claude 本地', agentTargets: ['claude'] },
-};
 
 const ORIGIN_LABELS: Record<string, string> = {
   local: '手动导入',
-  'codex-user': 'Codex 本地',
-  'claude-user': 'Claude 本地',
   'codex-plugin-cache': 'Codex 插件缓存',
 };
 
 interface SkillCandidate {
   name: string;
   path: string;
-  source: SkillSource;
-  sourceLabel: string;
-  agentTargets: AgentTarget[];
-  appliedAgents: AppliedAgent[];
+  source: 'project' | 'agent';
 }
 
 function scanSkillDir(
   dir: string,
-  source: SkillSource,
+  source: 'project' | 'agent',
 ): { skills: SkillCandidate[]; nonSkillDirectories: NonSkillDirectory[] } {
   const skills: SkillCandidate[] = [];
   const nonSkillDirectories: NonSkillDirectory[] = [];
@@ -104,134 +101,93 @@ function scanSkillDir(
       continue;
     }
     if (!stat.isDirectory()) continue;
-    const base = {
-      name: entry,
-      path: fullPath,
-      source,
-      sourceLabel: SOURCE_METADATA[source].sourceLabel,
-    };
     if (existsSync(join(fullPath, 'SKILL.md'))) {
-      const agentTargets = [...SOURCE_METADATA[source].agentTargets];
-      skills.push({
-        ...base,
-        agentTargets,
-        appliedAgents: agentTargets.map((id) => ({
-          id,
-          label: id,
-          source: 'local' as const,
-        })),
-      });
+      skills.push({ name: entry, path: fullPath, source });
     } else {
-      nonSkillDirectories.push({
-        ...base,
-        issue: 'Missing SKILL.md',
-      });
+      nonSkillDirectories.push({ name: entry, path: fullPath, issue: 'Missing SKILL.md' });
     }
   }
 
   return { skills, nonSkillDirectories };
 }
 
-function mapProjectCandidateOrigin(
-  candidates: SkillCandidate[],
-  importedOrigins: Map<string, string>,
-): SkillCandidate[] {
-  return candidates.map((candidate) => ({
-    ...candidate,
-    sourceLabel: labelForOrigin(importedOrigins.get(candidate.name)),
-  }));
-}
-
-function mapProjectNonSkillOrigin(
-  directories: NonSkillDirectory[],
-  importedOrigins: Map<string, string>,
-): NonSkillDirectory[] {
-  return directories.map((directory) => ({
-    ...directory,
-    sourceLabel: labelForOrigin(importedOrigins.get(directory.name)),
-  }));
-}
-
-function scanInventoryRoots(
-  options: DiscoveryOptions,
-  home: string,
-  importedOrigins: Map<string, string>,
-): { candidates: SkillCandidate[]; nonSkillDirectories: NonSkillDirectory[] } {
-  const candidates: SkillCandidate[] = [];
-  const nonSkillDirectories: NonSkillDirectory[] = [];
-
-  if (options.projectRoot) {
-    const projectScan = scanSkillDir(join(options.projectRoot, 'skills'), 'skillgov-project');
-    candidates.push(...mapProjectCandidateOrigin(projectScan.skills, importedOrigins));
-    nonSkillDirectories.push(
-      ...mapProjectNonSkillOrigin(projectScan.nonSkillDirectories, importedOrigins),
-    );
-  }
-
-  const codexScan = scanSkillDir(join(home, '.codex', 'skills'), 'codex-user');
-  candidates.push(...codexScan.skills);
-  nonSkillDirectories.push(...codexScan.nonSkillDirectories);
-
-  const claudeScan = scanSkillDir(join(home, '.claude', 'skills'), 'claude-user');
-  candidates.push(...claudeScan.skills);
-  nonSkillDirectories.push(...claudeScan.nonSkillDirectories);
-
-  return { candidates, nonSkillDirectories };
-}
-
-function addUnique<T>(items: T[], nextItems: T[]): T[] {
-  const merged = [...items];
-  for (const item of nextItems) {
-    if (!merged.includes(item)) merged.push(item);
-  }
-  return merged;
-}
-
-function labelForOrigin(origin?: string): string {
-  if (!origin) return SOURCE_METADATA['skillgov-project'].sourceLabel;
-  return ORIGIN_LABELS[origin] || origin;
-}
-
-function mergeAppliedAgents(existing: AppliedAgent[], incoming: AppliedAgent[]): AppliedAgent[] {
-  const merged = [...existing];
-  for (const agent of incoming) {
-    if (!merged.some((a) => a.id === agent.id)) {
-      merged.push(agent);
-    }
-  }
-  return merged;
-}
-
 function mergeCandidates(candidates: SkillCandidate[]): SkillCandidate[] {
-  const byName = new Map<string, (typeof candidates)[number]>();
-
+  const byName = new Map<string, SkillCandidate>();
   for (const candidate of candidates) {
     const existing = byName.get(candidate.name);
     if (!existing) {
-      byName.set(candidate.name, { ...candidate, appliedAgents: [...candidate.appliedAgents] });
+      byName.set(candidate.name, candidate);
       continue;
     }
-
-    if (!existing.sourceLabel.split('、').includes(candidate.sourceLabel)) {
-      if (existing.source === 'skillgov-project') {
-        // Keep provenance in the source column and track agent usage separately.
-      } else if (candidate.source === 'skillgov-project') {
-        existing.path = candidate.path;
-        existing.source = candidate.source;
-        existing.sourceLabel = candidate.sourceLabel;
-      } else {
-        existing.sourceLabel = `${existing.sourceLabel}、${candidate.sourceLabel}`;
-      }
+    // Prefer project source over agent source
+    if (candidate.source === 'project' && existing.source !== 'project') {
+      byName.set(candidate.name, candidate);
     }
-    existing.agentTargets = addUnique(existing.agentTargets, candidate.agentTargets);
-    existing.appliedAgents = mergeAppliedAgents(existing.appliedAgents, candidate.appliedAgents);
   }
-
   return [...byName.values()];
 }
 
+function computeAgentStates(
+  skillName: string,
+  canonicalPath: string,
+  profiles: TargetProfile[],
+): AgentState[] {
+  const states: AgentState[] = [];
+  for (const profile of profiles) {
+    for (const skillDir of profile.skillDirs) {
+      const linkPath = join(skillDir, skillName);
+      if (!existsSync(linkPath)) {
+        states.push({
+          profileId: profile.id,
+          profileLabel: profile.label,
+          state: 'unmapped',
+          skillDir,
+          path: linkPath,
+        });
+        continue;
+      }
+
+      const detection = detectLinkType(linkPath);
+      if (detection.type === 'directory') {
+        states.push({
+          profileId: profile.id,
+          profileLabel: profile.label,
+          state: 'unmanaged-local',
+          skillDir,
+          path: linkPath,
+        });
+      } else if (detection.type === 'junction' || detection.type === 'symlink') {
+        const linked = pathsResolveToSameLocation(linkPath, canonicalPath);
+        states.push({
+          profileId: profile.id,
+          profileLabel: profile.label,
+          state: linked ? 'managed-linked' : 'conflict',
+          skillDir,
+          path: linkPath,
+          linkTarget: detection.target,
+        });
+      } else {
+        states.push({
+          profileId: profile.id,
+          profileLabel: profile.label,
+          state: 'missing',
+          skillDir,
+          path: linkPath,
+        });
+      }
+    }
+  }
+  return states;
+}
+
+function labelForOrigin(origin?: string): string {
+  if (!origin) return 'SkillGov 技能库';
+  return ORIGIN_LABELS[origin] || origin;
+}
+
 export function discoverSkillInventory(options: DiscoveryOptions = {}): SkillInventory {
-  const home = options.home || homedir();
+  const home = options.home;
+  const profiles = listTargetProfiles(options.targets, home);
   const registryPath =
     options.registryPath ||
     (options.projectRoot ? join(options.projectRoot, 'registry', 'skills.json') : undefined);
@@ -249,52 +205,65 @@ export function discoverSkillInventory(options: DiscoveryOptions = {}): SkillInv
     }
   }
 
-  const scanned = scanInventoryRoots(options, home, importedOrigins);
-  const candidates = mergeCandidates(scanned.candidates);
+  // Scan project skills directory
+  const candidates: SkillCandidate[] = [];
+  const nonSkillDirectories: NonSkillDirectory[] = [];
 
+  if (options.projectRoot) {
+    const projectScan = scanSkillDir(join(options.projectRoot, 'skills'), 'project');
+    candidates.push(...projectScan.skills);
+    nonSkillDirectories.push(...projectScan.nonSkillDirectories);
+  }
+
+  // Scan all target profile skill directories dynamically
+  for (const profile of profiles) {
+    for (const skillDir of profile.skillDirs) {
+      const scan = scanSkillDir(skillDir, 'agent');
+      candidates.push(...scan.skills);
+      nonSkillDirectories.push(...scan.nonSkillDirectories);
+    }
+  }
+
+  const merged = mergeCandidates(candidates);
   const results: DiscoveredSkill[] = [];
 
-  for (const candidate of candidates) {
+  for (const candidate of merged) {
     const validation = validateSkill(candidate.path);
-    const mappingTargets = getMappingTargets(candidate.name, mappingsPath);
+    const canonicalPath =
+      candidate.source === 'project'
+        ? candidate.path
+        : options.projectRoot
+          ? join(options.projectRoot, 'skills', candidate.name)
+          : candidate.path;
+    const agentStates = computeAgentStates(candidate.name, canonicalPath, profiles);
 
     const mappingSummary: MappingSummary = { total: 0, linked: 0, missing: 0, conflict: 0 };
-    for (const mapping of mappingTargets) {
+    for (const state of agentStates) {
       mappingSummary.total++;
-      if (mapping.status === 'linked') mappingSummary.linked++;
-      else if (mapping.status === 'missing') mappingSummary.missing++;
-      else if (mapping.status === 'conflict') mappingSummary.conflict++;
+      if (state.state === 'managed-linked') mappingSummary.linked++;
+      else if (state.state === 'missing') mappingSummary.missing++;
+      else if (state.state === 'conflict') mappingSummary.conflict++;
     }
 
-    const linkedMappingTargets = mappingTargets
-      .filter((mapping) => mapping.status === 'linked')
-      .map((mapping) => mapping.target);
-    const agentTargets = addUnique(candidate.agentTargets, linkedMappingTargets);
-
-    // Build appliedAgents from candidate's local scan and mappings
-    const appliedAgents = [...candidate.appliedAgents];
-    for (const mapping of mappingTargets) {
-      if (mapping.status === 'linked' && !appliedAgents.some((a) => a.id === mapping.target)) {
-        appliedAgents.push({ id: mapping.target, label: mapping.target, source: 'mapping' });
-      }
-    }
+    const origin = importedOrigins.get(candidate.name);
+    const sourceLabel =
+      candidate.source === 'project' ? labelForOrigin(origin) : `${candidate.source}`;
 
     results.push({
       name: candidate.name,
       path: candidate.path,
       source: candidate.source,
-      sourceLabel: candidate.sourceLabel,
-      agentTargets,
-      appliedAgents,
-      mappingTargets,
+      sourceLabel,
+      origin,
+      agentStates,
       mappingSummary,
       validationStatus: validation.status,
       issues: validation.issues.map((i) => i.message),
-      alreadyImported: importedNames.has(candidate.name) || candidate.source === 'skillgov-project',
+      alreadyImported: importedNames.has(candidate.name) || candidate.source === 'project',
     });
   }
 
-  return { skills: results, nonSkillDirectories: scanned.nonSkillDirectories };
+  return { skills: results, nonSkillDirectories };
 }
 
 export function discoverSkills(options: DiscoveryOptions = {}): DiscoveredSkill[] {

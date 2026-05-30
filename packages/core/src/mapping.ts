@@ -76,7 +76,7 @@ function timestampForPath(): string {
   return new Date().toISOString().replace(/[:.]/g, '-');
 }
 
-function pathsResolveToSameLocation(left: string, right: string): boolean {
+export function pathsResolveToSameLocation(left: string, right: string): boolean {
   if (!existsSync(left) || !existsSync(right)) return false;
   try {
     return realpathSync.native(left).toLowerCase() === realpathSync.native(right).toLowerCase();

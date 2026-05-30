@@ -30,7 +30,7 @@ type ApiHandler = (
 const apiRoutes: Record<string, ApiHandler> = {
   status: () => {
     const config = loadConfig();
-    const status = getProjectStatus(config.projectRoot);
+    const status = getProjectStatus(config.projectRoot, { targets: config.targets });
     return { ...status, targetProfiles: listTargetProfiles(config.targets) } as unknown as Record<
       string,
       unknown
@@ -155,6 +155,7 @@ const apiRoutes: Record<string, ApiHandler> = {
       projectRoot: config.projectRoot,
       registryPath,
       mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+      targets: config.targets,
     });
     return {
       ...inventory,
@@ -170,6 +171,7 @@ const apiRoutes: Record<string, ApiHandler> = {
     const inventory = discoverSkillInventory({
       projectRoot: config.projectRoot,
       mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+      targets: config.targets,
     });
     const skillMap = new Map(inventory.skills.map((s) => [s.name, s]));
     const results: Array<{ name: string; status: string; error?: string }> = [];

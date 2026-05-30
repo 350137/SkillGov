@@ -43,6 +43,7 @@ export {
   linkManagedSkillToAgent,
   mapSkill,
   migrateInstallsToMappings,
+  pathsResolveToSameLocation,
   readSkillMappings,
   removeMappingLink,
   unmapSkill,
@@ -67,6 +68,8 @@ export { runDoctor } from './doctor.js';
 export type { DoctorIssue, DoctorReport } from './doctor.js';
 export { discoverSkillInventory, discoverSkills } from './discovery.js';
 export type {
+  AgentState,
+  AgentStateStatus,
   DiscoveredSkill,
   DiscoveryOptions,
   NonSkillDirectory,

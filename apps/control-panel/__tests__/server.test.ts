@@ -336,4 +336,101 @@ describe('Control Panel API', () => {
     expect(res).not.toContain('id="compat-path"');
     expect(res).not.toContain('data-i18n="importValidateHeading"');
   });
+
+  it('returns error for map without skillName', async () => {
+    const data = await fetchJson('/api/map', { target: 'codex' });
+    expect(data).toHaveProperty('error');
+  });
+
+  it('returns error for map without target', async () => {
+    const data = await fetchJson('/api/map', { skillName: 'x' });
+    expect(data).toHaveProperty('error');
+  });
+
+  it('returns not-found for map with nonexistent skill', async () => {
+    const data = await fetchJson('/api/map', { skillName: 'nonexistent', target: 'codex' });
+    expect(data.status).toBe('not-found');
+    expect(data).toHaveProperty('message');
+  });
+
+  it('returns error for unmap without args', async () => {
+    const data = await fetchJson('/api/unmap', {});
+    expect(data).toHaveProperty('error');
+  });
+
+  it('returns error for adopt without args', async () => {
+    const data = await fetchJson('/api/adopt', {});
+    expect(data).toHaveProperty('error');
+  });
+
+  it('marks legacy install response with legacy flag', async () => {
+    const data = await fetchJson('/api/install', { skillName: 'nonexistent', target: 'codex' });
+    expect(data).toHaveProperty('legacy', true);
+  });
+
+  it('marks legacy uninstall response with legacy flag', async () => {
+    const data = await fetchJson('/api/uninstall', { skillName: 'nonexistent', target: 'codex' });
+    expect(data).toHaveProperty('legacy', true);
+  });
+
+  it('returns error for map/batch without skillNames', async () => {
+    const data = await fetchJson('/api/map/batch', { target: 'codex' });
+    expect(data).toHaveProperty('error');
+  });
+
+  it('returns error for map/batch without target', async () => {
+    const data = await fetchJson('/api/map/batch', { skillNames: ['x'] });
+    expect(data).toHaveProperty('error');
+  });
+
+  it('returns summary and results for map/batch', async () => {
+    const data = await fetchJson('/api/map/batch', {
+      skillNames: ['nonexistent-skill'],
+      target: 'codex',
+    });
+    expect(data).toHaveProperty('summary');
+    expect(data).toHaveProperty('results');
+    const summary = data.summary as Record<string, unknown>;
+    expect(summary.total).toBe(1);
+    expect(summary.notFound).toBe(1);
+    const results = data.results as Array<Record<string, unknown>>;
+    expect(results.length).toBe(1);
+    expect(results[0].name).toBe('nonexistent-skill');
+    expect(results[0].status).toBe('not-found');
+    expect(results[0]).toHaveProperty('message');
+  });
+
+  it('returns summary and results for unmap/batch', async () => {
+    const data = await fetchJson('/api/unmap/batch', {
+      skillNames: ['nonexistent-skill'],
+      target: 'codex',
+    });
+    expect(data).toHaveProperty('summary');
+    expect(data).toHaveProperty('results');
+    const summary = data.summary as Record<string, unknown>;
+    expect(summary.total).toBe(1);
+    expect(summary.notFound).toBe(1);
+  });
+
+  it('returns summary and results for adopt/batch', async () => {
+    const data = await fetchJson('/api/adopt/batch', {
+      skillNames: ['nonexistent-skill'],
+      target: 'codex',
+    });
+    expect(data).toHaveProperty('summary');
+    expect(data).toHaveProperty('results');
+    const summary = data.summary as Record<string, unknown>;
+    expect(summary.total).toBe(1);
+    expect(summary.notFound).toBe(1);
+  });
+
+  it('returns error for unmap/batch without args', async () => {
+    const data = await fetchJson('/api/unmap/batch', {});
+    expect(data).toHaveProperty('error');
+  });
+
+  it('returns error for adopt/batch without args', async () => {
+    const data = await fetchJson('/api/adopt/batch', {});
+    expect(data).toHaveProperty('error');
+  });
 });

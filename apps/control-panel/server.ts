@@ -3,6 +3,7 @@ import http from 'node:http';
 import { URL } from 'node:url';
 import {
   VERSION,
+  adoptSkill,
   checkCompatibility,
   discoverSkillInventory,
   discoverSkills,
@@ -14,9 +15,11 @@ import {
   installSkill,
   listTargetProfiles,
   loadConfig,
+  mapSkill,
   rollbackLastInstall,
   runDoctor,
   uninstallSkill,
+  unmapSkill,
   validateSkill,
 } from '@skillgov/core';
 import { renderControlPanelPage } from './src/page.js';
@@ -83,12 +86,13 @@ const apiRoutes: Record<string, ApiHandler> = {
     if (!skillName || !target) return { error: 'Missing "skillName" or "target" field' };
     const config = loadConfig();
     const targetProfiles = listTargetProfiles(config.targets);
-    return installSkill(skillName, target, config.defaultLinkMode, {
+    const result = installSkill(skillName, target, config.defaultLinkMode, {
       projectRoot: config.projectRoot,
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
       mappingsPath: `${config.projectRoot}/registry/mappings.json`,
       targetProfiles,
-    }) as unknown as Record<string, unknown>;
+    });
+    return { ...result, legacy: true } as unknown as Record<string, unknown>;
   },
 
   uninstall: (body) => {
@@ -96,10 +100,52 @@ const apiRoutes: Record<string, ApiHandler> = {
     const target = body.target as string;
     if (!skillName || !target) return { error: 'Missing "skillName" or "target" field' };
     const config = loadConfig();
-    return uninstallSkill(skillName, target, {
+    const result = uninstallSkill(skillName, target, {
       projectRoot: config.projectRoot,
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
       mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+    });
+    return { ...result, legacy: true } as unknown as Record<string, unknown>;
+  },
+
+  map: (body) => {
+    const skillName = body.skillName as string;
+    const target = body.target as string;
+    if (!skillName || !target) return { error: 'Missing "skillName" or "target" field' };
+    const config = loadConfig();
+    const targetProfiles = listTargetProfiles(config.targets);
+    return mapSkill(skillName, target, {
+      projectRoot: config.projectRoot,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+      targetProfiles,
+      backupsRoot: `${config.projectRoot}/backups`,
+    }) as unknown as Record<string, unknown>;
+  },
+
+  unmap: (body) => {
+    const skillName = body.skillName as string;
+    const target = body.target as string;
+    if (!skillName || !target) return { error: 'Missing "skillName" or "target" field' };
+    const config = loadConfig();
+    const targetProfiles = listTargetProfiles(config.targets);
+    return unmapSkill(skillName, target, {
+      projectRoot: config.projectRoot,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+      targetProfiles,
+    }) as unknown as Record<string, unknown>;
+  },
+
+  adopt: (body) => {
+    const skillName = body.skillName as string;
+    const target = body.target as string;
+    if (!skillName || !target) return { error: 'Missing "skillName" or "target" field' };
+    const config = loadConfig();
+    const targetProfiles = listTargetProfiles(config.targets);
+    return adoptSkill(skillName, target, {
+      projectRoot: config.projectRoot,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+      targetProfiles,
+      backupsRoot: `${config.projectRoot}/backups`,
     }) as unknown as Record<string, unknown>;
   },
 
@@ -214,7 +260,7 @@ const apiRoutes: Record<string, ApiHandler> = {
         results.push({ name, status: 'error', error: (err as Error).message });
       }
     }
-    return { total: results.length, results } as unknown as Record<string, unknown>;
+    return { total: results.length, results, legacy: true } as unknown as Record<string, unknown>;
   },
 
   'uninstall/batch': (body) => {
@@ -235,7 +281,98 @@ const apiRoutes: Record<string, ApiHandler> = {
         results.push({ name, status: 'error', error: (err as Error).message });
       }
     }
-    return { total: results.length, results } as unknown as Record<string, unknown>;
+    return { total: results.length, results, legacy: true } as unknown as Record<string, unknown>;
+  },
+
+  'map/batch': (body) => {
+    const skillNames = body.skillNames as string[];
+    const target = body.target as string;
+    if (!skillNames?.length || !target) return { error: 'Missing "skillNames" or "target" field' };
+    const config = loadConfig();
+    const targetProfiles = listTargetProfiles(config.targets);
+    const results: Array<{ name: string; status: string; message?: string }> = [];
+    for (const name of skillNames) {
+      try {
+        const result = mapSkill(name, target, {
+          projectRoot: config.projectRoot,
+          mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+          targetProfiles,
+          backupsRoot: `${config.projectRoot}/backups`,
+        });
+        results.push({ name, status: result.status, message: result.message });
+      } catch (err) {
+        results.push({ name, status: 'error', message: (err as Error).message });
+      }
+    }
+    const summary = {
+      total: results.length,
+      mapped: results.filter((r) => r.status === 'mapped').length,
+      alreadyMapped: results.filter((r) => r.status === 'already-mapped').length,
+      notFound: results.filter((r) => r.status === 'not-found').length,
+      blocked: results.filter((r) => r.status === 'blocked').length,
+      errors: results.filter((r) => r.status === 'error').length,
+    };
+    return { summary, results } as unknown as Record<string, unknown>;
+  },
+
+  'unmap/batch': (body) => {
+    const skillNames = body.skillNames as string[];
+    const target = body.target as string;
+    if (!skillNames?.length || !target) return { error: 'Missing "skillNames" or "target" field' };
+    const config = loadConfig();
+    const targetProfiles = listTargetProfiles(config.targets);
+    const results: Array<{ name: string; status: string; message?: string }> = [];
+    for (const name of skillNames) {
+      try {
+        const result = unmapSkill(name, target, {
+          projectRoot: config.projectRoot,
+          mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+          targetProfiles,
+        });
+        results.push({ name, status: result.status, message: result.message });
+      } catch (err) {
+        results.push({ name, status: 'error', message: (err as Error).message });
+      }
+    }
+    const summary = {
+      total: results.length,
+      unmapped: results.filter((r) => r.status === 'unmapped').length,
+      notFound: results.filter((r) => r.status === 'not-found').length,
+      refused: results.filter((r) => r.status === 'refused').length,
+      errors: results.filter((r) => r.status === 'error').length,
+    };
+    return { summary, results } as unknown as Record<string, unknown>;
+  },
+
+  'adopt/batch': (body) => {
+    const skillNames = body.skillNames as string[];
+    const target = body.target as string;
+    if (!skillNames?.length || !target) return { error: 'Missing "skillNames" or "target" field' };
+    const config = loadConfig();
+    const targetProfiles = listTargetProfiles(config.targets);
+    const results: Array<{ name: string; status: string; message?: string }> = [];
+    for (const name of skillNames) {
+      try {
+        const result = adoptSkill(name, target, {
+          projectRoot: config.projectRoot,
+          mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+          targetProfiles,
+          backupsRoot: `${config.projectRoot}/backups`,
+        });
+        results.push({ name, status: result.status, message: result.message });
+      } catch (err) {
+        results.push({ name, status: 'error', message: (err as Error).message });
+      }
+    }
+    const summary = {
+      total: results.length,
+      adopted: results.filter((r) => r.status === 'adopted').length,
+      alreadyLinked: results.filter((r) => r.status === 'already-linked').length,
+      notFound: results.filter((r) => r.status === 'not-found').length,
+      blocked: results.filter((r) => r.status === 'blocked').length,
+      errors: results.filter((r) => r.status === 'error').length,
+    };
+    return { summary, results } as unknown as Record<string, unknown>;
   },
 
   'discover/import': () => {

@@ -35,17 +35,31 @@ export type { RepairTaskOptions, OverlayTaskOptions, TaskResult } from './tasks.
 export { installSkill, uninstallSkill, rollbackLastInstall } from './installer.js';
 export type { LinkMode, InstallOptions, InstallResult } from './installer.js';
 export {
+  adoptSkill,
+  copyDir,
+  createLink,
+  detectLinkType,
   getMappingTargets,
   linkManagedSkillToAgent,
+  mapSkill,
   migrateInstallsToMappings,
   readSkillMappings,
   removeMappingLink,
+  unmapSkill,
   upsertMapping,
 } from './mapping.js';
 export type {
+  AdoptSkillOptions,
+  AdoptSkillResult,
+  LinkDetectionResult,
   LinkManagedSkillOptions,
   LinkManagedSkillResult,
+  LinkType,
+  MapSkillOptions,
+  MapSkillResult,
   MigrationResult,
+  UnmapSkillOptions,
+  UnmapSkillResult,
 } from './mapping.js';
 export { getProjectStatus } from './status.js';
 export type { ProjectStatus, SkillStatus } from './status.js';

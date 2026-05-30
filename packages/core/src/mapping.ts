@@ -2,8 +2,10 @@
 import {
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
+  readlinkSync,
   realpathSync,
   rmSync,
   statSync,
@@ -56,7 +58,7 @@ function writeSkillMappings(mappingsPath: string, registry: SkillMappingsRegistr
   writeRegistry(mappingsPath, registry);
 }
 
-function copyDir(src: string, dest: string): void {
+export function copyDir(src: string, dest: string): void {
   mkdirSync(dest, { recursive: true });
   for (const entry of readdirSync(src)) {
     const srcPath = resolve(src, entry);
@@ -89,7 +91,38 @@ function assessExistingLink(linkPath: string, canonicalPath: string): SkillMappi
   return pathsResolveToSameLocation(linkPath, canonicalPath) ? 'linked' : 'conflict';
 }
 
-function createLink(source: string, targetPath: string, linkMode: SkillMappingLink['mode']): void {
+export type LinkType = 'junction' | 'symlink' | 'directory' | 'missing';
+
+export interface LinkDetectionResult {
+  type: LinkType;
+  target?: string;
+}
+
+export function detectLinkType(linkPath: string): LinkDetectionResult {
+  if (!existsSync(linkPath)) return { type: 'missing' };
+  const stat = lstatSync(linkPath);
+  if (stat.isSymbolicLink()) {
+    const target = readlinkSync(linkPath);
+    // Use statSync (follows links) to check if target is a directory.
+    // On Windows, both junctions and dir symlinks point to directories,
+    // but we cannot reliably distinguish them without elevation.
+    // Treat all directory-pointing links as junctions (the common case).
+    try {
+      const targetStat = statSync(linkPath);
+      const type: LinkType = targetStat.isDirectory() ? 'junction' : 'symlink';
+      return { type, target };
+    } catch {
+      return { type: 'symlink', target };
+    }
+  }
+  return { type: 'directory' };
+}
+
+export function createLink(
+  source: string,
+  targetPath: string,
+  linkMode: SkillMappingLink['mode'],
+): void {
   mkdirSync(dirname(targetPath), { recursive: true });
   if (linkMode === 'copy') {
     copyDir(source, targetPath);
@@ -312,4 +345,298 @@ export function migrateInstallsToMappings(
   }
 
   return result;
+}
+
+export interface MapSkillOptions {
+  projectRoot: string;
+  mappingsPath: string;
+  targetSkillRoot?: string;
+  targetProfiles?: TargetProfile[];
+  linkMode?: 'junction' | 'symlink';
+  backupsRoot?: string;
+}
+
+export interface MapSkillResult {
+  status: 'mapped' | 'not-found' | 'blocked' | 'already-mapped';
+  skillName: string;
+  targetName: string;
+  canonicalPath: string;
+  linkPath: string;
+  backupPath?: string;
+  message: string;
+}
+
+export function mapSkill(
+  skillName: string,
+  targetName: string,
+  options: MapSkillOptions,
+): MapSkillResult {
+  const canonicalPath = resolve(options.projectRoot, 'skills', skillName);
+  if (!existsSync(join(canonicalPath, 'SKILL.md'))) {
+    return {
+      status: 'not-found',
+      skillName,
+      targetName,
+      canonicalPath,
+      linkPath: '',
+      message: `Skill "${skillName}" not found at ${canonicalPath}.`,
+    };
+  }
+
+  const profile = getTargetProfile(targetName, options.targetProfiles);
+  const targetRoot = options.targetSkillRoot || profile?.skillDirs[0];
+  if (!targetRoot) {
+    return {
+      status: 'blocked',
+      skillName,
+      targetName,
+      canonicalPath,
+      linkPath: '',
+      message: `Unknown target: "${targetName}".`,
+    };
+  }
+
+  const linkPath = resolve(targetRoot, skillName);
+  const detection = detectLinkType(linkPath);
+  if (
+    (detection.type === 'junction' || detection.type === 'symlink') &&
+    pathsResolveToSameLocation(linkPath, canonicalPath)
+  ) {
+    return {
+      status: 'already-mapped',
+      skillName,
+      targetName,
+      canonicalPath,
+      linkPath,
+      message: `Skill "${skillName}" is already mapped to ${targetName} at ${linkPath}.`,
+    };
+  }
+
+  let linkMode: 'junction' | 'symlink' = options.linkMode || 'junction';
+  if (!options.linkMode && profile?.linkMode && profile.linkMode !== 'copy') {
+    linkMode = profile.linkMode;
+  }
+
+  const result = linkManagedSkillToAgent(skillName, targetName, {
+    projectRoot: options.projectRoot,
+    mappingsPath: options.mappingsPath,
+    targetSkillRoot: options.targetSkillRoot,
+    targetProfiles: options.targetProfiles,
+    backupsRoot: options.backupsRoot,
+    linkMode,
+    type: 'standard',
+  });
+
+  return {
+    status: result.status === 'linked' ? 'mapped' : result.status,
+    skillName: result.skillName,
+    targetName: result.targetName,
+    canonicalPath: result.canonicalPath,
+    linkPath: result.linkPath,
+    backupPath: result.backupPath,
+    message: result.message,
+  };
+}
+
+export interface UnmapSkillOptions {
+  projectRoot: string;
+  mappingsPath: string;
+  targetSkillRoot?: string;
+  targetProfiles?: TargetProfile[];
+}
+
+export interface UnmapSkillResult {
+  status: 'unmapped' | 'refused' | 'not-found';
+  skillName: string;
+  targetName: string;
+  linkPath: string;
+  message: string;
+}
+
+export function unmapSkill(
+  skillName: string,
+  targetName: string,
+  options: UnmapSkillOptions,
+): UnmapSkillResult {
+  const profile = getTargetProfile(targetName, options.targetProfiles);
+  const targetRoot = options.targetSkillRoot || profile?.skillDirs[0];
+  if (!targetRoot) {
+    return {
+      status: 'not-found',
+      skillName,
+      targetName,
+      linkPath: '',
+      message: `Unknown target: "${targetName}".`,
+    };
+  }
+
+  const linkPath = resolve(targetRoot, skillName);
+  const detection = detectLinkType(linkPath);
+
+  if (detection.type === 'missing') {
+    removeMappingLink(options.mappingsPath, skillName, targetName);
+    return {
+      status: 'not-found',
+      skillName,
+      targetName,
+      linkPath,
+      message: `No link found at ${linkPath}.`,
+    };
+  }
+
+  if (detection.type === 'directory') {
+    return {
+      status: 'refused',
+      skillName,
+      targetName,
+      linkPath,
+      message: `Target is a plain directory, not a link. Use adoptSkill to convert it.`,
+    };
+  }
+
+  // junction or symlink — verify it points to the canonical skill
+  const canonicalPath = resolve(options.projectRoot, 'skills', skillName);
+  if (!pathsResolveToSameLocation(linkPath, canonicalPath)) {
+    return {
+      status: 'refused',
+      skillName,
+      targetName,
+      linkPath,
+      message: `Link does not point to the canonical skill path. Manual cleanup needed.`,
+    };
+  }
+
+  rmSync(linkPath, { recursive: true, force: true });
+  removeMappingLink(options.mappingsPath, skillName, targetName);
+
+  return {
+    status: 'unmapped',
+    skillName,
+    targetName,
+    linkPath,
+    message: `Unmapped "${skillName}" from ${targetName}.`,
+  };
+}
+
+export interface AdoptSkillOptions {
+  projectRoot: string;
+  mappingsPath: string;
+  targetSkillRoot?: string;
+  targetProfiles?: TargetProfile[];
+  linkMode?: 'junction' | 'symlink';
+  backupsRoot?: string;
+}
+
+export interface AdoptSkillResult {
+  status: 'adopted' | 'not-found' | 'blocked' | 'already-linked';
+  skillName: string;
+  targetName: string;
+  canonicalPath: string;
+  linkPath: string;
+  backupPath: string;
+  message: string;
+}
+
+export function adoptSkill(
+  skillName: string,
+  targetName: string,
+  options: AdoptSkillOptions,
+): AdoptSkillResult {
+  const canonicalPath = resolve(options.projectRoot, 'skills', skillName);
+  if (!existsSync(join(canonicalPath, 'SKILL.md'))) {
+    return {
+      status: 'not-found',
+      skillName,
+      targetName,
+      canonicalPath,
+      linkPath: '',
+      backupPath: '',
+      message: `Skill "${skillName}" not found at ${canonicalPath}.`,
+    };
+  }
+
+  const profile = getTargetProfile(targetName, options.targetProfiles);
+  const targetRoot = options.targetSkillRoot || profile?.skillDirs[0];
+  if (!targetRoot) {
+    return {
+      status: 'blocked',
+      skillName,
+      targetName,
+      canonicalPath,
+      linkPath: '',
+      backupPath: '',
+      message: `Unknown target: "${targetName}".`,
+    };
+  }
+
+  const linkPath = resolve(targetRoot, skillName);
+  const detection = detectLinkType(linkPath);
+
+  if (detection.type === 'missing') {
+    return {
+      status: 'blocked',
+      skillName,
+      targetName,
+      canonicalPath,
+      linkPath,
+      backupPath: '',
+      message: `No existing directory at ${linkPath} to adopt.`,
+    };
+  }
+
+  if (detection.type === 'junction' || detection.type === 'symlink') {
+    if (pathsResolveToSameLocation(linkPath, canonicalPath)) {
+      return {
+        status: 'already-linked',
+        skillName,
+        targetName,
+        canonicalPath,
+        linkPath,
+        backupPath: '',
+        message: `Skill "${skillName}" is already linked to ${targetName} at ${linkPath}.`,
+      };
+    }
+    return {
+      status: 'blocked',
+      skillName,
+      targetName,
+      canonicalPath,
+      linkPath,
+      backupPath: '',
+      message: `Target is already a link (not a plain directory). Use mapSkill instead.`,
+    };
+  }
+
+  // Plain directory — back up and replace with link
+  const backupsRoot = resolve(options.backupsRoot || join(options.projectRoot, 'backups'));
+  const backupPath = join(backupsRoot, timestampForPath(), targetName, skillName);
+  copyDir(linkPath, backupPath);
+  rmSync(linkPath, { recursive: true, force: true });
+
+  const linkMode: 'junction' | 'symlink' =
+    options.linkMode ||
+    (profile?.linkMode !== 'copy' ? profile?.linkMode : undefined) ||
+    'junction';
+  createLink(canonicalPath, linkPath, linkMode);
+
+  const now = new Date().toISOString();
+  upsertMapping(options.mappingsPath, skillName, canonicalPath, targetName, {
+    path: linkPath,
+    mode: linkMode,
+    status: 'linked',
+    type: 'standard',
+    linkedAt: now,
+    backupPath,
+    updatedAt: now,
+  });
+
+  return {
+    status: 'adopted',
+    skillName,
+    targetName,
+    canonicalPath,
+    linkPath,
+    backupPath,
+    message: `Adopted "${skillName}" for ${targetName}: backed up to ${backupPath}, linked at ${linkPath}.`,
+  };
 }

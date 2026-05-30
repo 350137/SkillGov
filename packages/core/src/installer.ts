@@ -1,16 +1,9 @@
 // Installer module — routes skills to target agent directories using links (junction, symlink, or copy). Records installs and supports rollback.
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  rmSync,
-  statSync,
-  symlinkSync,
-} from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, rmSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { checkCompatibility } from './compat.js';
 import {
+  createLink,
   linkManagedSkillToAgent,
   readSkillMappings,
   removeMappingLink,
@@ -64,41 +57,6 @@ function getTargetSkillDir(
   const profile = getTargetProfile(targetName, targetProfiles);
   if (!profile || profile.skillDirs.length === 0) return null;
   return resolve(profile.skillDirs[0], skillName);
-}
-
-function copyDir(src: string, dest: string): void {
-  mkdirSync(dest, { recursive: true });
-  const entries = readdirSync(src);
-  for (const entry of entries) {
-    const srcPath = resolve(src, entry);
-    const destPath = resolve(dest, entry);
-    const stat = statSync(srcPath);
-    if (stat.isDirectory()) {
-      copyDir(srcPath, destPath);
-    } else {
-      copyFileSync(srcPath, destPath);
-    }
-  }
-}
-
-function createLink(source: string, targetPath: string, linkMode: LinkMode): void {
-  // Remove existing path if it exists
-  if (existsSync(targetPath)) {
-    rmSync(targetPath, { recursive: true, force: true });
-  }
-  mkdirSync(dirname(targetPath), { recursive: true });
-
-  switch (linkMode) {
-    case 'junction':
-      symlinkSync(source, targetPath, 'junction');
-      break;
-    case 'symlink':
-      symlinkSync(source, targetPath, 'dir');
-      break;
-    case 'copy':
-      copyDir(source, targetPath);
-      break;
-  }
 }
 
 export function installSkill(
@@ -161,6 +119,9 @@ export function installSkill(
 
   if (isOverlay) {
     // Overlays: create link directly, then record in mappings
+    if (existsSync(targetSkillDir)) {
+      rmSync(targetSkillDir, { recursive: true, force: true });
+    }
     createLink(skillSource, targetSkillDir, linkMode);
     const now = new Date().toISOString();
     const link: SkillMappingLink = {

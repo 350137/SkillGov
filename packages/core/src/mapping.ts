@@ -423,6 +423,17 @@ export function mapSkill(
     };
   }
 
+  if (detection.type === 'junction' || detection.type === 'symlink') {
+    return {
+      status: 'blocked',
+      skillName,
+      targetName,
+      canonicalPath,
+      linkPath,
+      message: 'Target link does not point to the canonical skill path. Manual cleanup needed.',
+    };
+  }
+
   let linkMode: 'junction' | 'symlink' = options.linkMode || 'junction';
   if (!options.linkMode && profile?.linkMode && profile.linkMode !== 'copy') {
     linkMode = profile.linkMode;

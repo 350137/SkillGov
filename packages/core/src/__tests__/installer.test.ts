@@ -209,7 +209,7 @@ describe('installSkill', () => {
 describe('uninstallSkill', () => {
   it('uninstalls a previously installed skill', () => {
     const options = makeOptions();
-    installSkill('test-skill', 'claude', 'copy', options);
+    installSkill('test-skill', 'claude', 'junction', options);
     const result = uninstallSkill('test-skill', 'claude', options);
     expect(result.skillName).toBe('test-skill');
     // Verify removed from mappings
@@ -314,12 +314,43 @@ describe('uninstallSkill', () => {
     expect(existsSync(otherSkillDir)).toBe(true);
     expect(existsSync(join(otherSkillDir, 'keep.txt'))).toBe(true);
   });
+
+  it('refuses to delete a plain directory at the expected skill path', () => {
+    const options = makeOptions();
+    const plainSkillDir = join(tmpDir, 'target-skills', 'test-skill');
+    mkdirSync(plainSkillDir, { recursive: true });
+    writeFileSync(join(plainSkillDir, 'SKILL.md'), 'plain local copy', 'utf-8');
+    writeRegistry(options.mappingsPath, {
+      mappings: {
+        'test-skill': {
+          skillName: 'test-skill',
+          canonicalPath: join(tmpDir, 'skills', 'test-skill'),
+          links: {
+            claude: {
+              path: plainSkillDir,
+              mode: 'junction',
+              status: 'linked',
+              type: 'standard',
+              updatedAt: new Date().toISOString(),
+            },
+          },
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    const result = uninstallSkill('test-skill', 'claude', options);
+    expect(result.status).toBe('blocked');
+    expect(result.message).toContain('plain directory');
+    expect(existsSync(plainSkillDir)).toBe(true);
+    expect(existsSync(join(plainSkillDir, 'SKILL.md'))).toBe(true);
+  });
 });
 
 describe('rollbackLastInstall', () => {
   it('rolls back the last install for a target', () => {
     const options = makeOptions();
-    installSkill('test-skill', 'claude', 'copy', options);
+    installSkill('test-skill', 'claude', 'junction', options);
     const result = rollbackLastInstall('claude', options);
     expect(result).not.toBeNull();
     expect(result?.skillName).toBe('test-skill');

@@ -140,7 +140,7 @@ describe('mapSkill', () => {
     expect(existsSync(join(existing, 'old.txt'))).toBe(true);
   });
 
-  it('backs up existing conflicting link before re-linking', () => {
+  it('refuses to map when target is a conflicting external link', () => {
     createSkill('alpha');
     const otherDir = join(tmpDir, 'other-skills', 'alpha');
     mkdirSync(otherDir, { recursive: true });
@@ -155,11 +155,9 @@ describe('mapSkill', () => {
       backupsRoot: join(tmpDir, 'backups'),
     });
 
-    expect(result.status).toBe('mapped');
-    const backupPath2 = result.backupPath;
-    expect(backupPath2).toBeDefined();
-    if (!backupPath2) throw new Error('Expected backupPath');
-    expect(existsSync(join(backupPath2, 'SKILL.md'))).toBe(true);
+    expect(result.status).toBe('blocked');
+    expect(result.message).toContain('does not point to the canonical skill path');
+    expect(readFileSync(join(targetRoot(), 'alpha', 'SKILL.md'), 'utf-8')).toBe('other');
   });
 
   it('resolves target from targetProfile when targetSkillRoot is not provided', () => {

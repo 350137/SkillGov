@@ -94,11 +94,7 @@ describe('runDoctor', () => {
 
   it('reports legacy installs.json as info when present', () => {
     createMinimalProject();
-    writeFileSync(
-      join(tmpDir, 'registry', 'installs.json'),
-      '{"installs":{}}',
-      'utf-8',
-    );
+    writeFileSync(join(tmpDir, 'registry', 'installs.json'), '{"installs":{}}', 'utf-8');
     const report = runDoctor(tmpDir);
     const legacyIssue = report.issues.find(
       (i) => i.category === 'registry' && i.message.includes('installs.json'),

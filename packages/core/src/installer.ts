@@ -4,7 +4,9 @@ import { resolve } from 'node:path';
 import { checkCompatibility } from './compat.js';
 import {
   createLink,
+  detectLinkType,
   linkManagedSkillToAgent,
+  pathsResolveToSameLocation,
   readSkillMappings,
   removeMappingLink,
   upsertMapping,
@@ -220,8 +222,34 @@ export function uninstallSkill(
     };
   }
 
-  // 3. Remove link if it exists
-  if (existsSync(link.path)) {
+  // 3. Remove only SkillGov-managed links, never plain directories or unrelated links.
+  const detection = detectLinkType(link.path);
+  if (detection.type === 'directory') {
+    return {
+      status: 'blocked',
+      skillName,
+      targetName,
+      linkPath: link.path,
+      message:
+        'Target is a plain directory, not a SkillGov-managed link. Use adoptSkill before uninstalling.',
+    };
+  }
+
+  if (detection.type === 'junction' || detection.type === 'symlink') {
+    const expectedSource =
+      link.type === 'overlay'
+        ? resolve(options.projectRoot, 'overlays', targetName, skillName)
+        : resolve(options.projectRoot, 'skills', skillName);
+    if (!pathsResolveToSameLocation(link.path, expectedSource)) {
+      return {
+        status: 'blocked',
+        skillName,
+        targetName,
+        linkPath: link.path,
+        message: 'Link does not point to a SkillGov-managed skill source. Manual cleanup needed.',
+      };
+    }
+
     rmSync(link.path, { recursive: true, force: true });
   }
 

@@ -180,6 +180,66 @@ tr:hover { background: #f8f9fa; }
   padding: 20px 10px;
 }
 
+/* --- Result Display --- */
+#result-display { margin-top: 12px; }
+.result-card {
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 12px;
+}
+.result-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+}
+.result-operation { font-weight: 600; color: #333; }
+.result-target { color: #666; }
+.result-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.result-stat {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 8px 14px;
+  text-align: center;
+  min-width: 64px;
+}
+.result-stat-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+.result-stat-label {
+  font-size: 0.72rem;
+  color: #888;
+  margin-top: 2px;
+}
+.result-stat.stat-success .result-stat-value { color: #155724; }
+.result-stat.stat-warning .result-stat-value { color: #856404; }
+.result-stat.stat-error .result-stat-value { color: #721c24; }
+.result-stat.stat-muted .result-stat-value { color: #888; }
+.result-table { margin-top: 8px; }
+.result-table th { font-size: 0.75rem; }
+.result-table td { font-size: 0.8rem; }
+.result-message {
+  font-size: 0.82rem;
+  color: #555;
+  margin: 6px 0 0;
+}
+.result-raw { margin-top: 8px; }
+.result-raw > summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: #888;
+}
+
 /* --- Selected Skill --- */
 .selected-skill-name { font-size: 1rem; font-weight: 600; margin-bottom: 2px; }
 .selected-skill-info { font-size: 0.82rem; color: #888; margin-bottom: 10px; }

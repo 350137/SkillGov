@@ -124,6 +124,8 @@ ${controlPanelStyles}
         <button onclick="deselectAll()" data-i18n="deselectAll">Deselect</button>
       </div>
     </div>
+
+    <div id="result-display"></div>
   </div>
 </div>
 

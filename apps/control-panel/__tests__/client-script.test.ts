@@ -443,6 +443,55 @@ describe('script structure', () => {
     expect(controlPanelClientScript).toContain('id="select-all-checkbox"');
     expect(controlPanelClientScript).not.toContain('onclick="togglePageSelection(');
   });
+
+  it('contains renderBatchResult function with result-card and result-table output', () => {
+    expect(controlPanelClientScript).toContain('function renderBatchResult(');
+    expect(controlPanelClientScript).toContain('result-card');
+    expect(controlPanelClientScript).toContain('result-table');
+    expect(controlPanelClientScript).toContain('result-stats');
+  });
+
+  it('contains renderSingleResult function for single-skill operations', () => {
+    expect(controlPanelClientScript).toContain('function renderSingleResult(');
+  });
+
+  it('contains showBatchResult and showSingleResult helper functions', () => {
+    expect(controlPanelClientScript).toContain('function showBatchResult(');
+    expect(controlPanelClientScript).toContain('function showSingleResult(');
+    expect(controlPanelClientScript).toContain("getElementById('result-display')");
+  });
+
+  it('batch functions call showBatchResult instead of raw JSON output', () => {
+    expect(controlPanelClientScript).toContain("showBatchResult(data, 'compat', target)");
+    expect(controlPanelClientScript).toContain("showBatchResult(data, 'map', target)");
+    expect(controlPanelClientScript).toContain("showBatchResult(data, 'unmap', target)");
+    expect(controlPanelClientScript).toContain("showBatchResult(data, 'adopt', target)");
+  });
+
+  it('single map/unmap/adopt calls showSingleResult', () => {
+    expect(controlPanelClientScript).toContain('showSingleResult(data, endpoint)');
+  });
+
+  it('getStatusBadgeClass maps batch result statuses to badge classes', () => {
+    expect(controlPanelClientScript).toContain('function getStatusBadgeClass(');
+    expect(controlPanelClientScript).toContain("'mapped'");
+    expect(controlPanelClientScript).toContain("'unmapped'");
+    expect(controlPanelClientScript).toContain("'adopted'");
+    expect(controlPanelClientScript).toContain("'not-found'");
+  });
+
+  it('renderBatchResult shows per-status stat cards for map/unmap/adopt', () => {
+    expect(controlPanelClientScript).toContain('resultSuccess');
+    expect(controlPanelClientScript).toContain('resultAlready');
+    expect(controlPanelClientScript).toContain('resultNotFound');
+    expect(controlPanelClientScript).toContain('resultBlocked');
+    expect(controlPanelClientScript).toContain('resultFailed');
+  });
+
+  it('renderBatchResult includes detail table with skill name, status, and message columns', () => {
+    expect(controlPanelClientScript).toContain('resultMessage');
+    expect(controlPanelClientScript).toContain('getStatusBadgeClass(r.status)');
+  });
 });
 
 describe('filterSkills', () => {

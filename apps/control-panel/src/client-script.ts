@@ -337,6 +337,118 @@ function togglePageSelection(checked) {
   renderDiscoverPage();
 }
 
+function getStatusBadgeClass(status) {
+  if (STATUS_CLASSES[status]) return STATUS_CLASSES[status];
+  if (['mapped', 'already-mapped', 'unmapped', 'adopted', 'already-linked', 'compatible'].indexOf(status) >= 0) return 'status-pass';
+  if (['not-found', 'needs-mapping', 'needs-overlay'].indexOf(status) >= 0) return 'status-fixable';
+  return 'status-fail';
+}
+
+function renderResultStat(value, label, variant) {
+  return '<div class="result-stat' + (variant ? ' ' + variant : '') + '">' +
+    '<div class="result-stat-value">' + value + '</div>' +
+    '<div class="result-stat-label">' + escapeHtml(label) + '</div>' +
+    '</div>';
+}
+
+function renderBatchResult(data, operationType, target) {
+  const results = data.results || [];
+  const summary = data.summary || null;
+  const total = summary ? summary.total : (data.total || results.length);
+  const headerKeys = { compat: 'batchCheckCompat', map: 'batchMap', unmap: 'batchUnmap', adopt: 'batchAdopt' };
+
+  let html = '<div class="result-card">';
+  html += '<div class="result-header">';
+  html += '<span class="result-operation">' + escapeHtml(t(headerKeys[operationType] || operationType)) + '</span>';
+  if (target) html += '<span class="result-target">' + escapeHtml(t('resultTarget')) + ': ' + escapeHtml(target) + '</span>';
+  html += '</div>';
+
+  html += '<div class="result-stats">';
+  html += renderResultStat(total, t('resultTotal'), '');
+
+  if (operationType === 'compat') {
+    const compatible = results.filter(function(r) { return r.status === 'compatible'; }).length;
+    const needsMapping = results.filter(function(r) { return r.status === 'needs-mapping' || r.status === 'needs-overlay'; }).length;
+    const unsupported = results.filter(function(r) { return r.status === 'unsupported'; }).length;
+    const errors = results.filter(function(r) { return r.status === 'error'; }).length;
+    html += renderResultStat(compatible, t('compatibleStatus'), 'stat-success');
+    html += renderResultStat(needsMapping, t('needsMappingStatus'), 'stat-warning');
+    html += renderResultStat(unsupported, t('unsupportedStatus'), 'stat-error');
+    if (errors > 0) html += renderResultStat(errors, t('resultFailed'), 'stat-error');
+  } else if (operationType === 'map') {
+    html += renderResultStat(summary.mapped || 0, t('resultSuccess'), 'stat-success');
+    if (summary.alreadyMapped) html += renderResultStat(summary.alreadyMapped, t('resultAlready'), 'stat-muted');
+    if (summary.notFound) html += renderResultStat(summary.notFound, t('resultNotFound'), 'stat-warning');
+    if (summary.blocked) html += renderResultStat(summary.blocked, t('resultBlocked'), 'stat-error');
+    if (summary.errors) html += renderResultStat(summary.errors, t('resultFailed'), 'stat-error');
+  } else if (operationType === 'unmap') {
+    html += renderResultStat(summary.unmapped || 0, t('resultSuccess'), 'stat-success');
+    if (summary.notFound) html += renderResultStat(summary.notFound, t('resultNotFound'), 'stat-warning');
+    if (summary.refused) html += renderResultStat(summary.refused, t('resultBlocked'), 'stat-error');
+    if (summary.errors) html += renderResultStat(summary.errors, t('resultFailed'), 'stat-error');
+  } else if (operationType === 'adopt') {
+    html += renderResultStat(summary.adopted || 0, t('resultSuccess'), 'stat-success');
+    if (summary.alreadyLinked) html += renderResultStat(summary.alreadyLinked, t('resultAlready'), 'stat-muted');
+    if (summary.notFound) html += renderResultStat(summary.notFound, t('resultNotFound'), 'stat-warning');
+    if (summary.blocked) html += renderResultStat(summary.blocked, t('resultBlocked'), 'stat-error');
+    if (summary.errors) html += renderResultStat(summary.errors, t('resultFailed'), 'stat-error');
+  }
+
+  html += '</div>';
+
+  if (results.length > 0) {
+    html += '<table class="result-table"><thead><tr>';
+    html += '<th>' + t('tableSkill') + '</th>';
+    html += '<th>' + t('tableStatus') + '</th>';
+    html += '<th>' + t('resultMessage') + '</th>';
+    html += '</tr></thead><tbody>';
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      const badgeClass = getStatusBadgeClass(r.status);
+      html += '<tr>';
+      html += '<td>' + escapeHtml(r.name) + '</td>';
+      html += '<td><span class="status-badge ' + badgeClass + '">' + escapeHtml(r.status) + '</span></td>';
+      html += '<td>' + escapeHtml(r.message || r.error || '') + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function renderSingleResult(data, operationType) {
+  const status = data.status || 'unknown';
+  const badgeClass = getStatusBadgeClass(status);
+
+  let html = '<div class="result-card">';
+  html += '<div class="result-header">';
+  html += '<span class="status-badge ' + badgeClass + '">' + escapeHtml(status) + '</span>';
+  html += '</div>';
+
+  if (data.message) {
+    html += '<p class="result-message">' + escapeHtml(data.message) + '</p>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function showBatchResult(data, operationType, target) {
+  const resultDisplay = document.getElementById('result-display');
+  const output = document.getElementById('output');
+  if (resultDisplay) resultDisplay.innerHTML = renderBatchResult(data, operationType, target);
+  if (output) output.textContent = JSON.stringify(data, null, 2);
+}
+
+function showSingleResult(data, operationType) {
+  const resultDisplay = document.getElementById('result-display');
+  const output = document.getElementById('output');
+  if (resultDisplay) resultDisplay.innerHTML = renderSingleResult(data, operationType);
+  if (output) output.textContent = JSON.stringify(data, null, 2);
+}
+
 async function batchCheckCompat() {
   const output = document.getElementById('output');
   const targetSelect = document.getElementById('target-agent-select-multi');
@@ -357,7 +469,7 @@ async function batchCheckCompat() {
       body: JSON.stringify({ skillNames: [...selectedSkillNames], target }),
     });
     const data = await res.json();
-    if (output) output.textContent = JSON.stringify(data, null, 2);
+    showBatchResult(data, 'compat', target);
   } catch (err) {
     if (output) output.textContent = t('errorPrefix') + err.message;
   }
@@ -383,7 +495,7 @@ async function batchMap() {
       body: JSON.stringify({ skillNames: [...selectedSkillNames], target }),
     });
     const data = await res.json();
-    if (output) output.textContent = JSON.stringify(data, null, 2);
+    showBatchResult(data, 'map', target);
     refreshAfterBatch();
   } catch (err) {
     if (output) output.textContent = t('errorPrefix') + err.message;
@@ -410,7 +522,7 @@ async function batchUnmap() {
       body: JSON.stringify({ skillNames: [...selectedSkillNames], target }),
     });
     const data = await res.json();
-    if (output) output.textContent = JSON.stringify(data, null, 2);
+    showBatchResult(data, 'unmap', target);
     refreshAfterBatch();
   } catch (err) {
     if (output) output.textContent = t('errorPrefix') + err.message;
@@ -437,7 +549,7 @@ async function batchAdopt() {
       body: JSON.stringify({ skillNames: [...selectedSkillNames], target }),
     });
     const data = await res.json();
-    if (output) output.textContent = JSON.stringify(data, null, 2);
+    showBatchResult(data, 'adopt', target);
     refreshAfterBatch();
   } catch (err) {
     if (output) output.textContent = t('errorPrefix') + err.message;
@@ -770,7 +882,11 @@ async function callAPI(endpoint) {
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    if (output) output.textContent = JSON.stringify(data, null, 2);
+    if (endpoint === 'map' || endpoint === 'unmap' || endpoint === 'adopt') {
+      showSingleResult(data, endpoint);
+    } else {
+      if (output) output.textContent = JSON.stringify(data, null, 2);
+    }
     if (endpoint === 'status') {
       latestStatusData = data;
       renderStatusCards(data);

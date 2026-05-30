@@ -3,10 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-// Tests for registry state file read/write operations — skills, compatibility, and installs.
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  type CompatibilityRegistry,
   type InstallsRegistry,
   RegistryCorruptedError,
   type SkillsRegistry,
@@ -30,13 +28,6 @@ describe('readRegistry / writeRegistry', () => {
   it('returns default skills registry when file does not exist', () => {
     const data = readRegistry<SkillsRegistry>(join(tmpDir, 'skills.json'), { skills: {} });
     expect(data.skills).toEqual({});
-  });
-
-  it('returns default compatibility registry when file does not exist', () => {
-    const data = readRegistry<CompatibilityRegistry>(join(tmpDir, 'compatibility.json'), {
-      entries: [],
-    });
-    expect(data.entries).toEqual([]);
   });
 
   it('returns default installs registry when file does not exist', () => {

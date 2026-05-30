@@ -31,7 +31,7 @@ export function runDoctor(projectRoot: string): DoctorReport {
   }
 
   // 2. Check registry files
-  const regFiles = ['skills.json', 'installs.json', 'compatibility.json'];
+  const regFiles = ['skills.json', 'installs.json'];
   for (const file of regFiles) {
     const regPath = resolve(projectRoot, 'registry', file);
     if (!existsSync(regPath)) {

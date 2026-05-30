@@ -105,8 +105,8 @@ Possible results:
 
 ## Version Routing
 
-SkillGov installs a skill by mapping each target agent to the correct usable
-version.
+SkillGov maps each target agent to the correct usable version of a skill.
+The mapping model is the primary way to associate skills with agents.
 
 ```text
 SkillGov/skills/story-init
@@ -119,7 +119,7 @@ SkillGov/overlays/codex/story-init
     Optional Codex-specific usable version
 ```
 
-Installation routing:
+Mapping routing:
 
 ```text
 If standard version is compatible:
@@ -129,8 +129,14 @@ If target overlay is required:
     target skill directory -> SkillGov/overlays/<target>/<skill>
 
 If unsupported:
-    do not install
+    do not map
 ```
+
+The `map` command creates a link from the target agent's skill directory to the
+canonical managed skill. `unmap` removes that link. `adopt` discovers an
+existing unmanaged skill in an agent's directory and brings it under SkillGov
+management by moving it into the canonical `skills/` directory and creating the
+mapping.
 
 On Windows, mappings should normally use junctions where appropriate. Other
 platforms can use symlinks. Copy mode may be supported as a fallback, but links
@@ -140,6 +146,9 @@ The canonical managed skill lives in `skills/<skill>`. Target agent directories
 should contain mappings to that canonical skill, not separate unmanaged copies
 unless copy mode is the only available fallback. This keeps SkillGov focused on
 central skill governance rather than skill accumulation.
+
+All mapping state is stored in `registry/mappings.json`. The legacy
+`installs.json` format is supported via automatic migration on first access.
 
 ## Scope
 
@@ -151,8 +160,8 @@ central skill governance rather than skill accumulation.
 - Target-profile compatibility review for Claude Code, Codex, and configured
   future agents.
 - Target overlay task generation.
-- Install, uninstall, status, and rollback operations.
-- JSON registry files for skills, compatibility, installs, and operations.
+- Map, unmap, adopt, status, and rollback operations.
+- JSON registry files for skills, mappings, and operations.
 - CLI first.
 - A simple button-based local web UI over the core operations.
 
@@ -204,8 +213,7 @@ overlays/
   codex/
 registry/
   skills.json
-  compatibility.json
-  installs.json
+  mappings.json
   operations.jsonl
 tasks/
   repair/
@@ -257,13 +265,17 @@ skillgov compat <skill> --target claude
 skillgov compat <skill> --target codex
 skillgov task repair <skill>
 skillgov task overlay <skill> --target claude
-skillgov install <skill> --target claude
-skillgov install <skill> --target codex
-skillgov uninstall <skill> --target claude
+skillgov map <skill> --target claude
+skillgov map <skill> --target codex
+skillgov unmap <skill> --target claude
+skillgov adopt <skill> --target codex
 skillgov status
 skillgov doctor
 skillgov rollback --target claude
 ```
+
+Legacy commands `install` and `uninstall` are still available but print a
+deprecation warning. Use `map`/`unmap` instead.
 
 ## UI
 
@@ -273,21 +285,17 @@ It should not expose a free-form command input.
 
 Implemented controls:
 
-- Refresh status
-- Import skill
-- Validate skill
-- Check Claude compatibility
-- Check Codex compatibility
-- Generate repair task
-- Generate overlay task
-- Install to Claude
-- Install to Codex
-- Uninstall
-- Roll back
-- Run doctor diagnostics
+- Skill library with search, filter, and pagination
+- Single skill operations: check compatibility, map, unmap, adopt
+- Multi-skill batch operations: batch check, batch map, batch unmap, batch adopt
+- Structured result display with summary cards and detail tables
+- Status cards with metrics (total, applied, issues, non-skill dirs)
+- Target agent selection
+- Run doctor, rollback
+- Language switcher (English / Chinese)
 
-The UI is a convenience layer over the same core used by the CLI. It currently
-returns operation results as JSON in the browser.
+The UI is a convenience layer over the same core used by the CLI. Both use the
+same mapping semantics (map/unmap/adopt) backed by `mappings.json`.
 
 ## Design Principles
 
@@ -309,11 +317,11 @@ returns operation results as JSON in the browser.
 
 ## Current Status
 
-As of 2026-05-28, the SkillGov MVP is functionally complete for the main local
+As of 2026-05-30, the SkillGov MVP is functionally complete for the main local
 governance workflow: project initialization, skill import, standard validation,
-target compatibility review, repair and overlay task generation, install,
-uninstall, status, doctor, inventory, and target-based rollback are implemented
-in the core library and exposed through the CLI where applicable.
+target compatibility review, repair and overlay task generation, map, unmap,
+adopt, status, doctor, inventory, and target-based rollback are implemented
+in the core library and exposed through both the CLI and the control panel UI.
 
 The project is not complete as a finished product. It still needs end-to-end use
 with real skills, stronger UI polish, and a few remaining acceptance items before
@@ -330,8 +338,8 @@ Implemented areas:
 4. Target profiles with an explicit capability matrix for skill metadata,
    agent routing, hooks, MCP, scripts, and runtime-dependent features.
 5. Repair and overlay task generation for human or external AI follow-up.
-6. Install, uninstall, status, doctor, inventory, and target-based rollback
-   operations.
+6. Map, unmap, adopt, status, doctor, inventory, and target-based rollback
+   operations. Legacy install/uninstall commands are still available.
 7. A central SkillGov skill library with mappings from target agent directories
    back to managed skills.
 8. A button-based local web control panel backed by the same core operations.
@@ -340,24 +348,19 @@ Implemented areas:
 Known gaps:
 
 1. The current checkout has empty project registries; no real skills have been
-   imported, reviewed, installed, or rolled back in this project state.
-2. The control panel is useful but minimal. It does not yet show an operation
-   log view, open reports/tasks folders, or provide a richer workflow history.
-3. Rollback currently targets the most recent install for a target. It does not
-   roll back an arbitrary operation id.
-4. The CLI tests focus heavily on command routing and usage output; broader
+   imported, reviewed, mapped, or rolled back in this project state.
+2. Rollback currently targets the most recent operation for a target. It does
+   not roll back an arbitrary operation id.
+3. The CLI tests focus heavily on command routing and usage output; broader
    end-to-end CLI tests with fixture skills would improve confidence.
-5. The project is not packaged as a standalone command or desktop app.
-6. The next compatibility step is to persist richer check reports so the UI can
-   distinguish structure issues, capability gaps, mapping gaps, and ordinary
-   notes without relying on raw JSON.
-7. `docs/mvp-plan.md` is a historical plan and still contains some older command
+4. The project is not packaged as a standalone command or desktop app.
+5. `docs/mvp-plan.md` is a historical plan and still contains some older command
    examples and UI acceptance items that are not fully reflected in the current
    implementation.
 
 Latest verified state:
 
-- Unit and API tests: 22 test files, 294 tests passing.
+- Unit and API tests: 23 test files, 403 tests passing.
 - Lint: Biome check passing.
 - TypeScript: project build with `tsc -b` passing.
 - Runtime smoke checks: local API and control panel checks are covered by the

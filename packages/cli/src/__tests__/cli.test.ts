@@ -73,8 +73,9 @@ describe('CLI main()', () => {
       'compat',
       'task repair',
       'task overlay',
-      'install',
-      'uninstall',
+      'map',
+      'unmap',
+      'adopt',
       'status',
       'doctor',
       'rollback',
@@ -82,6 +83,13 @@ describe('CLI main()', () => {
     for (const cmd of commands) {
       expect(stdout).toContain(cmd);
     }
+  });
+
+  it('help text marks install and uninstall as legacy', () => {
+    const { stdout } = captureOutput([]);
+    expect(stdout).toContain('Legacy commands');
+    expect(stdout).toContain('install');
+    expect(stdout).toContain('uninstall');
   });
 
   it('compat prints usage when missing --target', () => {
@@ -114,16 +122,50 @@ describe('CLI main()', () => {
     expect(exitCode).toBe(1);
   });
 
+  it('map prints usage when missing --target', () => {
+    const { stdout, exitCode } = captureOutput(['map', 'some-skill']);
+    expect(stdout).toContain('Usage: skillgov map');
+    expect(exitCode).toBe(1);
+  });
+
+  it('map prints usage when missing skill', () => {
+    const { stdout, exitCode } = captureOutput(['map']);
+    expect(stdout).toContain('Usage: skillgov map');
+    expect(exitCode).toBe(1);
+  });
+
+  it('unmap prints usage when missing --target', () => {
+    const { stdout, exitCode } = captureOutput(['unmap', 'some-skill']);
+    expect(stdout).toContain('Usage: skillgov unmap');
+    expect(exitCode).toBe(1);
+  });
+
+  it('adopt prints usage when missing --target', () => {
+    const { stdout, exitCode } = captureOutput(['adopt', 'some-skill']);
+    expect(stdout).toContain('Usage: skillgov adopt');
+    expect(exitCode).toBe(1);
+  });
+
   it('install prints usage when missing --target', () => {
     const { stdout, exitCode } = captureOutput(['install', 'some-skill']);
     expect(stdout).toContain('Usage: skillgov install');
     expect(exitCode).toBe(1);
   });
 
+  it('install prints legacy warning', () => {
+    const { stdout } = captureOutput(['install', 'some-skill', '--target', 'codex']);
+    expect(stdout).toContain('legacy');
+  });
+
   it('uninstall prints usage when missing --target', () => {
     const { stdout, exitCode } = captureOutput(['uninstall', 'some-skill']);
     expect(stdout).toContain('Usage: skillgov uninstall');
     expect(exitCode).toBe(1);
+  });
+
+  it('uninstall prints legacy warning', () => {
+    const { stdout } = captureOutput(['uninstall', 'some-skill', '--target', 'codex']);
+    expect(stdout).toContain('legacy');
   });
 
   it('rollback prints usage when missing target and id', () => {

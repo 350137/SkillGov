@@ -15,18 +15,6 @@ export interface SkillsRegistry {
   skills: Record<string, SkillEntry>;
 }
 
-export interface CompatibilityEntry {
-  skillName: string;
-  target: string;
-  status: 'compatible' | 'needs-mapping' | 'needs-overlay' | 'unsupported' | 'unknown';
-  notes?: string;
-  checkedAt: string;
-}
-
-export interface CompatibilityRegistry {
-  entries: CompatibilityEntry[];
-}
-
 export interface InstallRecord {
   skillName: string;
   target: string;

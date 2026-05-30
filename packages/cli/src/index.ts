@@ -1,6 +1,7 @@
 // CLI entry point for SkillGov — parses subcommands and dispatches to @skillgov/core operations.
 import {
   VERSION,
+  adoptSkill,
   checkCompatibility,
   discoverSkills,
   generateOverlayTask,
@@ -11,10 +12,12 @@ import {
   installSkill,
   listTargetProfiles,
   loadConfig,
+  mapSkill,
   readRegistry,
   rollbackLastInstall,
   runDoctor,
   uninstallSkill,
+  unmapSkill,
   validateSkill,
 } from '@skillgov/core';
 import type { SkillsRegistry } from '@skillgov/core';
@@ -32,13 +35,18 @@ Commands:
   compat <skill> --target <t>   Check compatibility for a target agent
   task repair <skill>           Generate a repair task for a fixable skill
   task overlay <skill> --target <t>  Generate a target overlay task
-  install <skill> --target <t>  Install a skill to a target agent
-  uninstall <skill> --target <t> Uninstall a skill from a target agent
+  map <skill> --target <t>      Map a skill to a target agent
+  unmap <skill> --target <t>    Unmap a skill from a target agent
+  adopt <skill> --target <t>    Adopt an existing agent skill into managed
   status                        Show current project status
   doctor                        Run diagnostics on the project
   rollback --target <target>    Roll back the last install for a target
 
-Target agents: claude, codex
+Legacy commands (prefer map/unmap/adopt):
+  install <skill> --target <t>  Install a skill to a target agent
+  uninstall <skill> --target <t> Uninstall a skill from a target agent
+
+Target agents: configured via skillgov.config.json
 `;
 
 export function main(args: string[]): void {
@@ -270,7 +278,76 @@ export function main(args: string[]): void {
     return;
   }
 
+  if (command === 'map') {
+    const skillName = args[1];
+    const targetIndex = args.indexOf('--target');
+    const targetName =
+      targetIndex !== -1 && args[targetIndex + 1] ? args[targetIndex + 1] : undefined;
+    if (!skillName || !targetName) {
+      console.log('Usage: skillgov map <skill> --target <target>');
+      process.exitCode = 1;
+      return;
+    }
+    const config = loadConfig();
+    const targetProfiles = listTargetProfiles(config.targets);
+    const result = mapSkill(skillName, targetName, {
+      projectRoot: config.projectRoot,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+      targetProfiles,
+      backupsRoot: `${config.projectRoot}/backups`,
+    });
+    console.log(result.message);
+    if (result.status === 'not-found' || result.status === 'blocked') process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'unmap') {
+    const skillName = args[1];
+    const targetIndex = args.indexOf('--target');
+    const targetName =
+      targetIndex !== -1 && args[targetIndex + 1] ? args[targetIndex + 1] : undefined;
+    if (!skillName || !targetName) {
+      console.log('Usage: skillgov unmap <skill> --target <target>');
+      process.exitCode = 1;
+      return;
+    }
+    const config = loadConfig();
+    const targetProfiles = listTargetProfiles(config.targets);
+    const result = unmapSkill(skillName, targetName, {
+      projectRoot: config.projectRoot,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+      targetProfiles,
+    });
+    console.log(result.message);
+    if (result.status === 'not-found' || result.status === 'refused') process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'adopt') {
+    const skillName = args[1];
+    const targetIndex = args.indexOf('--target');
+    const targetName =
+      targetIndex !== -1 && args[targetIndex + 1] ? args[targetIndex + 1] : undefined;
+    if (!skillName || !targetName) {
+      console.log('Usage: skillgov adopt <skill> --target <target>');
+      process.exitCode = 1;
+      return;
+    }
+    const config = loadConfig();
+    const targetProfiles = listTargetProfiles(config.targets);
+    const result = adoptSkill(skillName, targetName, {
+      projectRoot: config.projectRoot,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+      targetProfiles,
+      backupsRoot: `${config.projectRoot}/backups`,
+    });
+    console.log(result.message);
+    if (result.status === 'not-found' || result.status === 'blocked') process.exitCode = 1;
+    return;
+  }
+
   if (command === 'install') {
+    console.log('Warning: "install" is legacy. Use "map" instead.');
     const skillName = args[1];
     const targetIndex = args.indexOf('--target');
     const targetName =
@@ -294,6 +371,7 @@ export function main(args: string[]): void {
   }
 
   if (command === 'uninstall') {
+    console.log('Warning: "uninstall" is legacy. Use "unmap" instead.');
     const skillName = args[1];
     const targetIndex = args.indexOf('--target');
     const targetName =

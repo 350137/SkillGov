@@ -1,7 +1,8 @@
 // Skill import flow — copies external skill into incoming, validates, and promotes passing skills into the skills directory with registry updates.
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
-import { basename, dirname, resolve } from 'node:path';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { basename, resolve } from 'node:path';
 import { hashDirectory } from './hash.js';
+import { copyDir } from './mapping.js';
 import { type SkillsRegistry, readRegistry, writeRegistry } from './registry.js';
 import { validateSkill } from './validator.js';
 
@@ -17,21 +18,6 @@ export interface ImportResult {
   skillName: string;
   issues: string[];
   origin?: string;
-}
-
-function copyDir(src: string, dest: string): void {
-  mkdirSync(dest, { recursive: true });
-  const entries = readdirSync(src);
-  for (const entry of entries) {
-    const srcPath = resolve(src, entry);
-    const destPath = resolve(dest, entry);
-    const stat = statSync(srcPath);
-    if (stat.isDirectory()) {
-      copyDir(srcPath, destPath);
-    } else {
-      copyFileSync(srcPath, destPath);
-    }
-  }
 }
 
 export function importSkill(sourcePath: string, options: ImportOptions): ImportResult {

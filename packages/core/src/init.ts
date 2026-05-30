@@ -35,11 +35,6 @@ export function initProject(root: string, options?: InitOptions): void {
     'utf-8',
   );
   writeFileSync(
-    join(root, 'registry/compatibility.json'),
-    JSON.stringify({ entries: [] }, null, 2),
-    'utf-8',
-  );
-  writeFileSync(
     join(root, 'registry/installs.json'),
     JSON.stringify({ installs: {} }, null, 2),
     'utf-8',

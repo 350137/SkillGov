@@ -8,8 +8,6 @@ export { readRegistry, writeRegistry, addSkillEntry, RegistryCorruptedError } fr
 export type {
   SkillEntry,
   SkillsRegistry,
-  CompatibilityEntry,
-  CompatibilityRegistry,
   InstallRecord,
   InstallsRegistry,
   SkillMapping,

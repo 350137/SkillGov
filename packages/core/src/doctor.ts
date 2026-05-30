@@ -1,8 +1,8 @@
 // Project diagnostics — checks project structure, registry integrity, link validity, and reports issues for repair.
 import { existsSync, readlinkSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { readSkillMappings } from './mapping.js';
 import { RegistryCorruptedError, readRegistry } from './registry.js';
-import type { InstallsRegistry } from './registry.js';
 
 export interface DoctorIssue {
   severity: 'error' | 'warning' | 'info';
@@ -31,7 +31,7 @@ export function runDoctor(projectRoot: string): DoctorReport {
   }
 
   // 2. Check registry files
-  const regFiles = ['skills.json', 'installs.json'];
+  const regFiles = ['skills.json', 'mappings.json'];
   for (const file of regFiles) {
     const regPath = resolve(projectRoot, 'registry', file);
     if (!existsSync(regPath)) {
@@ -41,7 +41,6 @@ export function runDoctor(projectRoot: string): DoctorReport {
         category: 'registry',
       });
     } else {
-      // Check if the file is valid JSON
       try {
         readRegistry(regPath, null);
       } catch (err) {
@@ -56,42 +55,51 @@ export function runDoctor(projectRoot: string): DoctorReport {
     }
   }
 
-  // 3. Check install links (skip if installs.json is corrupted — already reported above)
-  const installsPath = resolve(projectRoot, 'registry', 'installs.json');
-  let installsReg: InstallsRegistry;
-  try {
-    installsReg = readRegistry<InstallsRegistry>(installsPath, { installs: {} });
-  } catch {
-    // Corrupted installs.json already reported in step 2
-    return {
-      issues,
-      healthy: false,
-    };
+  // 3. Check for legacy installs.json and suggest migration
+  const legacyInstallsPath = resolve(projectRoot, 'registry', 'installs.json');
+  if (existsSync(legacyInstallsPath)) {
+    issues.push({
+      severity: 'info',
+      message:
+        'Legacy "installs.json" found. Mapping state is now stored in "mappings.json". The legacy file will be migrated automatically on first access.',
+      category: 'registry',
+    });
   }
-  for (const [key, record] of Object.entries(installsReg.installs)) {
-    if (!existsSync(record.linkPath)) {
-      issues.push({
-        severity: 'warning',
-        message: `Stale install link for "${key}": target path "${record.linkPath}" does not exist.`,
-        category: 'link',
-      });
-    } else {
-      // Check if it's actually a link (junction/symlink) by trying readlink
-      try {
-        const stat = statSync(record.linkPath);
-        if (stat.isDirectory()) {
-          try {
-            readlinkSync(record.linkPath);
-          } catch {
-            // Not a symlink — likely a copy or regular directory, this is OK for copy mode
-          }
-        }
-      } catch {
+
+  // 4. Check mapping links
+  const mappingsPath = resolve(projectRoot, 'registry', 'mappings.json');
+  let mappings: ReturnType<typeof readSkillMappings>;
+  try {
+    mappings = readSkillMappings(mappingsPath);
+  } catch {
+    return { issues, healthy: false };
+  }
+  for (const [skillName, mapping] of Object.entries(mappings.mappings)) {
+    for (const [target, link] of Object.entries(mapping.links)) {
+      if (!link) continue;
+      if (!existsSync(link.path)) {
         issues.push({
-          severity: 'error',
-          message: `Cannot stat install path "${record.linkPath}" for "${key}".`,
+          severity: 'warning',
+          message: `Stale mapping link for "${skillName}" on "${target}": path "${link.path}" does not exist.`,
           category: 'link',
         });
+      } else {
+        try {
+          const stat = statSync(link.path);
+          if (stat.isDirectory()) {
+            try {
+              readlinkSync(link.path);
+            } catch {
+              // Not a symlink — likely a copy or regular directory, OK for copy mode
+            }
+          }
+        } catch {
+          issues.push({
+            severity: 'error',
+            message: `Cannot stat mapping path "${link.path}" for "${skillName}" on "${target}".`,
+            category: 'link',
+          });
+        }
       }
     }
   }

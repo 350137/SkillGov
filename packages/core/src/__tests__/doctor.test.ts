@@ -1,4 +1,4 @@
-// Tests for project diagnostics — checks structure, registry integrity, and install links.
+// Tests for project diagnostics — checks structure, registry integrity, and mapping links.
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -22,6 +22,7 @@ function createMinimalProject(): void {
   for (const d of dirs) {
     mkdirSync(join(tmpDir, d), { recursive: true });
   }
+  writeFileSync(join(tmpDir, 'registry', 'mappings.json'), '{"mappings":{}}', 'utf-8');
 }
 
 describe('runDoctor', () => {
@@ -32,7 +33,6 @@ describe('runDoctor', () => {
   });
 
   it('warns about missing directories', () => {
-    // Only create some dirs
     mkdirSync(join(tmpDir, 'skills'), { recursive: true });
     const report = runDoctor(tmpDir);
     expect(report.healthy).toBe(false);
@@ -43,31 +43,41 @@ describe('runDoctor', () => {
 
   it('reports info about missing registry files', () => {
     createMinimalProject();
+    // Remove mappings.json to trigger missing file info
+    rmSync(join(tmpDir, 'registry', 'mappings.json'));
     const report = runDoctor(tmpDir);
-    const missingRegFiles = report.issues.filter((i) => i.category === 'registry');
+    const missingRegFiles = report.issues.filter(
+      (i) => i.category === 'registry' && i.message.includes('not found'),
+    );
     expect(missingRegFiles.length).toBeGreaterThan(0);
   });
 
-  it('reports stale install links', () => {
+  it('reports stale mapping links', () => {
     createMinimalProject();
-    // Create installs.json with a stale link
     writeFileSync(
-      join(tmpDir, 'registry', 'installs.json'),
+      join(tmpDir, 'registry', 'mappings.json'),
       JSON.stringify({
-        installs: {
-          'stale-skill@claude': {
+        mappings: {
+          'stale-skill': {
             skillName: 'stale-skill',
-            target: 'claude',
-            installedAt: new Date().toISOString(),
-            type: 'standard',
-            linkPath: join(tmpDir, 'nonexistent-link'),
+            canonicalPath: join(tmpDir, 'skills', 'stale-skill'),
+            links: {
+              claude: {
+                path: join(tmpDir, 'nonexistent-link'),
+                mode: 'junction',
+                status: 'linked',
+                type: 'standard',
+                updatedAt: new Date().toISOString(),
+              },
+            },
+            updatedAt: new Date().toISOString(),
           },
         },
       }),
       'utf-8',
     );
     const report = runDoctor(tmpDir);
-    expect(report.issues.some((i) => i.message.includes('stale'))).toBe(true);
+    expect(report.issues.some((i) => i.message.includes('Stale mapping'))).toBe(true);
   });
 
   it('reports corrupted registry files as errors', () => {
@@ -82,9 +92,24 @@ describe('runDoctor', () => {
     expect(corruptionIssue?.severity).toBe('error');
   });
 
-  it('does not throw when installs.json is corrupted', () => {
+  it('reports legacy installs.json as info when present', () => {
     createMinimalProject();
-    writeFileSync(join(tmpDir, 'registry', 'installs.json'), '{broken!!!', 'utf-8');
+    writeFileSync(
+      join(tmpDir, 'registry', 'installs.json'),
+      '{"installs":{}}',
+      'utf-8',
+    );
+    const report = runDoctor(tmpDir);
+    const legacyIssue = report.issues.find(
+      (i) => i.category === 'registry' && i.message.includes('installs.json'),
+    );
+    expect(legacyIssue).toBeDefined();
+    expect(legacyIssue?.severity).toBe('info');
+  });
+
+  it('does not throw when mappings.json is corrupted', () => {
+    createMinimalProject();
+    writeFileSync(join(tmpDir, 'registry', 'mappings.json'), '{broken!!!', 'utf-8');
     const report = runDoctor(tmpDir);
     expect(report.healthy).toBe(false);
     const corruptionIssue = report.issues.find(

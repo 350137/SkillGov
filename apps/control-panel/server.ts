@@ -237,7 +237,15 @@ const apiRoutes: Record<string, ApiHandler> = {
         results.push({ name, status: 'error', error: (err as Error).message });
       }
     }
-    return { total: results.length, results } as unknown as Record<string, unknown>;
+    const summary = {
+      total: results.length,
+      compatible: results.filter((r) => r.status === 'compatible').length,
+      needsOverlay: results.filter((r) => r.status === 'needs-overlay').length,
+      unsupported: results.filter((r) => r.status === 'unsupported').length,
+      unknown: results.filter((r) => r.status === 'unknown').length,
+      errors: results.filter((r) => r.status === 'error').length,
+    };
+    return { summary, results } as unknown as Record<string, unknown>;
   },
 
   'install/batch': (body) => {

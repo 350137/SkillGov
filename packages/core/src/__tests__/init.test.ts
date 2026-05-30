@@ -50,8 +50,11 @@ describe('initProject', () => {
   it('creates empty registry files', () => {
     initProject(tmpDir, { dryRun: false });
     expect(existsSync(join(tmpDir, 'registry/skills.json'))).toBe(true);
+    expect(existsSync(join(tmpDir, 'registry/mappings.json'))).toBe(true);
     const skills = JSON.parse(readFileSync(join(tmpDir, 'registry/skills.json'), 'utf-8'));
     expect(skills.skills).toEqual({});
+    const mappings = JSON.parse(readFileSync(join(tmpDir, 'registry/mappings.json'), 'utf-8'));
+    expect(mappings.mappings).toEqual({});
   });
 
   it('does nothing when dryRun is true', () => {

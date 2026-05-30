@@ -255,13 +255,15 @@ describe('Control Panel API', () => {
     expect(data).toHaveProperty('error');
   });
 
-  it('returns batch compat results with total and results array', async () => {
+  it('returns batch compat results with summary and results array', async () => {
     const data = await fetchJson('/api/compat/batch', {
       skillNames: ['nonexistent-skill'],
       target: 'codex',
     });
-    expect(data).toHaveProperty('total');
+    expect(data).toHaveProperty('summary');
     expect(data).toHaveProperty('results');
+    const summary = data.summary as Record<string, unknown>;
+    expect(summary.total).toBe(1);
     expect(Array.isArray(data.results)).toBe(true);
     const results = data.results as Array<Record<string, unknown>>;
     expect(results.length).toBe(1);

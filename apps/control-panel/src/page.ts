@@ -114,13 +114,11 @@ ${controlPanelStyles}
       <h3 data-i18n="targetAgentHeading">Target Agent</h3>
       <select id="target-agent-select-multi" aria-label="Target Agent"></select>
 
-      <div class="action-buttons batch-actions">
+      <div class="batch-action-grid">
         <button onclick="batchCheckCompat()" data-i18n="batchCheckCompat">Batch Check</button>
         <button onclick="batchMap()" class="primary" data-i18n="batchMap">Batch Map</button>
         <button onclick="batchUnmap()" class="danger" data-i18n="batchUnmap">Batch Unmap</button>
         <button onclick="batchAdopt()" data-i18n="batchAdopt">Batch Adopt</button>
-      </div>
-      <div class="action-buttons">
         <button onclick="deselectAll()" data-i18n="deselectAll">Deselect</button>
       </div>
     </div>

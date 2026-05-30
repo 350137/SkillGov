@@ -74,6 +74,14 @@ h3 { font-size: 0.9rem; margin: 14px 0 6px; color: #555; }
   border-bottom: 1px solid #eee;
 }
 
+#skill-action-card {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 190px);
+  min-height: 520px;
+  overflow: hidden;
+}
+
 /* --- Skill Library Toolbar --- */
 .toolbar {
   display: flex;
@@ -121,6 +129,18 @@ button:disabled { opacity: 0.5; cursor: default; }
   gap: 8px;
   margin-bottom: 8px;
   flex-wrap: wrap;
+}
+
+.batch-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.batch-action-grid button {
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 /* --- Task suggestions (muted) --- */
@@ -181,7 +201,20 @@ tr:hover { background: #f8f9fa; }
 }
 
 /* --- Result Display --- */
-#result-display { margin-top: 12px; }
+#result-display {
+  margin-top: 12px;
+  flex: 1;
+  min-height: 160px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+#result-display::-webkit-scrollbar { width: 10px; }
+#result-display::-webkit-scrollbar-track { background: #f2f2f2; }
+#result-display::-webkit-scrollbar-thumb {
+  background: #8a8a8a;
+  border-radius: 8px;
+}
+#result-display::-webkit-scrollbar-thumb:hover { background: #707070; }
 .result-card {
   background: #fafafa;
   border: 1px solid #eee;
@@ -334,5 +367,17 @@ td.cb-col input[type="checkbox"], th.cb-col input[type="checkbox"] { cursor: poi
   .toolbar { flex-direction: column; }
   .toolbar input[type="text"],
   .toolbar select { width: 100%; }
+  #skill-action-card {
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+  }
+  #result-display {
+    flex: none;
+    max-height: 60vh;
+  }
+  .batch-action-grid {
+    grid-template-columns: 1fr;
+  }
 }
 `;

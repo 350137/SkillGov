@@ -67,6 +67,11 @@ describe('console layout structure', () => {
     expect(bodyHtml).toMatch(/<select[^>]*id="target-agent-select"[^>]*>\s*<\/select>/);
   });
 
+  it('lays out multi-select batch actions in a single action grid', () => {
+    expect(bodyHtml).toContain('class="batch-action-grid"');
+    expect(bodyHtml).toMatch(/batchAdopt\(\)[\s\S]*deselectAll\(\)/);
+  });
+
   it('system-diagnostics-drawer is a collapsed details element', () => {
     expect(bodyHtml).toMatch(/<details[^>]*id="system-diagnostics-drawer"[\s\S]*?<\/details>/);
     expect(bodyHtml).toContain('<summary');
@@ -76,5 +81,21 @@ describe('console layout structure', () => {
     expect(bodyHtml).not.toContain('class="two-pane"');
     expect(bodyHtml).not.toContain('class="pane-left"');
     expect(bodyHtml).not.toContain('class="pane-right"');
+  });
+});
+
+describe('console layout styles', () => {
+  it('keeps the operation panel fixed while only result-display scrolls', () => {
+    expect(controlPanelStyles).toContain('#skill-action-card');
+    expect(controlPanelStyles).toContain('max-height: calc(100vh - 190px)');
+    expect(controlPanelStyles).toContain('#result-display');
+    expect(controlPanelStyles).toContain('flex: 1');
+    expect(controlPanelStyles).toContain('overflow-y: auto');
+    expect(controlPanelStyles).toContain('#result-display::-webkit-scrollbar');
+  });
+
+  it('defines the requested batch action grid layout', () => {
+    expect(controlPanelStyles).toContain('.batch-action-grid');
+    expect(controlPanelStyles).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))');
   });
 });

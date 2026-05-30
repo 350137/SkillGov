@@ -490,7 +490,7 @@ export function unmapSkill(
       skillName,
       targetName,
       linkPath,
-      message: `Target is a plain directory, not a link. Use adoptSkill to convert it.`,
+      message: 'Target is a plain directory, not a link. Use adoptSkill to convert it.',
     };
   }
 
@@ -502,7 +502,7 @@ export function unmapSkill(
       skillName,
       targetName,
       linkPath,
-      message: `Link does not point to the canonical skill path. Manual cleanup needed.`,
+      message: 'Link does not point to the canonical skill path. Manual cleanup needed.',
     };
   }
 
@@ -603,7 +603,7 @@ export function adoptSkill(
       canonicalPath,
       linkPath,
       backupPath: '',
-      message: `Target is already a link (not a plain directory). Use mapSkill instead.`,
+      message: 'Target is already a link (not a plain directory). Use mapSkill instead.',
     };
   }
 

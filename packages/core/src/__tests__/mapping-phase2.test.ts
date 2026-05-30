@@ -134,9 +134,11 @@ describe('mapSkill', () => {
     });
 
     expect(result.status).toBe('mapped');
-    expect(result.backupPath).toBeDefined();
-    expect(existsSync(join(result.backupPath!, 'old.txt'))).toBe(true);
-    expect(readFileSync(join(result.backupPath!, 'old.txt'), 'utf-8')).toBe('old content');
+    const backupPath = result.backupPath;
+    expect(backupPath).toBeDefined();
+    if (!backupPath) throw new Error('Expected backupPath');
+    expect(existsSync(join(backupPath, 'old.txt'))).toBe(true);
+    expect(readFileSync(join(backupPath, 'old.txt'), 'utf-8')).toBe('old content');
     expect(existsSync(join(targetRoot(), 'alpha', 'SKILL.md'))).toBe(true);
   });
 
@@ -156,8 +158,10 @@ describe('mapSkill', () => {
     });
 
     expect(result.status).toBe('mapped');
-    expect(result.backupPath).toBeDefined();
-    expect(existsSync(join(result.backupPath!, 'SKILL.md'))).toBe(true);
+    const backupPath2 = result.backupPath;
+    expect(backupPath2).toBeDefined();
+    if (!backupPath2) throw new Error('Expected backupPath');
+    expect(existsSync(join(backupPath2, 'SKILL.md'))).toBe(true);
   });
 
   it('resolves target from targetProfile when targetSkillRoot is not provided', () => {

@@ -95,7 +95,8 @@ export function main(args: string[]): void {
     const discovered = discoverSkills({
       projectRoot: config.projectRoot,
       registryPath,
-      installsPath: `${config.projectRoot}/registry/installs.json`,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+      targets: config.targets,
     });
 
     if (discovered.length === 0) {

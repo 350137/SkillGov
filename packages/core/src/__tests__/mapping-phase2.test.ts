@@ -120,7 +120,7 @@ describe('mapSkill', () => {
     expect(result.status).toBe('already-mapped');
   });
 
-  it('backs up existing plain directory at target before linking', () => {
+  it('refuses to map when target is a plain directory (must adopt first)', () => {
     createSkill('alpha');
     const existing = join(targetRoot(), 'alpha');
     mkdirSync(existing, { recursive: true });
@@ -133,13 +133,11 @@ describe('mapSkill', () => {
       backupsRoot: join(tmpDir, 'backups'),
     });
 
-    expect(result.status).toBe('mapped');
-    const backupPath = result.backupPath;
-    expect(backupPath).toBeDefined();
-    if (!backupPath) throw new Error('Expected backupPath');
-    expect(existsSync(join(backupPath, 'old.txt'))).toBe(true);
-    expect(readFileSync(join(backupPath, 'old.txt'), 'utf-8')).toBe('old content');
-    expect(existsSync(join(targetRoot(), 'alpha', 'SKILL.md'))).toBe(true);
+    expect(result.status).toBe('blocked');
+    expect(result.message).toContain('plain directory');
+    expect(result.message).toContain('adoptSkill');
+    // Original directory is untouched
+    expect(existsSync(join(existing, 'old.txt'))).toBe(true);
   });
 
   it('backs up existing conflicting link before re-linking', () => {

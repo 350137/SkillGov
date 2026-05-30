@@ -412,6 +412,17 @@ export function mapSkill(
     };
   }
 
+  if (detection.type === 'directory') {
+    return {
+      status: 'blocked',
+      skillName,
+      targetName,
+      canonicalPath,
+      linkPath,
+      message: 'Target is a plain directory, not a link. Use adoptSkill to convert it first.',
+    };
+  }
+
   let linkMode: 'junction' | 'symlink' = options.linkMode || 'junction';
   if (!options.linkMode && profile?.linkMode && profile.linkMode !== 'copy') {
     linkMode = profile.linkMode;

@@ -3,8 +3,9 @@ import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { discoverSkillInventory } from './discovery.js';
 import type { NonSkillDirectory } from './discovery.js';
+import { readSkillMappings } from './mapping.js';
 import { readRegistry } from './registry.js';
-import type { InstallsRegistry, SkillsRegistry } from './registry.js';
+import type { SkillsRegistry } from './registry.js';
 
 export interface SkillStatus {
   name: string;
@@ -31,24 +32,38 @@ export function getProjectStatus(
 ): ProjectStatus {
   const overlaysDir = resolve(projectRoot, 'overlays');
   const registryPath = resolve(projectRoot, 'registry', 'skills.json');
-  const installsPath = resolve(projectRoot, 'registry', 'installs.json');
+  const mappingsPath = resolve(projectRoot, 'registry', 'mappings.json');
   const inventory = discoverSkillInventory({
     home: options.home,
     projectRoot,
     registryPath,
-    installsPath,
   });
   const discovered = inventory.skills;
   const visibleSkillNames = new Set(discovered.map((skill) => skill.name));
 
-  // Read installs registry once for target aggregation
-  const installsReg = readRegistry<InstallsRegistry>(installsPath, { installs: {} });
+  // Read mappings registry for target aggregation
+  const mappingsReg = readSkillMappings(mappingsPath);
   const installedBySkill = new Map<string, string[]>();
-  for (const record of Object.values(installsReg.installs)) {
-    if (!visibleSkillNames.has(record.skillName)) continue;
-    const targets = installedBySkill.get(record.skillName) || [];
-    targets.push(record.target);
-    installedBySkill.set(record.skillName, targets);
+  const installsList: Array<{
+    skillName: string;
+    target: string;
+    installedAt: string;
+    type: string;
+  }> = [];
+  for (const [skillName, mapping] of Object.entries(mappingsReg.mappings)) {
+    if (!visibleSkillNames.has(skillName)) continue;
+    for (const [target, link] of Object.entries(mapping.links)) {
+      if (!link) continue;
+      const targets = installedBySkill.get(skillName) || [];
+      targets.push(target);
+      installedBySkill.set(skillName, targets);
+      installsList.push({
+        skillName,
+        target,
+        installedAt: link.linkedAt || link.updatedAt,
+        type: link.type || 'standard',
+      });
+    }
   }
 
   // Discover overlay targets
@@ -75,16 +90,6 @@ export function getProjectStatus(
     };
   });
 
-  // Collect installs list
-  const installs = Object.values(installsReg.installs)
-    .filter((r) => visibleSkillNames.has(r.skillName))
-    .map((r) => ({
-      skillName: r.skillName,
-      target: r.target,
-      installedAt: r.installedAt,
-      type: r.type,
-    }));
-
   // Count registry entries
   const skillsReg = readRegistry<SkillsRegistry>(registryPath, { skills: {} });
   const registryEntries = Object.keys(skillsReg.skills).length;
@@ -93,7 +98,7 @@ export function getProjectStatus(
     projectRoot,
     skills,
     nonSkillDirectories: inventory.nonSkillDirectories,
-    installs,
+    installs: installsList,
     registryEntries,
   };
 }

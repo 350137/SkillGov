@@ -284,7 +284,6 @@ export function main(args: string[]): void {
     const config = loadConfig();
     const result = installSkill(skillName, targetName, config.defaultLinkMode, {
       projectRoot: config.projectRoot,
-      registryPath: `${config.projectRoot}/registry/installs.json`,
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
       mappingsPath: `${config.projectRoot}/registry/mappings.json`,
       targetProfiles: listTargetProfiles(config.targets),
@@ -308,8 +307,8 @@ export function main(args: string[]): void {
     const config = loadConfig();
     const result = uninstallSkill(skillName, targetName, {
       projectRoot: config.projectRoot,
-      registryPath: `${config.projectRoot}/registry/installs.json`,
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
       targetProfiles: listTargetProfiles(config.targets),
     });
     console.log(result.message);
@@ -363,8 +362,8 @@ export function main(args: string[]): void {
     const config = loadConfig();
     const result = rollbackLastInstall(targetName, {
       projectRoot: config.projectRoot,
-      registryPath: `${config.projectRoot}/registry/installs.json`,
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
     });
     if (result && result.status === 'not-found') {
       console.log(result.message);

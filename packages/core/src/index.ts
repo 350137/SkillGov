@@ -34,8 +34,19 @@ export { generateRepairTask, generateOverlayTask } from './tasks.js';
 export type { RepairTaskOptions, OverlayTaskOptions, TaskResult } from './tasks.js';
 export { installSkill, uninstallSkill, rollbackLastInstall } from './installer.js';
 export type { LinkMode, InstallOptions, InstallResult } from './installer.js';
-export { getMappingTargets, linkManagedSkillToAgent, readSkillMappings } from './mapping.js';
-export type { LinkManagedSkillOptions, LinkManagedSkillResult } from './mapping.js';
+export {
+  getMappingTargets,
+  linkManagedSkillToAgent,
+  migrateInstallsToMappings,
+  readSkillMappings,
+  removeMappingLink,
+  upsertMapping,
+} from './mapping.js';
+export type {
+  LinkManagedSkillOptions,
+  LinkManagedSkillResult,
+  MigrationResult,
+} from './mapping.js';
 export { getProjectStatus } from './status.js';
 export type { ProjectStatus, SkillStatus } from './status.js';
 export { runDoctor } from './doctor.js';

@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { getMappingTargets } from './mapping.js';
 import { readRegistry } from './registry.js';
-import type { InstallsRegistry, SkillsRegistry } from './registry.js';
+import type { SkillsRegistry } from './registry.js';
 import { validateSkill } from './validator.js';
 
 type SkillSource = 'skillgov-project' | 'codex-user' | 'claude-user';
@@ -13,7 +13,7 @@ type AgentTarget = string;
 export interface AppliedAgent {
   id: string;
   label: string;
-  source: 'local' | 'install' | 'mapping';
+  source: 'local' | 'mapping';
 }
 
 export interface MappingSummary {
@@ -54,7 +54,6 @@ export interface DiscoveryOptions {
   home?: string;
   projectRoot?: string;
   registryPath?: string;
-  installsPath?: string;
   mappingsPath?: string;
 }
 
@@ -180,10 +179,6 @@ function scanInventoryRoots(
   return { candidates, nonSkillDirectories };
 }
 
-function isAgentTarget(target: string): target is AgentTarget {
-  return target.trim().length > 0;
-}
-
 function addUnique<T>(items: T[], nextItems: T[]): T[] {
   const merged = [...items];
   for (const item of nextItems) {
@@ -240,9 +235,6 @@ export function discoverSkillInventory(options: DiscoveryOptions = {}): SkillInv
   const registryPath =
     options.registryPath ||
     (options.projectRoot ? join(options.projectRoot, 'registry', 'skills.json') : undefined);
-  const installsPath =
-    options.installsPath ||
-    (options.projectRoot ? join(options.projectRoot, 'registry', 'installs.json') : undefined);
   const mappingsPath =
     options.mappingsPath ||
     (options.projectRoot ? join(options.projectRoot, 'registry', 'mappings.json') : undefined);
@@ -254,16 +246,6 @@ export function discoverSkillInventory(options: DiscoveryOptions = {}): SkillInv
     for (const [name, entry] of Object.entries(registry.skills)) {
       importedNames.add(name);
       importedOrigins.set(name, entry.origin);
-    }
-  }
-
-  const installedBySkill = new Map<string, AgentTarget[]>();
-  if (installsPath) {
-    const registry = readRegistry<InstallsRegistry>(installsPath, { installs: {} });
-    for (const record of Object.values(registry.installs)) {
-      if (!isAgentTarget(record.target)) continue;
-      const targets = installedBySkill.get(record.skillName) || [];
-      installedBySkill.set(record.skillName, addUnique(targets, [record.target]));
     }
   }
 
@@ -287,19 +269,10 @@ export function discoverSkillInventory(options: DiscoveryOptions = {}): SkillInv
     const linkedMappingTargets = mappingTargets
       .filter((mapping) => mapping.status === 'linked')
       .map((mapping) => mapping.target);
-    const agentTargets = addUnique(
-      addUnique(candidate.agentTargets, installedBySkill.get(candidate.name) || []),
-      linkedMappingTargets,
-    );
+    const agentTargets = addUnique(candidate.agentTargets, linkedMappingTargets);
 
-    // Build appliedAgents from candidate's local scan, installs, and mappings
+    // Build appliedAgents from candidate's local scan and mappings
     const appliedAgents = [...candidate.appliedAgents];
-    const installTargets = installedBySkill.get(candidate.name) || [];
-    for (const target of installTargets) {
-      if (!appliedAgents.some((a) => a.id === target)) {
-        appliedAgents.push({ id: target, label: target, source: 'install' });
-      }
-    }
     for (const mapping of mappingTargets) {
       if (mapping.status === 'linked' && !appliedAgents.some((a) => a.id === mapping.target)) {
         appliedAgents.push({ id: mapping.target, label: mapping.target, source: 'mapping' });

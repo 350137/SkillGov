@@ -4,7 +4,13 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { linkManagedSkillToAgent, readSkillMappings } from '../mapping.js';
+import {
+  linkManagedSkillToAgent,
+  readSkillMappings,
+  removeMappingLink,
+  upsertMapping,
+} from '../mapping.js';
+import type { SkillMappingLink } from '../registry.js';
 import type { TargetProfile } from '../targets.js';
 
 let tmpDir: string;
@@ -130,5 +136,91 @@ describe('linkManagedSkillToAgent', () => {
     expect(result.status).toBe('linked');
     expect(result.linkPath).toBe(join(targetSkillRoot, 'configured-skill'));
     expect(existsSync(join(targetSkillRoot, 'configured-skill', 'SKILL.md'))).toBe(true);
+  });
+});
+
+describe('upsertMapping', () => {
+  it('creates a new mapping entry when none exists', () => {
+    const mappingsPath = join(tmpDir, 'registry', 'mappings.json');
+    const link: SkillMappingLink = {
+      path: join(tmpDir, 'codex-skills', 'my-skill'),
+      mode: 'junction',
+      status: 'linked',
+      type: 'standard',
+      linkedAt: '2025-01-01T00:00:00Z',
+      updatedAt: '2025-01-01T00:00:00Z',
+    };
+    upsertMapping(mappingsPath, 'my-skill', join(tmpDir, 'skills', 'my-skill'), 'codex', link);
+
+    const mappings = readSkillMappings(mappingsPath);
+    expect(mappings.mappings['my-skill']).toBeDefined();
+    expect(mappings.mappings['my-skill'].canonicalPath).toBe(join(tmpDir, 'skills', 'my-skill'));
+    expect(mappings.mappings['my-skill'].links.codex?.path).toBe(link.path);
+    expect(mappings.mappings['my-skill'].links.codex?.type).toBe('standard');
+  });
+
+  it('adds a new target link to an existing mapping', () => {
+    const mappingsPath = join(tmpDir, 'registry', 'mappings.json');
+    const link1: SkillMappingLink = {
+      path: join(tmpDir, 'codex-skills', 'my-skill'),
+      mode: 'junction',
+      status: 'linked',
+      updatedAt: '2025-01-01T00:00:00Z',
+    };
+    const link2: SkillMappingLink = {
+      path: join(tmpDir, 'claude-skills', 'my-skill'),
+      mode: 'copy',
+      status: 'linked',
+      updatedAt: '2025-01-02T00:00:00Z',
+    };
+    upsertMapping(mappingsPath, 'my-skill', join(tmpDir, 'skills', 'my-skill'), 'codex', link1);
+    upsertMapping(mappingsPath, 'my-skill', join(tmpDir, 'skills', 'my-skill'), 'claude', link2);
+
+    const mappings = readSkillMappings(mappingsPath);
+    expect(Object.keys(mappings.mappings['my-skill'].links)).toEqual(['codex', 'claude']);
+    expect(mappings.mappings['my-skill'].links.claude?.mode).toBe('copy');
+  });
+});
+
+describe('removeMappingLink', () => {
+  it('removes a specific target link from a mapping', () => {
+    const mappingsPath = join(tmpDir, 'registry', 'mappings.json');
+    const link: SkillMappingLink = {
+      path: join(tmpDir, 'codex-skills', 'my-skill'),
+      mode: 'junction',
+      status: 'linked',
+      updatedAt: '2025-01-01T00:00:00Z',
+    };
+    upsertMapping(mappingsPath, 'my-skill', join(tmpDir, 'skills', 'my-skill'), 'codex', link);
+    upsertMapping(mappingsPath, 'my-skill', join(tmpDir, 'skills', 'my-skill'), 'claude', link);
+
+    const removed = removeMappingLink(mappingsPath, 'my-skill', 'codex');
+    expect(removed).toBe(true);
+
+    const mappings = readSkillMappings(mappingsPath);
+    expect(mappings.mappings['my-skill'].links.codex).toBeUndefined();
+    expect(mappings.mappings['my-skill'].links.claude).toBeDefined();
+  });
+
+  it('removes the entire mapping when the last link is deleted', () => {
+    const mappingsPath = join(tmpDir, 'registry', 'mappings.json');
+    const link: SkillMappingLink = {
+      path: join(tmpDir, 'codex-skills', 'my-skill'),
+      mode: 'junction',
+      status: 'linked',
+      updatedAt: '2025-01-01T00:00:00Z',
+    };
+    upsertMapping(mappingsPath, 'my-skill', join(tmpDir, 'skills', 'my-skill'), 'codex', link);
+
+    const removed = removeMappingLink(mappingsPath, 'my-skill', 'codex');
+    expect(removed).toBe(true);
+
+    const mappings = readSkillMappings(mappingsPath);
+    expect(mappings.mappings['my-skill']).toBeUndefined();
+  });
+
+  it('returns false when the skill or target does not exist', () => {
+    const mappingsPath = join(tmpDir, 'registry', 'mappings.json');
+    expect(removeMappingLink(mappingsPath, 'nonexistent', 'codex')).toBe(false);
   });
 });

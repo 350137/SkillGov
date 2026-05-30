@@ -45,6 +45,8 @@ export interface SkillMappingLink {
   path: string;
   mode: 'junction' | 'symlink' | 'copy';
   status: 'linked' | 'missing' | 'conflict';
+  type?: 'standard' | 'overlay';
+  linkedAt?: string;
   backupPath?: string;
   updatedAt: string;
 }

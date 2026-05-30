@@ -85,7 +85,6 @@ const apiRoutes: Record<string, ApiHandler> = {
     const targetProfiles = listTargetProfiles(config.targets);
     return installSkill(skillName, target, config.defaultLinkMode, {
       projectRoot: config.projectRoot,
-      registryPath: `${config.projectRoot}/registry/installs.json`,
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
       mappingsPath: `${config.projectRoot}/registry/mappings.json`,
       targetProfiles,
@@ -99,8 +98,8 @@ const apiRoutes: Record<string, ApiHandler> = {
     const config = loadConfig();
     return uninstallSkill(skillName, target, {
       projectRoot: config.projectRoot,
-      registryPath: `${config.projectRoot}/registry/installs.json`,
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
     }) as unknown as Record<string, unknown>;
   },
 
@@ -144,8 +143,8 @@ const apiRoutes: Record<string, ApiHandler> = {
     const config = loadConfig();
     return rollbackLastInstall(target, {
       projectRoot: config.projectRoot,
-      registryPath: `${config.projectRoot}/registry/installs.json`,
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
     }) as unknown as Record<string, unknown>;
   },
 
@@ -155,7 +154,6 @@ const apiRoutes: Record<string, ApiHandler> = {
     const inventory = discoverSkillInventory({
       projectRoot: config.projectRoot,
       registryPath,
-      installsPath: `${config.projectRoot}/registry/installs.json`,
       mappingsPath: `${config.projectRoot}/registry/mappings.json`,
     });
     return {
@@ -171,7 +169,6 @@ const apiRoutes: Record<string, ApiHandler> = {
     const config = loadConfig();
     const inventory = discoverSkillInventory({
       projectRoot: config.projectRoot,
-      installsPath: `${config.projectRoot}/registry/installs.json`,
       mappingsPath: `${config.projectRoot}/registry/mappings.json`,
     });
     const skillMap = new Map(inventory.skills.map((s) => [s.name, s]));
@@ -206,7 +203,6 @@ const apiRoutes: Record<string, ApiHandler> = {
       try {
         const result = installSkill(name, target, config.defaultLinkMode, {
           projectRoot: config.projectRoot,
-          registryPath: `${config.projectRoot}/registry/installs.json`,
           operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
           mappingsPath: `${config.projectRoot}/registry/mappings.json`,
           targetProfiles,
@@ -229,8 +225,8 @@ const apiRoutes: Record<string, ApiHandler> = {
       try {
         const result = uninstallSkill(name, target, {
           projectRoot: config.projectRoot,
-          registryPath: `${config.projectRoot}/registry/installs.json`,
           operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
+          mappingsPath: `${config.projectRoot}/registry/mappings.json`,
         });
         results.push({ name, status: result.status as string });
       } catch (err) {
@@ -248,7 +244,6 @@ const apiRoutes: Record<string, ApiHandler> = {
     const discovered = discoverSkills({
       projectRoot: config.projectRoot,
       registryPath,
-      installsPath: `${config.projectRoot}/registry/installs.json`,
     });
     const passSkills = discovered.filter(
       (s) => s.validationStatus === 'pass' && !s.alreadyImported,

@@ -10,20 +10,23 @@ import {
 } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { checkCompatibility } from './compat.js';
-import { linkManagedSkillToAgent } from './mapping.js';
+import {
+  linkManagedSkillToAgent,
+  readSkillMappings,
+  removeMappingLink,
+  upsertMapping,
+} from './mapping.js';
 import { appendOperation, readOperations } from './operations.js';
 import type { Operation } from './operations.js';
-import { readRegistry, writeRegistry } from './registry.js';
-import type { InstallRecord, InstallsRegistry } from './registry.js';
+import type { SkillMappingLink } from './registry.js';
 import { type TargetProfile, getTargetProfile } from './targets.js';
 
 export type LinkMode = 'junction' | 'symlink' | 'copy';
 
 export interface InstallOptions {
   projectRoot: string;
-  registryPath: string;
   operationsPath: string;
-  mappingsPath?: string;
+  mappingsPath: string;
   targetSkillRoot?: string;
   targetProfiles?: TargetProfile[];
 }
@@ -104,7 +107,7 @@ export function installSkill(
   linkMode: LinkMode,
   options: InstallOptions,
 ): InstallResult {
-  const { projectRoot, registryPath, operationsPath } = options;
+  const { projectRoot, operationsPath, mappingsPath } = options;
 
   // 1. Find skill source
   const skillSource = resolveSkillSource(projectRoot, skillName, targetName);
@@ -154,12 +157,26 @@ export function installSkill(
   }
 
   const isOverlay = skillSource.includes('overlays');
+  const type: 'standard' | 'overlay' = isOverlay ? 'overlay' : 'standard';
+
   if (isOverlay) {
+    // Overlays: create link directly, then record in mappings
     createLink(skillSource, targetSkillDir, linkMode);
+    const now = new Date().toISOString();
+    const link: SkillMappingLink = {
+      path: targetSkillDir,
+      mode: linkMode,
+      status: 'linked',
+      type: 'overlay',
+      linkedAt: now,
+      updatedAt: now,
+    };
+    upsertMapping(mappingsPath, skillName, skillSource, targetName, link);
   } else {
+    // Standard: use mapping link manager (writes to mappings.json internally)
     const mapping = linkManagedSkillToAgent(skillName, targetName, {
       projectRoot,
-      mappingsPath: options.mappingsPath || resolve(projectRoot, 'registry', 'mappings.json'),
+      mappingsPath,
       targetSkillRoot: options.targetSkillRoot,
       targetProfiles: options.targetProfiles,
       linkMode,
@@ -175,26 +192,13 @@ export function installSkill(
     }
   }
 
-  // 5. Record install in registry
-  const installKey = `${skillName}@${targetName}`;
-  const installs = readRegistry<InstallsRegistry>(registryPath, { installs: {} });
-  const record: InstallRecord = {
-    skillName,
-    target: targetName,
-    installedAt: new Date().toISOString(),
-    type: isOverlay ? 'overlay' : 'standard',
-    linkPath: targetSkillDir,
-  };
-  installs.installs[installKey] = record;
-  writeRegistry(registryPath, installs);
-
-  // 6. Log operation
+  // 5. Log operation
   const op = appendOperation(operationsPath, {
     action: 'install',
     skill: skillName,
     target: targetName,
     status: 'completed',
-    details: { linkPath: targetSkillDir, linkMode, type: record.type },
+    details: { linkPath: targetSkillDir, linkMode, type },
   });
 
   return {
@@ -212,20 +216,20 @@ export function uninstallSkill(
   targetName: string,
   options: InstallOptions,
 ): InstallResult {
-  const { registryPath, operationsPath } = options;
-  const installKey = `${skillName}@${targetName}`;
+  const { operationsPath, mappingsPath } = options;
 
-  // 1. Read installs registry
-  const installs = readRegistry<InstallsRegistry>(registryPath, { installs: {} });
-  const record = installs.installs[installKey];
+  // 1. Read mapping to find the link for this skill+target
+  const mappings = readSkillMappings(mappingsPath);
+  const mapping = mappings.mappings[skillName];
+  const link = mapping?.links[targetName];
 
-  if (!record) {
+  if (!link) {
     return {
       status: 'not-found',
       skillName,
       targetName,
       linkPath: '',
-      message: `No install record found for "${skillName}" on "${targetName}".`,
+      message: `No mapping found for "${skillName}" on "${targetName}".`,
     };
   }
 
@@ -240,7 +244,7 @@ export function uninstallSkill(
       allowedRoots.push(resolve(dir));
     }
   }
-  const resolvedLinkPath = resolve(record.linkPath);
+  const resolvedLinkPath = resolve(link.path);
   const expectedLinkPaths = allowedRoots.map((root) => resolve(root, skillName));
   const isExpectedLinkPath = expectedLinkPaths.some(
     (expectedPath) => resolvedLinkPath === expectedPath,
@@ -250,19 +254,18 @@ export function uninstallSkill(
       status: 'not-found',
       skillName,
       targetName,
-      linkPath: record.linkPath,
-      message: `Refusing to delete "${record.linkPath}": not under a known skill directory for target "${targetName}". Manual cleanup may be needed.`,
+      linkPath: link.path,
+      message: `Refusing to delete "${link.path}": not under a known skill directory for target "${targetName}". Manual cleanup may be needed.`,
     };
   }
 
   // 3. Remove link if it exists
-  if (existsSync(record.linkPath)) {
-    rmSync(record.linkPath, { recursive: true, force: true });
+  if (existsSync(link.path)) {
+    rmSync(link.path, { recursive: true, force: true });
   }
 
-  // 4. Remove from registry
-  delete installs.installs[installKey];
-  writeRegistry(registryPath, installs);
+  // 4. Remove from mappings
+  removeMappingLink(mappingsPath, skillName, targetName);
 
   // 5. Log operation
   const op = appendOperation(operationsPath, {
@@ -270,7 +273,7 @@ export function uninstallSkill(
     skill: skillName,
     target: targetName,
     status: 'completed',
-    details: { removedLinkPath: record.linkPath },
+    details: { removedLinkPath: link.path },
   });
 
   return {
@@ -287,7 +290,7 @@ export function rollbackLastInstall(
   targetName: string,
   options: InstallOptions,
 ): InstallResult | null {
-  const { registryPath, operationsPath } = options;
+  const { operationsPath } = options;
   const ops = readOperations(operationsPath);
 
   // Find the most recent completed install operation for this target

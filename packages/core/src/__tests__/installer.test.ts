@@ -1,6 +1,6 @@
 // Tests for installer module — install, uninstall, rollback, and compatibility blocking.
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -10,8 +10,8 @@ import {
   rollbackLastInstall,
   uninstallSkill,
 } from '../installer.js';
-import { readRegistry, writeRegistry } from '../registry.js';
-import type { InstallsRegistry } from '../registry.js';
+import { readSkillMappings } from '../mapping.js';
+import { writeRegistry } from '../registry.js';
 import type { TargetProfile } from '../targets.js';
 
 let tmpDir: string;
@@ -37,7 +37,6 @@ afterEach(() => {
 function makeOptions(): InstallOptions {
   return {
     projectRoot: tmpDir,
-    registryPath: join(tmpDir, 'registry', 'installs.json'),
     operationsPath: join(tmpDir, 'registry', 'operations.jsonl'),
     mappingsPath: join(tmpDir, 'registry', 'mappings.json'),
     targetSkillRoot: join(tmpDir, 'target-skills'),
@@ -58,10 +57,11 @@ describe('installSkill', () => {
     expect(result.linkPath).toBe(join(tmpDir, 'target-skills', 'test-skill'));
     expect(existsSync(join(tmpDir, 'target-skills', 'test-skill', 'SKILL.md'))).toBe(true);
 
-    // Verify registry was updated
-    const installs = readRegistry<InstallsRegistry>(options.registryPath, { installs: {} });
-    expect(installs.installs['test-skill@claude']).toBeDefined();
-    expect(installs.installs['test-skill@claude'].type).toBe('standard');
+    // Verify mapping was updated
+    const mappings = readSkillMappings(options.mappingsPath);
+    expect(mappings.mappings['test-skill']).toBeDefined();
+    expect(mappings.mappings['test-skill'].links.claude).toBeDefined();
+    expect(mappings.mappings['test-skill'].links.claude?.type).toBe('standard');
   });
 
   it('returns not-found for missing skill', () => {
@@ -118,9 +118,9 @@ describe('installSkill', () => {
     expect(result.status).toBe('installed');
     expect(result.linkPath).toBe(join(tmpDir, 'target-skills', 'test-skill'));
     expect(existsSync(join(tmpDir, 'target-skills', 'test-skill', 'SKILL.md'))).toBe(true);
-    // Verify overlay type
-    const installs = readRegistry<InstallsRegistry>(options.registryPath, { installs: {} });
-    expect(installs.installs['test-skill@codex'].type).toBe('overlay');
+    // Verify overlay type in mappings
+    const mappings = readSkillMappings(options.mappingsPath);
+    expect(mappings.mappings['test-skill'].links.codex?.type).toBe('overlay');
   });
 
   it('installs a standard skill to a custom target via mapping logic', () => {
@@ -130,16 +130,12 @@ describe('installSkill', () => {
     expect(result.targetName).toBe('opencode');
     expect(existsSync(join(tmpDir, 'target-skills', 'test-skill', 'SKILL.md'))).toBe(true);
 
-    // Verify install record
-    const installs = readRegistry<InstallsRegistry>(options.registryPath, { installs: {} });
-    expect(installs.installs['test-skill@opencode']).toBeDefined();
-    expect(installs.installs['test-skill@opencode'].type).toBe('standard');
-
     // Verify mapping was written
-    const mappings = JSON.parse(readFileSync(join(tmpDir, 'registry', 'mappings.json'), 'utf-8'));
+    const mappings = readSkillMappings(options.mappingsPath);
     expect(mappings.mappings['test-skill']).toBeDefined();
     expect(mappings.mappings['test-skill'].links.opencode).toBeDefined();
-    expect(mappings.mappings['test-skill'].links.opencode.path).toBe(
+    expect(mappings.mappings['test-skill'].links.opencode?.type).toBe('standard');
+    expect(mappings.mappings['test-skill'].links.opencode?.path).toBe(
       join(tmpDir, 'target-skills', 'test-skill'),
     );
   });
@@ -157,7 +153,6 @@ describe('installSkill', () => {
     ];
     const options: InstallOptions = {
       projectRoot: tmpDir,
-      registryPath: join(tmpDir, 'registry', 'installs.json'),
       operationsPath: join(tmpDir, 'registry', 'operations.jsonl'),
       mappingsPath: join(tmpDir, 'registry', 'mappings.json'),
       targetProfiles,
@@ -169,8 +164,8 @@ describe('installSkill', () => {
     expect(result.linkPath).toBe(join(targetSkillRoot, 'test-skill'));
     expect(existsSync(join(targetSkillRoot, 'test-skill', 'SKILL.md'))).toBe(true);
 
-    const mappings = JSON.parse(readFileSync(join(tmpDir, 'registry', 'mappings.json'), 'utf-8'));
-    expect(mappings.mappings['test-skill'].links.opencode.path).toBe(
+    const mappings = readSkillMappings(options.mappingsPath);
+    expect(mappings.mappings['test-skill'].links.opencode?.path).toBe(
       join(targetSkillRoot, 'test-skill'),
     );
   });
@@ -199,7 +194,6 @@ describe('installSkill', () => {
     ];
     const options: InstallOptions = {
       projectRoot: tmpDir,
-      registryPath: join(tmpDir, 'registry', 'installs.json'),
       operationsPath: join(tmpDir, 'registry', 'operations.jsonl'),
       mappingsPath: join(tmpDir, 'registry', 'mappings.json'),
       targetProfiles,
@@ -218,9 +212,9 @@ describe('uninstallSkill', () => {
     installSkill('test-skill', 'claude', 'copy', options);
     const result = uninstallSkill('test-skill', 'claude', options);
     expect(result.skillName).toBe('test-skill');
-    // Verify removed from registry
-    const installs = readRegistry<InstallsRegistry>(options.registryPath, { installs: {} });
-    expect(installs.installs['test-skill@claude']).toBeUndefined();
+    // Verify removed from mappings
+    const mappings = readSkillMappings(options.mappingsPath);
+    expect(mappings.mappings['test-skill']?.links.claude).toBeUndefined();
   });
 
   it('returns not-found for non-installed skill', () => {
@@ -231,16 +225,22 @@ describe('uninstallSkill', () => {
 
   it('refuses to delete linkPath outside known target skill directories', () => {
     const options = makeOptions();
-    // Manually write a corrupted install record with an arbitrary path
-    const registryPath = options.registryPath;
-    writeRegistry(registryPath, {
-      installs: {
-        'evil-skill@claude': {
+    // Write a corrupted mapping record with an arbitrary path
+    writeRegistry(options.mappingsPath, {
+      mappings: {
+        'evil-skill': {
           skillName: 'evil-skill',
-          target: 'claude',
-          installedAt: new Date().toISOString(),
-          type: 'standard',
-          linkPath: join(tmpDir, 'important-data'),
+          canonicalPath: join(tmpDir, 'skills', 'evil-skill'),
+          links: {
+            claude: {
+              path: join(tmpDir, 'important-data'),
+              mode: 'copy',
+              status: 'linked',
+              type: 'standard',
+              updatedAt: new Date().toISOString(),
+            },
+          },
+          updatedAt: new Date().toISOString(),
         },
       },
     });
@@ -257,15 +257,22 @@ describe('uninstallSkill', () => {
     const targetRoot = join(tmpDir, 'target-skills');
     mkdirSync(targetRoot, { recursive: true });
     writeFileSync(join(targetRoot, 'keep.txt'), 'important', 'utf-8');
-    // Corrupt registry: linkPath points to the root itself, not a child
-    writeRegistry(options.registryPath, {
-      installs: {
-        'root-attack@claude': {
+    // Corrupt mapping: linkPath points to the root itself, not a child
+    writeRegistry(options.mappingsPath, {
+      mappings: {
+        'root-attack': {
           skillName: 'root-attack',
-          target: 'claude',
-          installedAt: new Date().toISOString(),
-          type: 'standard',
-          linkPath: targetRoot,
+          canonicalPath: join(tmpDir, 'skills', 'root-attack'),
+          links: {
+            claude: {
+              path: targetRoot,
+              mode: 'copy',
+              status: 'linked',
+              type: 'standard',
+              updatedAt: new Date().toISOString(),
+            },
+          },
+          updatedAt: new Date().toISOString(),
         },
       },
     });
@@ -282,14 +289,21 @@ describe('uninstallSkill', () => {
     const otherSkillDir = join(tmpDir, 'target-skills', 'other-skill');
     mkdirSync(otherSkillDir, { recursive: true });
     writeFileSync(join(otherSkillDir, 'keep.txt'), 'important', 'utf-8');
-    writeRegistry(options.registryPath, {
-      installs: {
-        'evil-skill@claude': {
+    writeRegistry(options.mappingsPath, {
+      mappings: {
+        'evil-skill': {
           skillName: 'evil-skill',
-          target: 'claude',
-          installedAt: new Date().toISOString(),
-          type: 'standard',
-          linkPath: otherSkillDir,
+          canonicalPath: join(tmpDir, 'skills', 'evil-skill'),
+          links: {
+            claude: {
+              path: otherSkillDir,
+              mode: 'copy',
+              status: 'linked',
+              type: 'standard',
+              updatedAt: new Date().toISOString(),
+            },
+          },
+          updatedAt: new Date().toISOString(),
         },
       },
     });
@@ -309,9 +323,9 @@ describe('rollbackLastInstall', () => {
     const result = rollbackLastInstall('claude', options);
     expect(result).not.toBeNull();
     expect(result?.skillName).toBe('test-skill');
-    // Verify removed from registry
-    const installs = readRegistry<InstallsRegistry>(options.registryPath, { installs: {} });
-    expect(installs.installs['test-skill@claude']).toBeUndefined();
+    // Verify removed from mappings
+    const mappings = readSkillMappings(options.mappingsPath);
+    expect(mappings.mappings['test-skill']?.links.claude).toBeUndefined();
   });
 
   it('returns not-found when no install exists', () => {

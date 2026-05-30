@@ -69,24 +69,33 @@ describe('getProjectStatus', () => {
     expect(status.registryEntries).toBe(1);
   });
 
-  it('aggregates installedTargets from installs registry', () => {
+  it('aggregates installedTargets from mappings registry', () => {
     writeFileSync(
-      join(tmpDir, 'registry', 'installs.json'),
+      join(tmpDir, 'registry', 'mappings.json'),
       JSON.stringify({
-        installs: {
-          'alpha-skill:claude': {
+        mappings: {
+          'alpha-skill': {
             skillName: 'alpha-skill',
-            target: 'claude',
-            installedAt: '2025-01-01',
-            type: 'standard',
-            linkPath: '/tmp/claude/alpha',
-          },
-          'alpha-skill:codex': {
-            skillName: 'alpha-skill',
-            target: 'codex',
-            installedAt: '2025-01-02',
-            type: 'standard',
-            linkPath: '/tmp/codex/alpha',
+            canonicalPath: join(tmpDir, 'skills', 'alpha-skill'),
+            links: {
+              claude: {
+                path: '/tmp/claude/alpha',
+                mode: 'junction',
+                status: 'linked',
+                type: 'standard',
+                linkedAt: '2025-01-01',
+                updatedAt: '2025-01-01',
+              },
+              codex: {
+                path: '/tmp/codex/alpha',
+                mode: 'junction',
+                status: 'linked',
+                type: 'standard',
+                linkedAt: '2025-01-02',
+                updatedAt: '2025-01-02',
+              },
+            },
+            updatedAt: '2025-01-02',
           },
         },
       }),

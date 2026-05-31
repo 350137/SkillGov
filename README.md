@@ -288,8 +288,8 @@ It should not expose a free-form command input.
 
 Implemented controls:
 
-- Skill library with search, filter, and pagination
-- Skill purpose column backed by the bilingual description registry
+- Skill library with search, filter, pagination, and separate status/purpose views
+- Skill purpose view backed by the bilingual description registry
 - Single skill operations: check compatibility, map, unmap, adopt
 - Multi-skill batch operations: batch check, batch map, batch unmap, batch adopt
 - Structured result display with summary cards and detail tables
@@ -413,7 +413,7 @@ Known gaps:
 
 Latest verified state:
 
-- Unit and API tests: 25 test files, 423 tests passing.
+- Unit and API tests: 25 test files, 432 tests passing.
 - Desktop shell tests: 4 Rust tests passing.
 - Lint: Biome check passing.
 - TypeScript: project build with `tsc -b` passing.

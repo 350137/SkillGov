@@ -252,6 +252,7 @@ const clientScriptBody = `
 let currentLanguage = 'en';
 let latestStatusData = null;
 let selectedSkill = null;
+let libraryView = 'status';
 
 const DEFAULT_TARGETS = ${JSON.stringify(DEFAULT_TARGETS)};
 const STATUS_CLASSES = ${JSON.stringify(STATUS_CLASSES)};
@@ -598,9 +599,24 @@ function t(key) {
 function resolveSkillDisplayDescription(skill) {
   const description = skill.displayDescription || {};
   if (currentLanguage === 'zh') {
-    return description.zh || description.en || description.fallback || '';
+    return description.zh || description.en || description.fallback || t('noSkillPurpose');
   }
-  return description.en || description.zh || description.fallback || '';
+  return description.en || description.zh || description.fallback || t('noSkillPurpose');
+}
+
+function updateLibraryViewButtons() {
+  const statusButton = document.getElementById('library-view-status');
+  const purposeButton = document.getElementById('library-view-purpose');
+  if (statusButton) statusButton.classList.toggle('active', libraryView === 'status');
+  if (purposeButton) purposeButton.classList.toggle('active', libraryView === 'purpose');
+}
+
+function setLibraryView(view) {
+  libraryView = view === 'purpose' ? 'purpose' : 'status';
+  selectedSkillNames.clear();
+  updatePanelVisibility();
+  updateLibraryViewButtons();
+  renderDiscoverPage();
 }
 
 function applyLanguage(language) {
@@ -615,6 +631,7 @@ function applyLanguage(language) {
   });
   const select = document.getElementById('language-select');
   if (select) select.value = currentLanguage;
+  updateLibraryViewButtons();
 }
 
 let discoverPage = 0;
@@ -791,6 +808,42 @@ function handleExport() {
   if (output) output.textContent = t('exportNotImplemented');
 }
 
+function renderStatusRows(page, start) {
+  return page.map((s, index) => {
+    const badgeClass = s.validationStatus === 'pass' ? 'status-pass' : s.validationStatus === 'fixable' ? 'status-fixable' : 'status-fail';
+    const rowNumber = start + index + 1;
+    const escName = escapeHtml(s.name);
+    const escStatus = escapeHtml(s.validationStatus || '');
+    const escSource = escapeHtml(s.sourceLabel || s.source || '');
+    const escPath = escapeHtml(s.path || '');
+    const escPathDisplay = escapeHtml(s.path || '-');
+    const checked = selectedSkillNames.has(s.name) ? 'checked' : '';
+    return '<tr data-skill-number="' + rowNumber + '" style="cursor:pointer;">' +
+      '<td class="cb-col"><input type="checkbox" ' + checked + ' data-skill-name="' + escName + '" /></td>' +
+      '<td>' + rowNumber + '</td>' +
+      '<td>' + escName + '</td>' +
+      '<td><span class="status-badge ' + badgeClass + '">' + escStatus + '</span></td>' +
+      '<td>' + formatAppliedAgentsChip(s) + '</td>' +
+      '<td>' + formatMappingBadge(s.mappingSummary) + '</td>' +
+      '<td>' + escSource + '</td>' +
+      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escPath + '">' + escPathDisplay + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function renderPurposeRows(page, start) {
+  return page.map((s, index) => {
+    const rowNumber = start + index + 1;
+    const escName = escapeHtml(s.name);
+    const escPurpose = escapeHtml(resolveSkillDisplayDescription(s));
+    return '<tr data-skill-number="' + rowNumber + '" style="cursor:pointer;">' +
+      '<td>' + rowNumber + '</td>' +
+      '<td>' + escName + '</td>' +
+      '<td class="skill-purpose-cell" title="' + escPurpose + '">' + escPurpose + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
 function renderDiscoverPage() {
   const skills = getFilteredSkills();
   const allSkills = latestDiscoverData;
@@ -816,41 +869,27 @@ function renderDiscoverPage() {
 
   const start = discoverPage * PAGE_SIZE;
   const page = skills.slice(start, start + PAGE_SIZE);
-  const rows = page.map((s, index) => {
-    const badgeClass = s.validationStatus === 'pass' ? 'status-pass' : s.validationStatus === 'fixable' ? 'status-fixable' : 'status-fail';
-    const rowNumber = start + index + 1;
-    const escName = escapeHtml(s.name);
-    const escStatus = escapeHtml(s.validationStatus || '');
-    const escSource = escapeHtml(s.sourceLabel || s.source || '');
-    const escDescription = escapeHtml(resolveSkillDisplayDescription(s) || '-');
-    const escPath = escapeHtml(s.path || '');
-    const escPathDisplay = escapeHtml(s.path || '-');
-    const checked = selectedSkillNames.has(s.name) ? 'checked' : '';
-    return '<tr data-skill-number="' + rowNumber + '" style="cursor:pointer;">' +
-      '<td class="cb-col"><input type="checkbox" ' + checked + ' data-skill-name="' + escName + '" /></td>' +
-      '<td>' + rowNumber + '</td>' +
-      '<td>' + escName + '</td>' +
-      '<td class="skill-description-cell" title="' + escDescription + '">' + escDescription + '</td>' +
-      '<td><span class="status-badge ' + badgeClass + '">' + escStatus + '</span></td>' +
-      '<td>' + formatAppliedAgentsChip(s) + '</td>' +
-      '<td>' + formatMappingBadge(s.mappingSummary) + '</td>' +
-      '<td>' + escSource + '</td>' +
-      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escPath + '">' + escPathDisplay + '</td>' +
-      '</tr>';
-  }).join('');
+  const rows = libraryView === 'purpose' ? renderPurposeRows(page, start) : renderStatusRows(page, start);
   if (table) {
-    const allPageSelected = page.length > 0 && page.every((s) => selectedSkillNames.has(s.name));
-    table.innerHTML = '<table><thead><tr>' +
-      '<th class="cb-col"><input type="checkbox" ' + (allPageSelected ? 'checked' : '') + ' id="select-all-checkbox" title="' + escapeHtml(t('selectAll')) + '" /></th>' +
-      '<th>' + t('tableNumber') + '</th>' +
-      '<th>' + t('tableSkill') + '</th>' +
-      '<th>' + t('tableSkillDescription') + '</th>' +
-      '<th>' + t('tableStatus') + '</th>' +
-      '<th>' + t('tableAppliedAgentsChip') + '</th>' +
-      '<th>' + t('tableMappingStatus') + '</th>' +
-      '<th>' + t('tableSourceLabel') + '</th>' +
-      '<th>' + t('tablePathLabel') + '</th>' +
-      '</tr></thead><tbody>' + rows + '</tbody></table>';
+    if (libraryView === 'purpose') {
+      table.innerHTML = '<table class="purpose-table"><thead><tr>' +
+        '<th>' + t('tableNumber') + '</th>' +
+        '<th>' + t('tableSkill') + '</th>' +
+        '<th>' + t('tableSkillPurpose') + '</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>';
+    } else {
+      const allPageSelected = page.length > 0 && page.every((s) => selectedSkillNames.has(s.name));
+      table.innerHTML = '<table><thead><tr>' +
+        '<th class="cb-col"><input type="checkbox" ' + (allPageSelected ? 'checked' : '') + ' id="select-all-checkbox" title="' + escapeHtml(t('selectAll')) + '" /></th>' +
+        '<th>' + t('tableNumber') + '</th>' +
+        '<th>' + t('tableSkill') + '</th>' +
+        '<th>' + t('tableStatus') + '</th>' +
+        '<th>' + t('tableAppliedAgentsChip') + '</th>' +
+        '<th>' + t('tableMappingStatus') + '</th>' +
+        '<th>' + t('tableSourceLabel') + '</th>' +
+        '<th>' + t('tablePathLabel') + '</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>';
+    }
   }
 
   const pageInfo = t('pageInfo').replace('{current}', discoverPage + 1).replace('{total}', totalPages || 1);

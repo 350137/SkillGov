@@ -37,6 +37,13 @@ describe('console layout structure', () => {
     expect(bodyHtml).toContain('id="skill-agent-filter"');
   });
 
+  it('contains skill library view switch buttons', () => {
+    expect(bodyHtml).toContain('id="library-view-status"');
+    expect(bodyHtml).toContain('id="library-view-purpose"');
+    expect(bodyHtml).toContain("setLibraryView('status')");
+    expect(bodyHtml).toContain("setLibraryView('purpose')");
+  });
+
   it('contains required action card element IDs', () => {
     expect(bodyHtml).toContain('id="target-agent-select"');
     expect(bodyHtml).toContain('id="selected-skill-title"');

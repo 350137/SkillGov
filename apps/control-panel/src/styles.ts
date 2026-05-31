@@ -73,6 +73,26 @@ h3 { font-size: 0.9rem; margin: 14px 0 6px; color: #555; }
   padding-bottom: 8px;
   border-bottom: 1px solid #eee;
 }
+.skill-library-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.library-view-toggle {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.view-toggle {
+  padding: 5px 10px;
+  font-size: 0.78rem;
+}
+.view-toggle.active {
+  background: #0066cc;
+  color: #fff;
+  border-color: #0055aa;
+}
 
 #skill-action-card {
   display: flex;
@@ -156,9 +176,9 @@ table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
 th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid #f0f0f0; }
 th { font-weight: 600; background: #fafafa; color: #555; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.3px; }
 tr:hover { background: #f8f9fa; }
-.skill-description-cell {
-  max-width: 260px;
-  min-width: 180px;
+.skill-purpose-cell {
+  max-width: 760px;
+  min-width: 360px;
   color: #666;
   line-height: 1.35;
   white-space: normal;

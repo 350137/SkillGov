@@ -38,8 +38,12 @@ ${controlPanelStyles}
 
 <div class="main-columns">
   <div id="skill-library-card" class="card">
-    <div class="card-header">
+    <div class="card-header skill-library-header">
       <h2 data-i18n="discoverHeading">Skill Library</h2>
+      <div class="library-view-toggle" role="group" aria-label="Skill library view">
+        <button id="library-view-status" class="view-toggle active" onclick="setLibraryView('status')" data-i18n="libraryStatusView">Skill Status</button>
+        <button id="library-view-purpose" class="view-toggle" onclick="setLibraryView('purpose')" data-i18n="libraryPurposeView">Skill Purpose</button>
+      </div>
     </div>
     <div class="toolbar">
       <input id="skill-search-input" type="text" data-i18n-placeholder="skillSearchPlaceholder" placeholder="Search skills..." />

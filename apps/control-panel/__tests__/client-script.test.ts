@@ -344,10 +344,27 @@ describe('script structure', () => {
     expect(controlPanelClientScript).toContain('formatMappingBadge(s.mappingSummary)');
   });
 
-  it('skill purpose column appears in discover table', () => {
-    expect(controlPanelClientScript).toContain('tableSkillDescription');
+  it('supports switching between skill status and purpose library views', () => {
+    expect(controlPanelClientScript).toContain("let libraryView = 'status'");
+    expect(controlPanelClientScript).toContain('function setLibraryView(view)');
+    expect(controlPanelClientScript).toContain("libraryView === 'purpose'");
+  });
+
+  it('skill status view does not render the purpose column', () => {
+    expect(controlPanelClientScript).toContain('function renderStatusRows(page, start)');
+    expect(controlPanelClientScript).toContain('function renderPurposeRows(page, start)');
+    expect(controlPanelClientScript).toContain('renderStatusRows(page, start)');
+    expect(controlPanelClientScript).not.toContain(
+      "renderStatusRows(page, start).includes('tableSkillPurpose')",
+    );
+  });
+
+  it('skill purpose view renders only number, skill, and purpose columns', () => {
+    expect(controlPanelClientScript).toContain('tableSkillPurpose');
+    expect(controlPanelClientScript).toContain('purpose-table');
     expect(controlPanelClientScript).toContain('resolveSkillDisplayDescription(s)');
-    expect(controlPanelClientScript).toContain('class="skill-description-cell"');
+    expect(controlPanelClientScript).toContain('class="skill-purpose-cell"');
+    expect(controlPanelClientScript).toContain('renderPurposeRows(page, start)');
   });
 
   it('renderDiscoverTable calls renderStatusCards to refresh metrics', () => {
@@ -598,7 +615,10 @@ describe('i18n compatibility keys', () => {
     'usedByAgent',
     'tableAppliedAgents',
     'tableMappingSummary',
-    'tableSkillDescription',
+    'libraryStatusView',
+    'libraryPurposeView',
+    'tableSkillPurpose',
+    'noSkillPurpose',
     'tableNumber',
     'batchSelected',
     'batchCheckCompat',

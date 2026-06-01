@@ -1,6 +1,8 @@
 // Desktop shell helpers for resolving the workspace, launching the web control panel, and building its URL.
 use std::{
   env,
+  fs::{create_dir_all, OpenOptions},
+  io::{BufRead, BufReader, Read, Write},
   net::{SocketAddr, TcpStream},
   path::{Path, PathBuf},
   process::{Child, Command, Stdio},
@@ -110,8 +112,22 @@ pub fn start_control_panel(
   port: u16,
 ) -> Result<ControlPanelProcess, String> {
   if wait_for_control_panel(port, Duration::from_millis(300)) {
+    verify_control_panel_identity(port)?;
     return Ok(ControlPanelProcess::already_running());
   }
+
+  let log_path = workspace_root.join("logs").join("desktop-control-panel.log");
+  if let Some(parent) = log_path.parent() {
+    let _ = create_dir_all(parent);
+  }
+  let log_file = OpenOptions::new()
+    .create(true)
+    .append(true)
+    .open(&log_path)
+    .map_err(|err| format!("Failed to open log file {}: {err}", log_path.display()))?;
+  let log_stderr = log_file
+    .try_clone()
+    .map_err(|err| format!("Failed to clone log file handle: {err}"))?;
 
   let launch = control_panel_launch_config(workspace_root, port);
   let mut child = Command::new(&launch.command)
@@ -119,17 +135,21 @@ pub fn start_control_panel(
     .current_dir(&launch.cwd)
     .env("PORT", launch.port.to_string())
     .stdin(Stdio::null())
-    .stdout(Stdio::null())
-    .stderr(Stdio::null())
+    .stdout(Stdio::from(log_file))
+    .stderr(Stdio::from(log_stderr))
     .spawn()
     .map_err(|err| format!("Failed to start control panel: {err}"))?;
 
   if wait_for_control_panel(port, Duration::from_secs(30)) {
+    verify_control_panel_identity(port)?;
     Ok(ControlPanelProcess::spawned(child))
   } else {
     let _ = child.kill();
     let _ = child.wait();
-    Err(format!("Control panel did not become ready on port {port}"))
+    Err(format!(
+      "Control panel did not become ready on port {port}. Check log: {}",
+      log_path.display()
+    ))
   }
 }
 
@@ -163,6 +183,59 @@ fn wait_for_control_panel(port: u16, timeout: Duration) -> bool {
 fn is_local_port_open(port: u16) -> bool {
   let address = SocketAddr::from(([127, 0, 0, 1], port));
   TcpStream::connect_timeout(&address, Duration::from_millis(200)).is_ok()
+}
+
+/// Verify that the service on the given port is actually the SkillGov control panel
+/// by requesting /api/status and checking the response contains a known field.
+fn verify_control_panel_identity(port: u16) -> Result<(), String> {
+  let address = SocketAddr::from(([127, 0, 0, 1], port));
+  let mut stream = TcpStream::connect_timeout(&address, Duration::from_secs(3))
+    .map_err(|err| format!("Health check connection failed: {err}"))?;
+
+  stream
+    .set_read_timeout(Some(Duration::from_secs(5)))
+    .map_err(|err| format!("Failed to set read timeout: {err}"))?;
+
+  let request = format!(
+    "GET /api/status HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
+  );
+  stream
+    .write_all(request.as_bytes())
+    .map_err(|err| format!("Health check write failed: {err}"))?;
+
+  let mut response = String::new();
+  let mut reader = BufReader::new(&stream);
+  let _ = reader.read_line(&mut response);
+  // Read remaining lines to get the body
+  let mut body = String::new();
+  let mut headers_done = false;
+  for line in reader.by_ref().lines() {
+    let line = match line {
+      Ok(l) => l,
+      Err(_) => break,
+    };
+    if !headers_done {
+      if line.is_empty() {
+        headers_done = true;
+      }
+      continue;
+    }
+    body.push_str(&line);
+  }
+
+  if !response.contains("200") {
+    return Err(format!(
+      "Health check failed: port {port} returned status line: {response}"
+    ));
+  }
+
+  if !body.contains("projectRoot") {
+    return Err(format!(
+      "Health check failed: port {port} is not a SkillGov control panel. Response body does not contain expected fields."
+    ));
+  }
+
+  Ok(())
 }
 
 fn corepack_command_name() -> &'static str {

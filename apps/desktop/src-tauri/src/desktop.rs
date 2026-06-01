@@ -11,6 +11,7 @@ use std::{
   time::{Duration, Instant},
 };
 
+use serde_json::Value as JsonValue;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub const DEFAULT_CONTROL_PANEL_PORT: u16 = 4280;
@@ -107,6 +108,11 @@ pub fn control_panel_launch_config(workspace_root: &Path, port: u16) -> ControlP
   }
 }
 
+fn kill_child(child: &mut Child) {
+  let _ = child.kill();
+  let _ = child.wait();
+}
+
 pub fn start_control_panel(
   workspace_root: &Path,
   port: u16,
@@ -142,14 +148,12 @@ pub fn start_control_panel(
 
   if wait_for_control_panel(port, Duration::from_secs(30)) {
     if let Err(err) = verify_control_panel_identity(port) {
-      let _ = child.kill();
-      let _ = child.wait();
+      kill_child(&mut child);
       return Err(format!("{err} Check log: {}", log_path.display()));
     }
     Ok(ControlPanelProcess::spawned(child))
   } else {
-    let _ = child.kill();
-    let _ = child.wait();
+    kill_child(&mut child);
     Err(format!(
       "Control panel did not become ready on port {port}. Check log: {}",
       log_path.display()
@@ -190,7 +194,7 @@ fn is_local_port_open(port: u16) -> bool {
 }
 
 /// Verify that the service on the given port is actually the SkillGov control panel
-/// by requesting /api/status and checking the response contains `"app":"SkillGov"`.
+/// by requesting /api/status and checking the JSON response has `"app": "SkillGov"`.
 fn verify_control_panel_identity(port: u16) -> Result<(), String> {
   let address = SocketAddr::from(([127, 0, 0, 1], port));
   let mut stream = TcpStream::connect_timeout(&address, Duration::from_secs(3))
@@ -233,13 +237,15 @@ fn verify_control_panel_identity(port: u16) -> Result<(), String> {
     ));
   }
 
-  if !body.contains(r#""app":"SkillGov""#) {
-    return Err(format!(
-      "Health check failed: port {port} is not a SkillGov control panel. Response did not contain expected identity field."
-    ));
-  }
+  let parsed: JsonValue =
+    serde_json::from_str(&body).map_err(|err| format!("Health check JSON parse failed: {err}"))?;
 
-  Ok(())
+  match parsed.get("app").and_then(JsonValue::as_str) {
+    Some("SkillGov") => Ok(()),
+    other => Err(format!(
+      "Health check failed: port {port} is not a SkillGov control panel (app field: {other:?})."
+    )),
+  }
 }
 
 fn corepack_command_name() -> &'static str {
@@ -354,8 +360,13 @@ mod tests {
 
   #[test]
   fn health_check_fails_for_connection_refused() {
-    // Use a port that is very likely not listening
-    let err = verify_control_panel_identity(1).unwrap_err();
+    // Bind to port 0 to get an unused port, then drop the listener so nothing is listening.
+    let port = TcpListener::bind("127.0.0.1:0")
+      .unwrap()
+      .local_addr()
+      .unwrap()
+      .port();
+    let err = verify_control_panel_identity(port).unwrap_err();
     assert!(err.contains("Health check connection failed"));
   }
 }

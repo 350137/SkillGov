@@ -6,6 +6,7 @@ description = "SkillGov desktop shell"
 edition = "2021"
 
 [dependencies]
+serde_json = "1"
 tauri = { version = "2.11.1" }
 
 [build-dependencies]

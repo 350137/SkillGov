@@ -5,6 +5,7 @@
   "scripts": {
     "desktop:dev": "corepack pnpm --filter @skillgov/desktop dev",
     "desktop:test": "corepack pnpm --filter @skillgov/desktop test",
+    "desktop:local-exe": "powershell -ExecutionPolicy Bypass -File scripts/desktop/build-local-exe.ps1",
     "descriptions:generate": "tsx scripts/skill-descriptions/generate-description-table.ts",
     "descriptions:export": "tsx scripts/skill-descriptions/export-translation-worklist.ts",
     "descriptions:apply": "tsx scripts/skill-descriptions/apply-translation-csv.ts",

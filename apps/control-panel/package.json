@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "start": "node server.js",
-    "test": "vitest run"
+    "test": "cd ../.. && vitest run --project @skillgov/control-panel"
   },
   "dependencies": {
     "@skillgov/core": "workspace:*"

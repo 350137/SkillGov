@@ -141,7 +141,11 @@ pub fn start_control_panel(
     .map_err(|err| format!("Failed to start control panel: {err}"))?;
 
   if wait_for_control_panel(port, Duration::from_secs(30)) {
-    verify_control_panel_identity(port)?;
+    if let Err(err) = verify_control_panel_identity(port) {
+      let _ = child.kill();
+      let _ = child.wait();
+      return Err(format!("{err} Check log: {}", log_path.display()));
+    }
     Ok(ControlPanelProcess::spawned(child))
   } else {
     let _ = child.kill();
@@ -186,7 +190,7 @@ fn is_local_port_open(port: u16) -> bool {
 }
 
 /// Verify that the service on the given port is actually the SkillGov control panel
-/// by requesting /api/status and checking the response contains a known field.
+/// by requesting /api/status and checking the response contains `"app":"SkillGov"`.
 fn verify_control_panel_identity(port: u16) -> Result<(), String> {
   let address = SocketAddr::from(([127, 0, 0, 1], port));
   let mut stream = TcpStream::connect_timeout(&address, Duration::from_secs(3))
@@ -229,9 +233,9 @@ fn verify_control_panel_identity(port: u16) -> Result<(), String> {
     ));
   }
 
-  if !body.contains("projectRoot") {
+  if !body.contains(r#""app":"SkillGov""#) {
     return Err(format!(
-      "Health check failed: port {port} is not a SkillGov control panel. Response body does not contain expected fields."
+      "Health check failed: port {port} is not a SkillGov control panel. Response did not contain expected identity field."
     ));
   }
 
@@ -288,5 +292,70 @@ mod tests {
     assert_eq!(control_panel_port_from_env(Some("4290")), 4290);
     assert_eq!(control_panel_port_from_env(Some("not-a-port")), DEFAULT_CONTROL_PANEL_PORT);
     assert_eq!(control_panel_port_from_env(None), DEFAULT_CONTROL_PANEL_PORT);
+  }
+
+  // --- Health check tests ---
+
+  use std::io::Write;
+  use std::net::TcpListener;
+
+  /// Start a TCP listener on a random port, spawn a thread that accepts one
+  /// connection, reads the request, then writes the given response. Returns
+  /// the port number.
+  fn serve_mock_response(http_response: &[u8]) -> u16 {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let http_response = http_response.to_vec();
+    std::thread::spawn(move || {
+      if let Ok((mut stream, _)) = listener.accept() {
+        // Read the request so the client can proceed to read the response
+        let _ = stream.read(&mut [0u8; 1024]);
+        let _ = stream.write_all(&http_response);
+        let _ = stream.flush();
+      }
+    });
+    // Give the listener thread a moment to start accepting
+    std::thread::sleep(Duration::from_millis(50));
+    port
+  }
+
+  #[test]
+  fn health_check_passes_for_skillgov_identity() {
+    let body = r#"{"app":"SkillGov","apiVersion":"0.1.0","projectRoot":"D:/SkillGov"}"#;
+    let response = format!(
+      "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+      body.len(),
+      body,
+    );
+    let port = serve_mock_response(response.as_bytes());
+    assert!(verify_control_panel_identity(port).is_ok());
+  }
+
+  #[test]
+  fn health_check_fails_for_non_skillgov_service() {
+    let body = r#"{"status":"ok","server":"nginx"}"#;
+    let response = format!(
+      "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+      body.len(),
+      body,
+    );
+    let port = serve_mock_response(response.as_bytes());
+    let err = verify_control_panel_identity(port).unwrap_err();
+    assert!(err.contains("not a SkillGov control panel"));
+  }
+
+  #[test]
+  fn health_check_fails_for_404() {
+    let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+    let port = serve_mock_response(response.as_bytes());
+    let err = verify_control_panel_identity(port).unwrap_err();
+    assert!(err.contains("Health check failed"));
+  }
+
+  #[test]
+  fn health_check_fails_for_connection_refused() {
+    // Use a port that is very likely not listening
+    let err = verify_control_panel_identity(1).unwrap_err();
+    assert!(err.contains("Health check connection failed"));
   }
 }

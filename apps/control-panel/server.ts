@@ -88,10 +88,12 @@ const apiRoutes: Record<string, ApiHandler> = {
   status: () => {
     const config = loadConfig();
     const status = getProjectStatus(config.projectRoot, { targets: config.targets });
-    return { ...status, targetProfiles: listTargetProfiles(config.targets) } as unknown as Record<
-      string,
-      unknown
-    >;
+    return {
+      app: 'SkillGov',
+      apiVersion: VERSION,
+      ...status,
+      targetProfiles: listTargetProfiles(config.targets),
+    } as unknown as Record<string, unknown>;
   },
 
   targets: () => {

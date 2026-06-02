@@ -169,7 +169,6 @@ export function main(args: string[]): void {
       process.exitCode = 1;
       return;
     }
-    const root = process.cwd();
     const config = loadConfig();
     const incoming = `${config.projectRoot}/incoming`;
     const skills = `${config.projectRoot}/skills`;
@@ -358,7 +357,6 @@ export function main(args: string[]): void {
       process.exitCode = 1;
       return;
     }
-    const root = process.cwd();
     const config = loadConfig();
     const result = installSkill(skillName, targetName, config.defaultLinkMode, {
       projectRoot: config.projectRoot,
@@ -382,7 +380,6 @@ export function main(args: string[]): void {
       process.exitCode = 1;
       return;
     }
-    const root = process.cwd();
     const config = loadConfig();
     const result = uninstallSkill(skillName, targetName, {
       projectRoot: config.projectRoot,
@@ -396,7 +393,6 @@ export function main(args: string[]): void {
   }
 
   if (command === 'status') {
-    const root = process.cwd();
     const config = loadConfig();
     const status = getProjectStatus(config.projectRoot);
     console.log(`SkillGov project at: ${status.projectRoot}`);
@@ -414,7 +410,6 @@ export function main(args: string[]): void {
   }
 
   if (command === 'doctor') {
-    const root = process.cwd();
     const config = loadConfig();
     const report = runDoctor(config.projectRoot);
     console.log(`Doctor report for: ${config.projectRoot}`);

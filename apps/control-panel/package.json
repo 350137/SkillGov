@@ -6,7 +6,6 @@
   "description": "SkillGov local web control panel — button-based UI over @skillgov/core operations.",
   "scripts": {
     "dev": "tsx server.ts",
-    "start": "node server.js",
     "test": "cd ../.. && vitest run --project @skillgov/control-panel"
   },
   "dependencies": {

@@ -36,6 +36,15 @@ type ApiHandler = (
   body: Record<string, unknown>,
 ) => Promise<Record<string, unknown>> | Record<string, unknown>;
 
+function sendJson(res: http.ServerResponse, statusCode: number, payload: unknown): void {
+  const json = JSON.stringify(payload);
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(json, 'utf8'),
+  });
+  res.end(json);
+}
+
 function readDescriptionRegistry(projectRoot: string): SkillDescriptionsRegistry {
   try {
     return readSkillDescriptions(join(projectRoot, 'registry', 'skill-descriptions.json'));
@@ -530,18 +539,15 @@ export function startServer(port: number = PORT): http.Server {
       const route = path.slice(5); // Remove '/api/'
       const handler = apiRoutes[route];
       if (!handler) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: `Unknown API: ${route}` }));
+        sendJson(res, 404, { error: `Unknown API: ${route}` });
         return;
       }
       const body = req.method === 'GET' ? {} : await parseBody(req);
       try {
         const result = await handler(body);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(result));
+        sendJson(res, 200, result);
       } catch (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (err as Error).message }));
+        sendJson(res, 500, { error: (err as Error).message });
       }
       return;
     }

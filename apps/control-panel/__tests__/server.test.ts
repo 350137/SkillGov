@@ -97,9 +97,24 @@ describe('Control Panel API', () => {
 
   it('returns status at POST /api/status', async () => {
     const data = await fetchJson('/api/status');
+    expect(data).toHaveProperty('app', 'SkillGov');
     expect(data).toHaveProperty('projectRoot');
     expect(data).toHaveProperty('skills');
     expect(data).toHaveProperty('installs');
+  });
+
+  it('returns fixed-length JSON for status health checks', async () => {
+    const headers = await new Promise<http.IncomingHttpHeaders>((resolve, reject) => {
+      http
+        .get(`${BASE}/api/status`, (res) => {
+          res.resume();
+          res.on('end', () => resolve(res.headers));
+        })
+        .on('error', reject);
+    });
+
+    expect(headers['content-length']).toBeDefined();
+    expect(headers['transfer-encoding']).toBeUndefined();
   });
 
   it('returns error for validate without path', async () => {

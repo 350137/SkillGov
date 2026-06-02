@@ -140,7 +140,7 @@ pub fn start_control_panel(
     .args(&launch.args)
     .current_dir(&launch.cwd)
     .env("PORT", launch.port.to_string())
-    .stdin(Stdio::null())
+    .stdin(Stdio::piped())
     .stdout(Stdio::from(log_file))
     .stderr(Stdio::from(log_stderr))
     .spawn()

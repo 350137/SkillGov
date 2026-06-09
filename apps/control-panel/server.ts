@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 // Local web control panel server — provides a button-based UI over @skillgov/core operations via HTTP API endpoints.
 import http from 'node:http';
 import { join } from 'node:path';
@@ -29,6 +30,14 @@ import {
 } from '@skillgov/core';
 import type { SkillDescriptionsRegistry } from '@skillgov/core';
 import { renderControlPanelPage } from './src/page.js';
+
+const SPA_ROOT = join(import.meta.dirname, 'dist', 'spa');
+let spaIndexHtml: string | null = null;
+try {
+  spaIndexHtml = readFileSync(join(SPA_ROOT, 'index.html'), 'utf-8');
+} catch {
+  // SPA not built yet — fall back to legacy page
+}
 
 const PORT = Number.parseInt(process.env.PORT || '4173', 10);
 
@@ -517,10 +526,31 @@ export function startServer(port: number = PORT): http.Server {
       return;
     }
 
-    // Serve HTML
-    if (req.method === 'GET' && path === '/') {
+    // Serve SPA index.html for all non-API GET requests (supports client-side routing)
+    if (req.method === 'GET' && !path.startsWith('/api/')) {
+      // Try to serve static file from SPA build
+      if (spaIndexHtml && path !== '/') {
+        const filePath = join(SPA_ROOT, path);
+        try {
+          const content = readFileSync(filePath);
+          const ext = path.split('.').pop() || '';
+          const mimeTypes: Record<string, string> = {
+            js: 'application/javascript',
+            css: 'text/css',
+            svg: 'image/svg+xml',
+            png: 'image/png',
+            json: 'application/json',
+            woff2: 'font/woff2',
+          };
+          res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+          res.end(content);
+          return;
+        } catch {
+          // Not a static file — serve SPA index.html for client-side routing
+        }
+      }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(renderControlPanelPage({ version: VERSION }));
+      res.end(spaIndexHtml || renderControlPanelPage({ version: VERSION }));
       return;
     }
 

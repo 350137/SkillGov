@@ -55,7 +55,8 @@ describe('Control Panel API', () => {
         .on('error', reject);
     });
     expect(res).toContain('SkillGov Control Panel');
-    expect(res).toContain('Refresh Status');
+    // SPA serves a minimal shell with root div; legacy page has inline content
+    expect(res).toContain('<!DOCTYPE html>');
   });
 
   it('serves a language switcher with Chinese and English labels', async () => {
@@ -71,13 +72,12 @@ describe('Control Panel API', () => {
         .on('error', reject);
     });
 
-    expect(res).toContain('id="language-select"');
-    expect(res).toContain('中文');
-    expect(res).toContain('English');
-    expect(res).toContain('data-i18n="scanLocal"');
+    // SPA shell contains the root div and script; language switcher is rendered client-side
+    expect(res).toContain('<div id="root"></div>');
+    expect(res).toContain('SkillGov Control Panel');
   });
 
-  it('places the language switcher in the top-right header actions area', async () => {
+  it('serves the SPA shell with root div and script module', async () => {
     const res = await new Promise<string>((resolve, reject) => {
       http
         .get(`${BASE}/`, (res) => {
@@ -90,9 +90,8 @@ describe('Control Panel API', () => {
         .on('error', reject);
     });
 
-    expect(res).toContain('class="page-header"');
-    expect(res).toContain('class="header-actions"');
-    expect(res).toMatch(/<div class="header-actions">[\s\S]*id="language-select"[\s\S]*<\/div>/);
+    expect(res).toContain('<div id="root"></div>');
+    expect(res).toContain('type="module"');
   });
 
   it('returns status at POST /api/status', async () => {
@@ -313,7 +312,7 @@ describe('Control Panel API', () => {
     expect(results[0]).toHaveProperty('status');
   });
 
-  it('includes Scan Local Skills button in HTML', async () => {
+  it('serves the SPA with React app script', async () => {
     const res = await new Promise<string>((resolve, reject) => {
       http
         .get(`${BASE}/`, (res) => {
@@ -325,35 +324,9 @@ describe('Control Panel API', () => {
         })
         .on('error', reject);
     });
-    expect(res).toContain('data-i18n="scanLocal"');
-    expect(res).toContain('id="discover-table"');
-    expect(res).toContain('id="status-cards"');
-    expect(res).toContain('id="discover-summary"');
-    expect(res).toContain('id="discover-pagination"');
-    expect(res).toContain('id="panel-no-selection"');
-    expect(res).toContain('id="panel-single"');
-    expect(res).toContain('id="panel-multi"');
-    expect(res).toContain('batchCheckCompat()');
-    expect(res).toContain('batchMap()');
-    expect(res).toContain('batchUnmap()');
-    expect(res).toContain('batchAdopt()');
-    expect(res).toContain('deselectAll()');
-    expect(res).toContain('function resolveSkillByNumber');
-    expect(res).toContain("searchParams.get('discover') === '1'");
-    expect(res).toContain('totalManaged');
-    expect(res).toContain('validationPass');
-    expect(res).toContain('prevPage');
-    expect(res).toContain('nextPage');
-    expect(res).toContain('changeDiscoverPage');
-    expect(res).toContain('function formatAppliedAgentsChip');
-    expect(res).toContain('tableNumber');
-    expect(res).toContain('s.sourceLabel || s.source');
-    expect(res).toContain('formatAppliedAgentsChip(s)');
-    expect(res).toContain('function selectSkillNumber');
-    expect(res).toContain('function populateTargetOptions');
-    expect(res).toContain('function renderCompatibilityResult');
-    expect(res).not.toContain('sourceTarget || s.source');
-    expect(res).not.toContain('id="compat-path"');
+    // SPA shell: minimal HTML with root div and module script
+    expect(res).toContain('<div id="root"></div>');
+    expect(res).toContain('type="module"');
     expect(res).not.toContain('data-i18n="importValidateHeading"');
   });
 

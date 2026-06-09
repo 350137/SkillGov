@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api } from '../api/controlPanelApi';
+import { api } from '../api';
 import { BatchActions } from '../components/BatchActions';
 import { FilterBar } from '../components/FilterBar';
 import { SkillDetail } from '../components/SkillDetail';

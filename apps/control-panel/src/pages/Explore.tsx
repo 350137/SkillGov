@@ -1,7 +1,7 @@
 // Explore page — skill library browsing, filtering, and discover/import functionality.
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api } from '../api/controlPanelApi';
+import { api } from '../api';
 import { FilterBar } from '../components/FilterBar';
 import { SkillList } from '../components/SkillList';
 import { type FilterOptions, filterSkills } from '../lib/filterSkills';

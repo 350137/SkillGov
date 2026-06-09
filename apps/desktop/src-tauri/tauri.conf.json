@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.skillgov.desktop",
   "build": {
-    "frontendDist": "http://127.0.0.1:4280/?discover=1"
+    "beforeBuildCommand": "corepack pnpm --filter @skillgov/control-panel build:spa",
+    "beforeDevCommand": "corepack pnpm --filter @skillgov/control-panel build:spa",
+    "frontendDist": "../../control-panel/dist/spa"
   },
   "app": {
     "windows": [],

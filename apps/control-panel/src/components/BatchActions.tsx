@@ -1,7 +1,7 @@
 // Batch actions component — multi-skill operations (check, map, unmap, adopt) with result display.
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api } from '../api/controlPanelApi';
+import { api } from '../api';
 import { getStatusBadgeClass } from '../lib/filterSkills';
 import type { BatchResult, TargetProfile } from '../types';
 import { ToolSelector } from './ToolSelector';

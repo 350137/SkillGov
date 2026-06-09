@@ -1,7 +1,7 @@
 // Settings page — language switcher, target agent info, project path, and diagnostics.
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api } from '../api/controlPanelApi';
+import { api } from '../api';
 import type { TargetProfile } from '../types';
 import type { DoctorResult } from '../types';
 

@@ -17,7 +17,7 @@ async function post<T>(endpoint: string, body?: Record<string, unknown>): Promis
   return res.json();
 }
 
-export const api = {
+export const webApi = {
   getStatus: () => post<StatusResponse>('status'),
   getTargets: () => post<{ targets: StatusResponse['targetProfiles'] }>('targets'),
   discover: () => post<DiscoverResponse>('discover'),

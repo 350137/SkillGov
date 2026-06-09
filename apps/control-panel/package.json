@@ -16,6 +16,7 @@
   "dependencies": {
     "@skillgov/core": "workspace:*",
     "@tailwindcss/vite": "^4.0.0",
+    "@tauri-apps/api": "^2.11.0",
     "i18next": "^24.0.0",
     "i18next-browser-languagedetector": "^8.0.0",
     "react": "^19.0.0",

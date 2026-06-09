@@ -1,7 +1,7 @@
 // Skill detail component — displays selected skill info, compatibility check, and single-skill operations.
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api } from '../api/controlPanelApi';
+import { api } from '../api';
 import { formatAppliedAgents, getStatusBadgeClass } from '../lib/filterSkills';
 import type { CompatResult, Skill, TargetProfile } from '../types';
 import { ToolSelector } from './ToolSelector';

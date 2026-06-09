@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, Route, Routes } from 'react-router-dom';
-import { api } from './api/controlPanelApi';
+import { api } from './api';
 import { Explore } from './pages/Explore';
 import { MySkills } from './pages/MySkills';
 import { Settings } from './pages/Settings';

@@ -18,11 +18,29 @@ use, not a separate source of truth.
 
 ## Usage
 
-Run the development server from this package:
+Build the React SPA and start the unified server:
 
 ```text
 pnpm --filter @skillgov/control-panel dev
 ```
 
 The server listens on `http://localhost:4173` by default. Set `PORT` to use a
-different local port.
+different local port. This builds `dist/spa` first so the server always serves
+the React SPA — no stale artifacts.
+
+For frontend HMR development (Vite dev server on port 5173 with API proxy):
+
+```text
+pnpm --filter @skillgov/control-panel dev:spa
+```
+
+To start the server without rebuilding (for iterative backend work):
+
+```text
+pnpm --filter @skillgov/control-panel dev:server
+```
+
+## Build
+
+`dist/spa` is the Vite build output and is not committed to git. The `build`
+script runs `vite build` to produce it.

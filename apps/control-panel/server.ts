@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
 // Local web control panel server — provides a button-based UI over @skillgov/core operations via HTTP API endpoints.
+import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import { join } from 'node:path';
 import { URL } from 'node:url';

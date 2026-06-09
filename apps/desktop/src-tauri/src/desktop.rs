@@ -101,7 +101,7 @@ pub fn control_panel_launch_config(workspace_root: &Path, port: u16) -> ControlP
       "pnpm".to_string(),
       "--filter".to_string(),
       "@skillgov/control-panel".to_string(),
-      "dev".to_string(),
+      "start".to_string(),
     ],
     cwd: workspace_root.to_path_buf(),
     port,
@@ -287,7 +287,7 @@ mod tests {
 
     assert_eq!(
       config.args,
-      vec!["pnpm", "--filter", "@skillgov/control-panel", "dev"]
+      vec!["pnpm", "--filter", "@skillgov/control-panel", "start"]
     );
     assert_eq!(config.cwd, root);
     assert_eq!(config.port, 4280);

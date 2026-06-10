@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api';
 import { FilterBar } from '../components/FilterBar';
+import { RemoteSkillSearch } from '../components/RemoteSkillSearch';
 import { SkillList } from '../components/SkillList';
 import { type FilterOptions, filterSkills } from '../lib/filterSkills';
 import type { Skill, TargetProfile } from '../types';
@@ -57,6 +58,8 @@ export function Explore() {
             </button>
           </div>
         </div>
+
+        <RemoteSkillSearch onInstallComplete={loadDiscover} />
 
         <FilterBar
           filters={filters}

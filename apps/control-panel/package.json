@@ -6,12 +6,12 @@
   "description": "SkillGov local web control panel — button-based UI over @skillgov/core operations.",
   "scripts": {
     "start": "tsx server.ts",
-    "dev": "pnpm build:spa && tsx server.ts",
+    "dev": "corepack pnpm build:spa && tsx server.ts",
     "dev:server": "tsx server.ts",
     "dev:spa": "vite",
     "build:spa": "vite build",
     "build": "vite build",
-    "test": "pnpm build:spa && cd ../.. && vitest run --project @skillgov/control-panel"
+    "test": "corepack pnpm build:spa && cd ../.. && vitest run --project @skillgov/control-panel"
   },
   "dependencies": {
     "@skillgov/core": "workspace:*",

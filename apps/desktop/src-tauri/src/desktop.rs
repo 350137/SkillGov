@@ -12,6 +12,17 @@ pub fn run() {
       crate::commands::get_status,
       crate::commands::list_targets,
       crate::commands::discover_skills,
+      crate::commands::discover_import,
+      crate::commands::check_compat,
+      crate::commands::compat_batch,
+      crate::commands::map_skill,
+      crate::commands::unmap_skill,
+      crate::commands::adopt_skill,
+      crate::commands::map_batch,
+      crate::commands::unmap_batch,
+      crate::commands::adopt_batch,
+      crate::commands::run_doctor,
+      crate::commands::rollback_install,
     ])
     .setup(move |app| {
       app.manage(workspace_root);

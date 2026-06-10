@@ -346,7 +346,7 @@ fn paths_resolve_same(a: &Path, b: &Path) -> bool {
 
 #[tauri::command]
 pub fn get_status(workspace_root: State<'_, PathBuf>) -> Result<StatusResponse, String> {
-  let root = workspace_root.as_ref();
+  let root: &Path = &workspace_root;
   let (project_root, target_entries) = load_config(root);
   let profiles = resolve_targets(&target_entries);
 
@@ -411,7 +411,7 @@ pub fn list_targets(workspace_root: State<'_, PathBuf>) -> Result<Vec<TargetProf
 
 #[tauri::command]
 pub fn discover_skills(workspace_root: State<'_, PathBuf>) -> Result<DiscoverResponse, String> {
-  let root = workspace_root.as_ref();
+  let root: &Path = &workspace_root;
   let (_, target_entries) = load_config(root);
   let profiles = resolve_targets(&target_entries);
 
@@ -563,6 +563,609 @@ fn validate_skill_path(skill_path: &str) -> String {
   if !skill_md.exists() {
     return "fail".into();
   }
-  // Basic validation: SKILL.md exists
   "pass".into()
+}
+
+// --- Additional types for write operations ---
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SingleResult {
+  pub status: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub message: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchResultItem {
+  pub name: String,
+  pub status: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub message: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub error: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchResult {
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub summary: Option<HashMap<String, u32>>,
+  pub results: Vec<BatchResultItem>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CompatIssue {
+  pub severity: String,
+  pub message: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CompatResult {
+  pub status: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub reason: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub suggested_action: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub issues: Option<Vec<CompatIssue>>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DoctorIssue {
+  pub severity: String,
+  pub message: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DoctorResult {
+  pub issues: Vec<DoctorIssue>,
+}
+
+// --- Mapping helpers ---
+
+fn create_junction_or_symlink(target: &Path, link: &Path, mode: &str) -> Result<(), String> {
+  if link.exists() {
+    return Err(format!("Link path already exists: {}", link.display()));
+  }
+  if let Some(parent) = link.parent() {
+    fs::create_dir_all(parent)
+      .map_err(|e| format!("Failed to create parent dir: {e}"))?;
+  }
+
+  #[cfg(windows)]
+  {
+    if mode == "junction" || mode == "symlink" {
+      // Use mklink /J on Windows for junction creation
+      let status = std::process::Command::new("cmd")
+        .args(["/C", "mklink", "/J", &link.to_string_lossy(), &target.to_string_lossy()])
+        .output()
+        .map_err(|e| format!("Failed to run mklink: {e}"))?;
+      if !status.status.success() {
+        let stderr = String::from_utf8_lossy(&status.stderr);
+        return Err(format!("mklink failed: {stderr}"));
+      }
+    } else {
+      copy_dir_recursive(target, link)?;
+    }
+  }
+  #[cfg(not(windows))]
+  {
+    if mode == "symlink" {
+      std::os::unix::fs::symlink(target, link)
+        .map_err(|e| format!("Failed to create symlink: {e}"))?;
+    } else {
+      copy_dir_recursive(target, link)?;
+    }
+  }
+  Ok(())
+}
+
+fn remove_link(link: &Path) -> Result<(), String> {
+  if !link.exists() {
+    return Err(format!("Link does not exist: {}", link.display()));
+  }
+  if is_junction_or_symlink(link) {
+    #[cfg(windows)]
+    {
+      // On Windows, remove junction via fs::remove_dir (junctions are directory reparse points)
+      fs::remove_dir(link)
+        .map_err(|e| format!("Failed to remove junction: {e}"))?;
+    }
+    #[cfg(not(windows))]
+    {
+      fs::remove_file(link)
+        .map_err(|e| format!("Failed to remove symlink: {e}"))?;
+    }
+  } else {
+    fs::remove_dir_all(link)
+      .map_err(|e| format!("Failed to remove directory: {e}"))?;
+  }
+  Ok(())
+}
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
+  fs::create_dir_all(dst)
+    .map_err(|e| format!("Failed to create dir {}: {e}", dst.display()))?;
+  let entries = fs::read_dir(src)
+    .map_err(|e| format!("Failed to read dir {}: {e}", src.display()))?;
+  for entry in entries.flatten() {
+    let src_path = entry.path();
+    let dst_path = dst.join(entry.file_name());
+    if src_path.is_dir() {
+      copy_dir_recursive(&src_path, &dst_path)?;
+    } else {
+      fs::copy(&src_path, &dst_path)
+        .map_err(|e| format!("Failed to copy file: {e}"))?;
+    }
+  }
+  Ok(())
+}
+
+fn write_mappings_registry(path: &Path, mappings: &HashMap<String, HashMap<String, JsonValue>>) -> Result<(), String> {
+  let json = serde_json::json!({ "mappings": mappings });
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent)
+      .map_err(|e| format!("Failed to create registry dir: {e}"))?;
+  }
+  let content = serde_json::to_string_pretty(&json)
+    .map_err(|e| format!("Failed to serialize mappings: {e}"))?;
+  fs::write(path, content)
+    .map_err(|e| format!("Failed to write mappings: {e}"))?;
+  Ok(())
+}
+
+fn read_mappings_raw(path: &Path) -> HashMap<String, HashMap<String, JsonValue>> {
+  let raw = match fs::read_to_string(path) {
+    Ok(r) => r,
+    Err(_) => return HashMap::new(),
+  };
+  let json: JsonValue = match serde_json::from_str(&raw) {
+    Ok(j) => j,
+    Err(_) => return HashMap::new(),
+  };
+  let mut result = HashMap::new();
+  if let Some(mappings) = json.get("mappings").and_then(JsonValue::as_object) {
+    for (skill_name, mapping) in mappings {
+      let mut links = HashMap::new();
+      if let Some(mapping_links) = mapping.get("links").and_then(JsonValue::as_object) {
+        for (target, link) in mapping_links {
+          links.insert(target.clone(), link.clone());
+        }
+      }
+      result.insert(skill_name.clone(), links);
+    }
+  }
+  result
+}
+
+fn find_profile<'a>(profiles: &'a [TargetProfile], target: &str) -> Option<&'a TargetProfile> {
+  profiles.iter().find(|p| p.id == target)
+}
+
+// --- Command implementations: write operations ---
+
+#[tauri::command]
+pub fn map_skill(
+  workspace_root: State<'_, PathBuf>,
+  skill_name: String,
+  target: String,
+) -> Result<SingleResult, String> {
+  map_skill_impl(workspace_root.as_ref(), skill_name, target)
+}
+
+#[tauri::command]
+pub fn unmap_skill(
+  workspace_root: State<'_, PathBuf>,
+  skill_name: String,
+  target: String,
+) -> Result<SingleResult, String> {
+  unmap_skill_impl(workspace_root.as_ref(), skill_name, target)
+}
+
+#[tauri::command]
+pub fn adopt_skill(
+  workspace_root: State<'_, PathBuf>,
+  skill_name: String,
+  target: String,
+) -> Result<SingleResult, String> {
+  adopt_skill_impl(workspace_root.as_ref(), skill_name, target)
+}
+
+fn check_compat_impl(root: &Path, skill_path: String, target: String) -> Result<CompatResult, String> {
+  let (_, target_entries) = load_config(root);
+  let profiles = resolve_targets(&target_entries);
+  let _profile = find_profile(&profiles, &target)
+    .ok_or_else(|| format!("Unknown target: {target}"))?;
+
+  let path = Path::new(&skill_path);
+  let mut issues = Vec::new();
+
+  if !path.join("SKILL.md").exists() {
+    issues.push(CompatIssue {
+      severity: "error".into(),
+      message: "Missing SKILL.md".into(),
+    });
+  }
+
+  let status = if issues.iter().any(|i| i.severity == "error") {
+    "unsupported"
+  } else if issues.iter().any(|i| i.severity == "warning") {
+    "needs-overlay"
+  } else {
+    "compatible"
+  };
+
+  Ok(CompatResult {
+    status: status.into(),
+    reason: if issues.is_empty() {
+      None
+    } else {
+      Some(format!("{} issue(s) found", issues.len()))
+    },
+    suggested_action: None,
+    issues: if issues.is_empty() { None } else { Some(issues) },
+  })
+}
+
+#[tauri::command]
+pub fn check_compat(
+  workspace_root: State<'_, PathBuf>,
+  skill_path: String,
+  target: String,
+) -> Result<CompatResult, String> {
+  check_compat_impl(workspace_root.as_ref(), skill_path, target)
+}
+
+#[tauri::command]
+pub fn compat_batch(
+  workspace_root: State<'_, PathBuf>,
+  skill_names: Vec<String>,
+  target: String,
+) -> Result<BatchResult, String> {
+  let root: &Path = &workspace_root;
+  let mut results = Vec::new();
+  let mut summary: HashMap<String, u32> = HashMap::new();
+
+  for name in &skill_names {
+    let skill_path = root.join("skills").join(name).to_string_lossy().to_string();
+    let result = check_compat_impl(root, skill_path, target.clone());
+    match result {
+      Ok(compat) => {
+        *summary.entry(compat.status.clone()).or_insert(0) += 1;
+        results.push(BatchResultItem {
+          name: name.clone(),
+          status: compat.status,
+          message: compat.reason,
+          error: None,
+        });
+      }
+      Err(e) => {
+        *summary.entry("error".into()).or_insert(0) += 1;
+        results.push(BatchResultItem {
+          name: name.clone(),
+          status: "error".into(),
+          message: None,
+          error: Some(e),
+        });
+      }
+    }
+  }
+
+  Ok(BatchResult {
+    summary: Some(summary),
+    results,
+  })
+}
+
+fn batch_operation(
+  workspace_root: &Path,
+  skill_names: &[String],
+  target: &str,
+  op: fn(&Path, String, String) -> Result<SingleResult, String>,
+) -> BatchResult {
+  let mut results = Vec::new();
+  let mut summary: HashMap<String, u32> = HashMap::new();
+
+  for name in skill_names {
+    let result = op(workspace_root, name.clone(), target.to_string());
+    match result {
+      Ok(single) => {
+        *summary.entry(single.status.clone()).or_insert(0) += 1;
+        results.push(BatchResultItem {
+          name: name.clone(),
+          status: single.status,
+          message: single.message,
+          error: None,
+        });
+      }
+      Err(e) => {
+        *summary.entry("error".into()).or_insert(0) += 1;
+        results.push(BatchResultItem {
+          name: name.clone(),
+          status: "error".into(),
+          message: None,
+          error: Some(e),
+        });
+      }
+    }
+  }
+
+  BatchResult {
+    summary: Some(summary),
+    results,
+  }
+}
+
+fn map_skill_impl(root: &Path, skill_name: String, target: String) -> Result<SingleResult, String> {
+  let (_, target_entries) = load_config(root);
+  let profiles = resolve_targets(&target_entries);
+  let profile = find_profile(&profiles, &target)
+    .ok_or_else(|| format!("Unknown target: {target}"))?;
+  let skill_path = root.join("skills").join(&skill_name);
+  if !skill_path.exists() {
+    return Ok(SingleResult {
+      status: "not-found".into(),
+      message: Some(format!("Skill '{}' not found", skill_name)),
+    });
+  }
+  let mappings_path = root.join("registry").join("mappings.json");
+  let mut mappings = read_mappings_raw(&mappings_path);
+  let skill_links = mappings.entry(skill_name.clone()).or_default();
+  let first_skill_dir = profile.skill_dirs.first()
+    .ok_or_else(|| format!("No skill dirs for target: {target}"))?;
+  let link_path = PathBuf::from(first_skill_dir).join(&skill_name);
+  if let Some(existing) = skill_links.get(&target) {
+    if !existing.is_null() {
+      return Ok(SingleResult {
+        status: "already-mapped".into(),
+        message: Some(format!("'{}' is already mapped to {}", skill_name, target)),
+      });
+    }
+  }
+  create_junction_or_symlink(&skill_path, &link_path, &profile.link_mode)?;
+  skill_links.insert(target.clone(), serde_json::json!({"type": "standard", "linkedAt": chrono_timestamp()}));
+  write_mappings_registry(&mappings_path, &mappings)?;
+  Ok(SingleResult { status: "mapped".into(), message: Some(format!("Mapped '{}' to {}", skill_name, target)) })
+}
+
+fn unmap_skill_impl(root: &Path, skill_name: String, target: String) -> Result<SingleResult, String> {
+  let (_, target_entries) = load_config(root);
+  let profiles = resolve_targets(&target_entries);
+  let profile = find_profile(&profiles, &target)
+    .ok_or_else(|| format!("Unknown target: {target}"))?;
+  let first_skill_dir = profile.skill_dirs.first()
+    .ok_or_else(|| format!("No skill dirs for target: {target}"))?;
+  let link_path = PathBuf::from(first_skill_dir).join(&skill_name);
+  if link_path.exists() {
+    remove_link(&link_path)?;
+  }
+  let mappings_path = root.join("registry").join("mappings.json");
+  let mut mappings = read_mappings_raw(&mappings_path);
+  if let Some(skill_links) = mappings.get_mut(&skill_name) {
+    skill_links.remove(&target);
+  }
+  write_mappings_registry(&mappings_path, &mappings)?;
+  Ok(SingleResult { status: "unmapped".into(), message: Some(format!("Unmapped '{}' from {}", skill_name, target)) })
+}
+
+fn adopt_skill_impl(root: &Path, skill_name: String, target: String) -> Result<SingleResult, String> {
+  let (_, target_entries) = load_config(root);
+  let profiles = resolve_targets(&target_entries);
+  let profile = find_profile(&profiles, &target)
+    .ok_or_else(|| format!("Unknown target: {target}"))?;
+  let first_skill_dir = profile.skill_dirs.first()
+    .ok_or_else(|| format!("No skill dirs for target: {target}"))?;
+  let agent_skill_path = PathBuf::from(first_skill_dir).join(&skill_name);
+  if !agent_skill_path.exists() {
+    return Ok(SingleResult { status: "not-found".into(), message: Some(format!("Skill '{}' not found in {}", skill_name, first_skill_dir)) });
+  }
+  let project_skill_path = root.join("skills").join(&skill_name);
+  if !project_skill_path.exists() {
+    copy_dir_recursive(&agent_skill_path, &project_skill_path)?;
+  }
+  if agent_skill_path.exists() && is_junction_or_symlink(&agent_skill_path) {
+    remove_link(&agent_skill_path)?;
+  }
+  create_junction_or_symlink(&project_skill_path, &agent_skill_path, &profile.link_mode)?;
+  let mappings_path = root.join("registry").join("mappings.json");
+  let mut mappings = read_mappings_raw(&mappings_path);
+  let skill_links = mappings.entry(skill_name.clone()).or_default();
+  skill_links.insert(target.clone(), serde_json::json!({"type": "adopted", "linkedAt": chrono_timestamp()}));
+  write_mappings_registry(&mappings_path, &mappings)?;
+  Ok(SingleResult { status: "adopted".into(), message: Some(format!("Adopted '{}' from {}", skill_name, target)) })
+}
+
+#[tauri::command]
+pub fn map_batch(
+  workspace_root: State<'_, PathBuf>,
+  skill_names: Vec<String>,
+  target: String,
+) -> Result<BatchResult, String> {
+  Ok(batch_operation(
+    workspace_root.as_ref(),
+    &skill_names,
+    &target,
+    map_skill_impl,
+  ))
+}
+
+#[tauri::command]
+pub fn unmap_batch(
+  workspace_root: State<'_, PathBuf>,
+  skill_names: Vec<String>,
+  target: String,
+) -> Result<BatchResult, String> {
+  Ok(batch_operation(
+    workspace_root.as_ref(),
+    &skill_names,
+    &target,
+    unmap_skill_impl,
+  ))
+}
+
+#[tauri::command]
+pub fn adopt_batch(
+  workspace_root: State<'_, PathBuf>,
+  skill_names: Vec<String>,
+  target: String,
+) -> Result<BatchResult, String> {
+  Ok(batch_operation(
+    workspace_root.as_ref(),
+    &skill_names,
+    &target,
+    adopt_skill_impl,
+  ))
+}
+
+#[tauri::command]
+pub fn run_doctor(workspace_root: State<'_, PathBuf>) -> Result<DoctorResult, String> {
+  let root: &Path = &workspace_root;
+  let mut issues = Vec::new();
+
+  // Check config exists
+  let config_path = root.join("skillgov.config.json");
+  if !config_path.exists() {
+    issues.push(DoctorIssue {
+      severity: "warning".into(),
+      message: "No skillgov.config.json found — using defaults.".into(),
+    });
+  }
+
+  // Check skills directory
+  let skills_dir = root.join("skills");
+  if !skills_dir.exists() {
+    issues.push(DoctorIssue {
+      severity: "warning".into(),
+      message: "No skills/ directory found.".into(),
+    });
+  }
+
+  // Check registry
+  let registry_path = root.join("registry").join("skills.json");
+  if !registry_path.exists() {
+    issues.push(DoctorIssue {
+      severity: "warning".into(),
+      message: "No registry/skills.json found.".into(),
+    });
+  }
+
+  // Check target skill dirs
+  let (_, target_entries) = load_config(root);
+  let profiles = resolve_targets(&target_entries);
+  for profile in &profiles {
+    for skill_dir in &profile.skill_dirs {
+      if !Path::new(skill_dir).exists() {
+        issues.push(DoctorIssue {
+          severity: "warning".into(),
+          message: format!("Target skill dir does not exist: {}", skill_dir),
+        });
+      }
+    }
+  }
+
+  Ok(DoctorResult { issues })
+}
+
+#[tauri::command]
+pub fn rollback_install(
+  workspace_root: State<'_, PathBuf>,
+  target: String,
+) -> Result<SingleResult, String> {
+  let root: &Path = &workspace_root;
+  let mappings_path = root.join("registry").join("mappings.json");
+  let mut mappings = read_mappings_raw(&mappings_path);
+
+  // Find the last mapped skill for this target
+  let mut last_skill: Option<String> = None;
+  for (skill_name, links) in &mappings {
+    if let Some(link) = links.get(&target) {
+      if !link.is_null() {
+        last_skill = Some(skill_name.clone());
+      }
+    }
+  }
+
+  let skill_name = last_skill.ok_or_else(|| {
+    format!("No mapped skills found for target: {target}")
+  })?;
+
+  // Call unmap
+  unmap_skill(workspace_root, skill_name.clone(), target.clone())?;
+
+  Ok(SingleResult {
+    status: "rolled-back".into(),
+    message: Some(format!("Rolled back '{}' from {}", skill_name, target)),
+  })
+}
+
+#[tauri::command]
+pub fn discover_import(workspace_root: State<'_, PathBuf>) -> Result<JsonValue, String> {
+  let root: &Path = &workspace_root;
+  let (_, _target_entries) = load_config(root);
+
+  let registry_path = root.join("registry").join("skills.json");
+  let imported = read_skills_registry(&registry_path);
+
+  let mut total = 0u32;
+  let mut imported_count = 0u32;
+  let mut results = Vec::new();
+
+  let skills_dir = root.join("skills");
+  if skills_dir.exists() {
+    if let Ok(entries) = fs::read_dir(&skills_dir) {
+      for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name == ".system" || !entry.path().is_dir() {
+          continue;
+        }
+        if !entry.path().join("SKILL.md").exists() {
+          continue;
+        }
+        total += 1;
+        if imported.contains_key(&name) {
+          results.push(serde_json::json!({"name": name, "status": "already-imported"}));
+        } else {
+          // Add to registry
+          let mut reg = read_skills_registry_json(&registry_path);
+          if let Some(skills) = reg.pointer_mut("/skills").and_then(|v| v.as_object_mut()) {
+            skills.insert(name.clone(), serde_json::json!({"origin": "local"}));
+          }
+          let content = serde_json::to_string_pretty(&reg).unwrap_or_default();
+          let _ = fs::write(&registry_path, content);
+          imported_count += 1;
+          results.push(serde_json::json!({"name": name, "status": "imported"}));
+        }
+      }
+    }
+  }
+
+  Ok(serde_json::json!({
+    "total": total,
+    "imported": imported_count,
+    "results": results,
+  }))
+}
+
+fn read_skills_registry_json(path: &Path) -> JsonValue {
+  let raw = match fs::read_to_string(path) {
+    Ok(r) => r,
+    Err(_) => return serde_json::json!({"skills": {}}),
+  };
+  serde_json::from_str(&raw).unwrap_or_else(|_| serde_json::json!({"skills": {}}))
+}
+
+fn chrono_timestamp() -> String {
+  // Simple timestamp without chrono dependency
+  use std::time::{SystemTime, UNIX_EPOCH};
+  let secs = SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .unwrap_or_default()
+    .as_secs();
+  format!("{secs}")
 }

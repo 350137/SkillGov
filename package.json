@@ -12,7 +12,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "test": "pnpm --filter @skillgov/control-panel build:spa && vitest run",
+    "test": "corepack pnpm --filter @skillgov/control-panel build:spa && vitest run",
     "test:watch": "vitest"
   },
   "devDependencies": {

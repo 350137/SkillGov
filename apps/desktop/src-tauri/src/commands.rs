@@ -2,6 +2,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -69,6 +70,73 @@ pub struct DiscoverResponse {
   pub skills: Vec<Skill>,
   pub non_skill_directories: Vec<String>,
   pub target_profiles: Vec<TargetProfile>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteSkillResult {
+  pub id: String,
+  pub skill_id: String,
+  pub name: String,
+  pub source: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub installs: Option<u64>,
+  pub installed: bool,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub validation_status: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteSearchResponse {
+  pub query: String,
+  pub source: String,
+  pub count: usize,
+  pub skills: Vec<RemoteSkillResult>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteSkillPreview {
+  pub id: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub name: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub description: Option<String>,
+  pub file_count: usize,
+  pub total_bytes: usize,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub remote_hash: Option<String>,
+  pub status: String,
+  pub issues: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteInstallResult {
+  pub status: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub skill_name: Option<String>,
+  pub issues: Vec<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub message: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub origin: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+struct DownloadedSkillFile {
+  path: String,
+  contents: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+struct DownloadedSkillPayload {
+  files: Vec<DownloadedSkillFile>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  hash: Option<String>,
 }
 
 // --- Config reading ---
@@ -672,6 +740,469 @@ fn validate_skill_path(skill_path: &str) -> String {
     return "fixable".into();
   }
   "pass".into()
+}
+
+const SKILLS_API_BASE: &str = "https://skills.sh/api";
+const MAX_REMOTE_QUERY_LENGTH: usize = 100;
+const DEFAULT_REMOTE_LIMIT: u32 = 20;
+const MIN_REMOTE_LIMIT: u32 = 1;
+const MAX_REMOTE_LIMIT: u32 = 50;
+const MAX_REMOTE_FILES: usize = 100;
+const MAX_REMOTE_FILE_BYTES: usize = 512 * 1024;
+const MAX_REMOTE_TOTAL_BYTES: usize = 2 * 1024 * 1024;
+
+struct PayloadValidation {
+  status: String,
+  issues: Vec<String>,
+  file_count: usize,
+  total_bytes: usize,
+  skill_md: Option<String>,
+}
+
+fn normalize_remote_query(query: &str, limit: Option<u32>) -> Result<(String, u32), String> {
+  let normalized = query.trim().to_string();
+  if normalized.is_empty() {
+    return Err("Remote search query is required.".into());
+  }
+  if normalized.len() > MAX_REMOTE_QUERY_LENGTH {
+    return Err(format!(
+      "Remote search query must be {MAX_REMOTE_QUERY_LENGTH} characters or fewer."
+    ));
+  }
+  let raw_limit = limit.unwrap_or(DEFAULT_REMOTE_LIMIT);
+  let clamped = raw_limit.clamp(MIN_REMOTE_LIMIT, MAX_REMOTE_LIMIT);
+  Ok((normalized, clamped))
+}
+
+fn validate_remote_skill_id(remote_id: &str) -> Result<String, String> {
+  let normalized = remote_id.trim();
+  let invalid_message =
+    "Remote skill ID must use safe path-like segments without traversal or absolute paths.";
+  if normalized.is_empty() || normalized.len() > 240 {
+    return Err(invalid_message.into());
+  }
+  if normalized.contains('\\')
+    || normalized.starts_with('/')
+    || normalized
+      .chars()
+      .nth(1)
+      .is_some_and(|c| c == ':' && normalized.len() > 2)
+  {
+    return Err(invalid_message.into());
+  }
+
+  for segment in normalized.split('/') {
+    let mut chars = segment.chars();
+    match chars.next() {
+      Some(c) if c.is_ascii_alphanumeric() => {}
+      _ => return Err(invalid_message.into()),
+    }
+    if !chars.all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-') {
+      return Err(invalid_message.into());
+    }
+  }
+  Ok(normalized.to_string())
+}
+
+fn safe_downloaded_file_path(staging_dir: &Path, downloaded_path: &str) -> Result<PathBuf, String> {
+  let segments = validate_downloaded_path(downloaded_path)?;
+  let mut resolved = staging_dir.to_path_buf();
+  for segment in segments {
+    resolved.push(segment);
+  }
+  if !resolved.starts_with(staging_dir) {
+    return Err(format!("Unsafe downloaded file path: {downloaded_path}"));
+  }
+  Ok(resolved)
+}
+
+fn validate_downloaded_payload(payload: &DownloadedSkillPayload) -> PayloadValidation {
+  let mut issues = Vec::new();
+  let mut total_bytes = 0usize;
+  let mut skill_md: Option<String> = None;
+
+  if payload.files.len() > MAX_REMOTE_FILES {
+    issues.push(format!(
+      "Downloaded skill payload contains too many files; max is {MAX_REMOTE_FILES}."
+    ));
+  }
+
+  for file in &payload.files {
+    if validate_downloaded_path(&file.path).is_err() {
+      issues.push(format!("Unsafe downloaded file path: {}", file.path));
+    }
+    let byte_len = file.contents.as_bytes().len();
+    total_bytes += byte_len;
+    if byte_len > MAX_REMOTE_FILE_BYTES {
+      issues.push(format!("Downloaded file is too large: {}", file.path));
+    }
+    if file.path == "SKILL.md" {
+      skill_md = Some(file.contents.clone());
+    }
+  }
+
+  if total_bytes > MAX_REMOTE_TOTAL_BYTES {
+    issues.push(format!(
+      "Downloaded skill payload is too large; max is {MAX_REMOTE_TOTAL_BYTES} bytes."
+    ));
+  }
+  if skill_md.is_none() {
+    issues.push("Downloaded skill payload must include a root SKILL.md file.".into());
+  }
+
+  PayloadValidation {
+    status: if issues.is_empty() { "pass" } else { "fail" }.into(),
+    issues,
+    file_count: payload.files.len(),
+    total_bytes,
+    skill_md,
+  }
+}
+
+fn validate_downloaded_path(downloaded_path: &str) -> Result<Vec<&str>, String> {
+  if downloaded_path.is_empty()
+    || downloaded_path.contains('\\')
+    || downloaded_path.starts_with('/')
+    || downloaded_path.contains(':')
+  {
+    return Err(format!("Unsafe downloaded file path: {downloaded_path}"));
+  }
+  let segments: Vec<&str> = downloaded_path.split('/').collect();
+  if segments.iter().any(|segment| {
+    segment.is_empty()
+      || *segment == "."
+      || *segment == ".."
+      || segment
+        .chars()
+        .any(|c| matches!(c, '<' | '>' | '"' | '|' | '?' | '*') || c.is_control())
+  }) {
+    return Err(format!("Unsafe downloaded file path: {downloaded_path}"));
+  }
+  Ok(segments)
+}
+
+fn parse_skill_md_frontmatter(content: &str) -> (HashMap<String, String>, Vec<String>) {
+  let mut data = HashMap::new();
+  let mut errors = Vec::new();
+  if !content.starts_with("---") {
+    errors.push("Root SKILL.md must start with frontmatter.".into());
+    return (data, errors);
+  }
+  let Some(end_index) = content[3..].find("---").map(|idx| idx + 3) else {
+    errors.push("Root SKILL.md frontmatter is not closed.".into());
+    return (data, errors);
+  };
+  let raw = content[3..end_index].trim();
+  for line in raw.lines() {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+      continue;
+    }
+    let Some((raw_key, raw_value)) = trimmed.split_once(':') else {
+      errors.push(format!("Unparseable frontmatter line: \"{trimmed}\""));
+      continue;
+    };
+    let key = raw_key.trim();
+    if key.is_empty() {
+      errors.push(format!("Unparseable frontmatter line: \"{trimmed}\""));
+      continue;
+    }
+    data.insert(key.to_string(), strip_quotes(raw_value.trim()));
+  }
+  (data, errors)
+}
+
+fn strip_quotes(value: &str) -> String {
+  let trimmed = value.trim();
+  if (trimmed.starts_with('"') && trimmed.ends_with('"'))
+    || (trimmed.starts_with('\'') && trimmed.ends_with('\''))
+  {
+    return trimmed[1..trimmed.len() - 1].to_string();
+  }
+  trimmed.to_string()
+}
+
+fn http_get_json(url: &str) -> Result<JsonValue, String> {
+  let client = reqwest::blocking::Client::builder()
+    .timeout(Duration::from_secs(10))
+    .build()
+    .map_err(|e| format!("Failed to create remote skill HTTP client: {e}"))?;
+  let response = client
+    .get(url)
+    .send()
+    .map_err(|e| format!("Remote skill request failed: {e}"))?;
+  let status = response.status();
+  if !status.is_success() {
+    return Err(format!("Remote skill request failed with HTTP {status}"));
+  }
+  response
+    .json::<JsonValue>()
+    .map_err(|e| format!("Remote skill response was invalid JSON: {e}"))
+}
+
+fn download_remote_payload(remote_id: &str) -> Result<DownloadedSkillPayload, String> {
+  let id = validate_remote_skill_id(remote_id)?;
+  let url = format!("{SKILLS_API_BASE}/download/{id}");
+  let json = http_get_json(&url)?;
+  serde_json::from_value::<DownloadedSkillPayload>(json)
+    .map_err(|e| format!("Remote skill download response was invalid: {e}"))
+}
+
+fn preview_remote_payload(remote_id: &str, payload: &DownloadedSkillPayload) -> RemoteSkillPreview {
+  let id = validate_remote_skill_id(remote_id).unwrap_or_else(|_| remote_id.to_string());
+  let validation = validate_downloaded_payload(payload);
+  let (frontmatter, fm_errors) = validation
+    .skill_md
+    .as_deref()
+    .map(parse_skill_md_frontmatter)
+    .unwrap_or_default();
+  let mut issues = validation.issues.clone();
+  issues.extend(fm_errors);
+  if validation.status == "pass" && !frontmatter.contains_key("name") {
+    issues.push("Root SKILL.md frontmatter must include a name.".into());
+  }
+  if validation.status == "pass" && !frontmatter.contains_key("description") {
+    issues.push("Root SKILL.md frontmatter must include a description.".into());
+  }
+  RemoteSkillPreview {
+    id,
+    name: frontmatter.get("name").cloned(),
+    description: frontmatter.get("description").cloned(),
+    file_count: validation.file_count,
+    total_bytes: validation.total_bytes,
+    remote_hash: payload.hash.clone(),
+    status: if issues.is_empty() { "pass" } else { "fail" }.into(),
+    issues,
+  }
+}
+
+fn install_remote_payload_impl(
+  root: &Path,
+  remote_id: &str,
+  payload: DownloadedSkillPayload,
+) -> Result<RemoteInstallResult, String> {
+  let id = validate_remote_skill_id(remote_id)?;
+  let origin = format!("remote:skills.sh:{id}");
+  let preview = preview_remote_payload(&id, &payload);
+  let skill_name = preview.name.clone();
+  if preview.status != "pass" {
+    return Ok(RemoteInstallResult {
+      status: "fail".into(),
+      skill_name,
+      issues: preview.issues,
+      message: None,
+      origin: Some(origin),
+    });
+  }
+  let Some(skill_name) = skill_name else {
+    return Ok(RemoteInstallResult {
+      status: "fail".into(),
+      skill_name: None,
+      issues: vec!["Root SKILL.md frontmatter must include a name.".into()],
+      message: None,
+      origin: Some(origin),
+    });
+  };
+  if !is_safe_file_name(&skill_name) {
+    return Ok(RemoteInstallResult {
+      status: "fail".into(),
+      skill_name: Some(skill_name),
+      issues: vec!["Root SKILL.md frontmatter name must be a safe local skill name.".into()],
+      message: None,
+      origin: Some(origin),
+    });
+  }
+
+  let incoming_dir = root.join("incoming");
+  let remote_downloads_dir = incoming_dir.join(".remote-downloads");
+  let temp_root = remote_downloads_dir.join(safe_remote_staging_name(&id));
+  let source_dir = temp_root.join(&skill_name);
+  let skills_dir = root.join("skills");
+  let final_skill_dir = skills_dir.join(&skill_name);
+  let existed = final_skill_dir.exists();
+
+  let result = (|| {
+    fs::create_dir_all(&source_dir)
+      .map_err(|e| format!("Failed to create remote staging directory: {e}"))?;
+    for file in &payload.files {
+      let target = safe_downloaded_file_path(&source_dir, &file.path)?;
+      if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)
+          .map_err(|e| format!("Failed to create remote staged directory: {e}"))?;
+      }
+      fs::write(&target, &file.contents)
+        .map_err(|e| format!("Failed to write remote staged file: {e}"))?;
+    }
+
+    let validation_status = validate_skill_path(&source_dir.to_string_lossy());
+    if validation_status == "fail" {
+      return Ok(RemoteInstallResult {
+        status: "fail".into(),
+        skill_name: Some(skill_name.clone()),
+        issues: vec!["Skill validation failed after staging.".into()],
+        message: None,
+        origin: Some(origin.clone()),
+      });
+    }
+    if validation_status == "fixable" {
+      return Ok(RemoteInstallResult {
+        status: "fixable".into(),
+        skill_name: Some(skill_name.clone()),
+        issues: vec!["Skill requires repair after staging.".into()],
+        message: None,
+        origin: Some(origin.clone()),
+      });
+    }
+
+    fs::create_dir_all(&skills_dir)
+      .map_err(|e| format!("Failed to create skills directory: {e}"))?;
+    if final_skill_dir.exists() {
+      fs::remove_dir_all(&final_skill_dir)
+        .map_err(|e| format!("Failed to replace existing skill: {e}"))?;
+    }
+    copy_dir_recursive(&source_dir, &final_skill_dir)?;
+    write_remote_skill_registry(root, &skill_name, &origin)?;
+
+    Ok(RemoteInstallResult {
+      status: "pass".into(),
+      skill_name: Some(skill_name.clone()),
+      issues: vec![],
+      message: Some(if existed {
+        format!("Replaced existing managed skill \"{skill_name}\".")
+      } else {
+        format!("Installed remote skill \"{skill_name}\".")
+      }),
+      origin: Some(origin.clone()),
+    })
+  })();
+
+  let _ = fs::remove_dir_all(&temp_root);
+  remove_dir_if_empty(&remote_downloads_dir);
+  result
+}
+
+fn write_remote_skill_registry(root: &Path, skill_name: &str, origin: &str) -> Result<(), String> {
+  let registry_path = root.join("registry").join("skills.json");
+  let mut registry = read_skills_registry_json(&registry_path);
+  if registry.get("skills").and_then(JsonValue::as_object).is_none() {
+    registry["skills"] = serde_json::json!({});
+  }
+  if let Some(skills) = registry.get_mut("skills").and_then(JsonValue::as_object_mut) {
+    skills.insert(
+      skill_name.to_string(),
+      serde_json::json!({
+        "name": skill_name,
+        "sourcePath": origin,
+        "origin": origin,
+        "importedAt": chrono_timestamp(),
+        "validationStatus": "pass"
+      }),
+    );
+  }
+  if let Some(parent) = registry_path.parent() {
+    fs::create_dir_all(parent)
+      .map_err(|e| format!("Failed to create registry directory: {e}"))?;
+  }
+  let content = serde_json::to_string_pretty(&registry)
+    .map_err(|e| format!("Failed to serialize skills registry: {e}"))?;
+  fs::write(&registry_path, content)
+    .map_err(|e| format!("Failed to write skills registry: {e}"))?;
+  Ok(())
+}
+
+fn safe_remote_staging_name(remote_id: &str) -> String {
+  remote_id.replace(['/', '.'], "_")
+}
+
+fn remove_dir_if_empty(dir: &Path) {
+  if let Ok(mut entries) = fs::read_dir(dir) {
+    if entries.next().is_none() {
+      let _ = fs::remove_dir_all(dir);
+    }
+  }
+}
+
+#[tauri::command]
+pub fn search_remote_skills(
+  workspace_root: State<'_, PathBuf>,
+  query: String,
+  limit: Option<u32>,
+) -> Result<RemoteSearchResponse, String> {
+  let (query, limit) = normalize_remote_query(&query, limit)?;
+  let mut url = reqwest::Url::parse(&format!("{SKILLS_API_BASE}/search"))
+    .map_err(|e| format!("Failed to build remote search URL: {e}"))?;
+  url
+    .query_pairs_mut()
+    .append_pair("q", &query)
+    .append_pair("limit", &limit.to_string());
+  let raw = http_get_json(url.as_str())?;
+  let remote_skills = raw
+    .get("skills")
+    .and_then(JsonValue::as_array)
+    .ok_or_else(|| "Remote skill search returned an invalid response.".to_string())?;
+  let installed = installed_remote_statuses(workspace_root.as_ref());
+  let mut skills = Vec::new();
+
+  for item in remote_skills {
+    let Some(id) = item.get("id").and_then(JsonValue::as_str) else {
+      continue;
+    };
+    let Ok(id) = validate_remote_skill_id(id) else {
+      continue;
+    };
+    let Some(skill_id) = item.get("skillId").and_then(JsonValue::as_str) else {
+      continue;
+    };
+    let Some(name) = item.get("name").and_then(JsonValue::as_str) else {
+      continue;
+    };
+    let Some(source) = item.get("source").and_then(JsonValue::as_str) else {
+      continue;
+    };
+    let validation_status = installed.get(name).cloned();
+    skills.push(RemoteSkillResult {
+      id,
+      skill_id: skill_id.into(),
+      name: name.into(),
+      source: source.into(),
+      installs: item.get("installs").and_then(JsonValue::as_u64),
+      installed: validation_status.is_some(),
+      validation_status,
+    });
+  }
+
+  Ok(RemoteSearchResponse {
+    query,
+    source: "skills.sh".into(),
+    count: skills.len(),
+    skills,
+  })
+}
+
+#[tauri::command]
+pub fn preview_remote_skill(remote_id: String) -> Result<RemoteSkillPreview, String> {
+  let id = validate_remote_skill_id(&remote_id)?;
+  let payload = download_remote_payload(&id)?;
+  Ok(preview_remote_payload(&id, &payload))
+}
+
+#[tauri::command]
+pub fn install_remote_skill(
+  workspace_root: State<'_, PathBuf>,
+  remote_id: String,
+) -> Result<RemoteInstallResult, String> {
+  let id = validate_remote_skill_id(&remote_id)?;
+  let payload = download_remote_payload(&id)?;
+  install_remote_payload_impl(workspace_root.as_ref(), &id, payload)
+}
+
+fn installed_remote_statuses(root: &Path) -> HashMap<String, String> {
+  let mut result = HashMap::new();
+  let (skills, _) = scan_skill_dir(&root.join("skills"), "project");
+  for skill in skills {
+    result.insert(skill.name, validate_skill_path(&skill.path));
+  }
+  result
 }
 
 // --- Additional types for write operations ---
@@ -1671,6 +2202,112 @@ mod tests {
 
     assert_eq!(validate_skill_path(&missing_description.to_string_lossy()), "fail");
     assert_eq!(validate_skill_path(&mismatched_name.to_string_lossy()), "fixable");
+
+    let _ = fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn remote_safe_downloaded_file_path_rejects_unsafe_paths() {
+    let root = unique_temp_dir("remote-path-root");
+    let staging = root.join("incoming").join(".remote-downloads").join("remote-test");
+
+    assert!(safe_downloaded_file_path(&staging, "docs/guide.md").is_ok());
+    assert!(safe_downloaded_file_path(&staging, "../outside.md").is_err());
+    assert!(safe_downloaded_file_path(&staging, "C:/outside.md").is_err());
+    assert!(safe_downloaded_file_path(&staging, "docs\\outside.md").is_err());
+    assert!(safe_downloaded_file_path(&staging, "docs/bad:name.md").is_err());
+
+    let _ = fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn remote_install_rejects_invalid_skill_metadata() {
+    let root = unique_temp_dir("remote-invalid-root");
+    let payload = DownloadedSkillPayload {
+      files: vec![DownloadedSkillFile {
+        path: "SKILL.md".into(),
+        contents: "---\nname: broken-skill\n---\n\n# Missing description\n".into(),
+      }],
+      hash: Some("abc123".into()),
+    };
+
+    let result =
+      install_remote_payload_impl(&root, "github/example/broken-skill", payload).expect("install");
+
+    assert_eq!(result.status, "fail");
+    assert!(result.issues.join("\n").contains("description"));
+    assert!(!root.join("skills").join("broken-skill").exists());
+    assert!(!root.join("incoming").join(".remote-downloads").exists());
+
+    let _ = fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn remote_install_promotes_valid_payload_and_updates_registry() {
+    let root = unique_temp_dir("remote-valid-root");
+    let payload = DownloadedSkillPayload {
+      files: vec![
+        DownloadedSkillFile {
+          path: "SKILL.md".into(),
+          contents:
+            "---\nname: remote-test\ndescription: a remote test skill\n---\n\n# Remote\n".into(),
+        },
+        DownloadedSkillFile {
+          path: "docs/guide.md".into(),
+          contents: "Use this skill.".into(),
+        },
+      ],
+      hash: Some("abc123".into()),
+    };
+
+    let result =
+      install_remote_payload_impl(&root, "github/example/remote-test", payload).expect("install");
+
+    assert_eq!(result.status, "pass");
+    assert_eq!(result.skill_name.as_deref(), Some("remote-test"));
+    assert!(root.join("skills").join("remote-test").join("SKILL.md").exists());
+    assert!(root
+      .join("skills")
+      .join("remote-test")
+      .join("docs")
+      .join("guide.md")
+      .exists());
+    assert!(!root.join("incoming").join(".remote-downloads").exists());
+    let raw = fs::read_to_string(root.join("registry").join("skills.json")).expect("registry");
+    let json: JsonValue = serde_json::from_str(&raw).expect("registry json");
+    assert_eq!(
+      json["skills"]["remote-test"]["origin"],
+      "remote:skills.sh:github/example/remote-test"
+    );
+
+    let _ = fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn remote_install_rejects_traversal_without_writing_outside_project() {
+    let root = unique_temp_dir("remote-traversal-root");
+    let payload = DownloadedSkillPayload {
+      files: vec![
+        DownloadedSkillFile {
+          path: "SKILL.md".into(),
+          contents:
+            "---\nname: escape-skill\ndescription: traversal test\n---\n\n# Escape\n".into(),
+        },
+        DownloadedSkillFile {
+          path: "../outside.txt".into(),
+          contents: "escape".into(),
+        },
+      ],
+      hash: Some("abc123".into()),
+    };
+
+    let result =
+      install_remote_payload_impl(&root, "github/example/escape-skill", payload).expect("install");
+
+    assert_eq!(result.status, "fail");
+    assert!(result.issues.join("\n").contains("Unsafe"));
+    assert!(!root.join("outside.txt").exists());
+    assert!(!root.join("skills").join("escape-skill").exists());
 
     let _ = fs::remove_dir_all(root);
   }

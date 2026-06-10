@@ -23,6 +23,9 @@ pub fn run() {
       crate::commands::adopt_batch,
       crate::commands::run_doctor,
       crate::commands::rollback_install,
+      crate::commands::search_remote_skills,
+      crate::commands::preview_remote_skill,
+      crate::commands::install_remote_skill,
     ])
     .setup(move |app| {
       app.manage(workspace_root);

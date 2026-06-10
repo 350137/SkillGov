@@ -140,6 +140,41 @@ describe('linkManagedSkillToAgent', () => {
 });
 
 describe('upsertMapping', () => {
+  it('normalises legacy mappings without links wrapper', () => {
+    const mappingsPath = join(tmpDir, 'registry', 'mappings.json');
+    mkdirSync(join(tmpDir, 'registry'), { recursive: true });
+    writeFileSync(
+      mappingsPath,
+      JSON.stringify({
+        mappings: {
+          legacy: {
+            codex: {
+              path: join(tmpDir, 'codex-skills', 'legacy'),
+              mode: 'junction',
+              status: 'linked',
+              type: 'standard',
+              linkedAt: '2025-01-01T00:00:00Z',
+              updatedAt: '2025-01-01T00:00:00Z',
+            },
+            claude: {
+              path: join(tmpDir, 'claude-skills', 'legacy'),
+              mode: 'junction',
+              status: 'missing',
+              updatedAt: '2025-01-02T00:00:00Z',
+            },
+          },
+        },
+      }),
+      'utf-8',
+    );
+
+    const mappings = readSkillMappings(mappingsPath);
+
+    expect(mappings.mappings.legacy.skillName).toBe('legacy');
+    expect(mappings.mappings.legacy.links.codex?.type).toBe('standard');
+    expect(mappings.mappings.legacy.links.claude?.status).toBe('missing');
+  });
+
   it('creates a new mapping entry when none exists', () => {
     const mappingsPath = join(tmpDir, 'registry', 'mappings.json');
     const link: SkillMappingLink = {

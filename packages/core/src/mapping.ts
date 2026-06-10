@@ -50,12 +50,86 @@ export interface MappingTargetStatus {
   status: SkillMappingLink['status'];
 }
 
+type RawJsonObject = Record<string, unknown>;
+
 export function readSkillMappings(mappingsPath: string): SkillMappingsRegistry {
-  return readRegistry<SkillMappingsRegistry>(mappingsPath, { mappings: {} });
+  const registry = readRegistry<{ mappings?: Record<string, unknown> }>(mappingsPath, {
+    mappings: {},
+  });
+  return normaliseSkillMappings(registry);
 }
 
 function writeSkillMappings(mappingsPath: string, registry: SkillMappingsRegistry): void {
   writeRegistry(mappingsPath, registry);
+}
+
+function isObject(value: unknown): value is RawJsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function normaliseLink(value: unknown): SkillMappingLink | null {
+  if (!isObject(value)) return null;
+  const path = optionalString(value.path);
+  const mode = optionalString(value.mode) as SkillMappingLink['mode'] | undefined;
+  const status = optionalString(value.status) as SkillMappingLink['status'] | undefined;
+  if (!path || !mode || !status) return null;
+
+  return {
+    path,
+    mode,
+    status,
+    type: optionalString(value.type) as SkillMappingLink['type'] | undefined,
+    linkedAt: optionalString(value.linkedAt),
+    backupPath: optionalString(value.backupPath),
+    updatedAt: optionalString(value.updatedAt) || optionalString(value.linkedAt) || '',
+  };
+}
+
+function latestUpdatedAt(links: Partial<Record<SkillMappingTarget, SkillMappingLink>>): string {
+  return (
+    Object.values(links)
+      .map((link) => link?.updatedAt || link?.linkedAt || '')
+      .sort()
+      .at(-1) || ''
+  );
+}
+
+function normaliseSkillMappings(registry: {
+  mappings?: Record<string, unknown>;
+}): SkillMappingsRegistry {
+  const normalised: SkillMappingsRegistry = { mappings: {} };
+
+  for (const [skillName, rawMapping] of Object.entries(registry.mappings || {})) {
+    if (!isObject(rawMapping)) continue;
+    const rawLinks = isObject(rawMapping.links)
+      ? rawMapping.links
+      : Object.fromEntries(
+          Object.entries(rawMapping).filter(
+            ([key, value]) =>
+              !['skillName', 'canonicalPath', 'links', 'updatedAt'].includes(key) &&
+              isObject(value),
+          ),
+        );
+
+    const links: Partial<Record<SkillMappingTarget, SkillMappingLink>> = {};
+    for (const [target, rawLink] of Object.entries(rawLinks)) {
+      const link = normaliseLink(rawLink);
+      if (link) links[target] = link;
+    }
+
+    normalised.mappings[skillName] = {
+      skillName: optionalString(rawMapping.skillName) || skillName,
+      canonicalPath: optionalString(rawMapping.canonicalPath) || '',
+      links,
+      updatedAt: optionalString(rawMapping.updatedAt) || latestUpdatedAt(links),
+    };
+  }
+
+  return normalised;
 }
 
 export function copyDir(src: string, dest: string): void {

@@ -13,6 +13,7 @@ out/
 coverage/
 *.tsbuildinfo
 target/
+.cargo-target-review/
 apps/desktop/src-tauri/gen/
 
 # Logs and temporary files

@@ -262,6 +262,7 @@ fn merge_candidates(candidates: Vec<SkillCandidate>) -> Vec<SkillCandidate> {
 // --- Registry types ---
 
 type MappingLinks = HashMap<String, HashMap<String, JsonValue>>;
+const MAPPING_METADATA_KEYS: [&str; 4] = ["skillName", "canonicalPath", "links", "updatedAt"];
 
 // --- Registry reading ---
 
@@ -301,22 +302,44 @@ fn read_mappings_registry(path: &Path) -> HashMap<String, HashMap<String, String
   if let Some(mappings) = json.get("mappings").and_then(JsonValue::as_object) {
     for (skill_name, mapping) in mappings {
       let mut links = HashMap::new();
-      if let Some(mapping_links) = mapping.get("links").and_then(JsonValue::as_object) {
-        for (target, link) in mapping_links {
-          if !link.is_null() {
-            let link_type = link
-              .get("type")
-              .and_then(JsonValue::as_str)
-              .unwrap_or("standard")
-              .to_string();
-            links.insert(target.clone(), link_type);
-          }
-        }
+      for (target, link) in mapping_links_from_value(mapping) {
+        let link_type = link
+          .get("type")
+          .and_then(JsonValue::as_str)
+          .unwrap_or("standard")
+          .to_string();
+        links.insert(target, link_type);
       }
       result.insert(skill_name.clone(), links);
     }
   }
   result
+}
+
+fn mapping_links_from_value(mapping: &JsonValue) -> HashMap<String, JsonValue> {
+  let mut links = HashMap::new();
+
+  if let Some(mapping_links) = mapping.get("links").and_then(JsonValue::as_object) {
+    for (target, link) in mapping_links {
+      if !link.is_null() {
+        links.insert(target.clone(), link.clone());
+      }
+    }
+    return links;
+  }
+
+  if let Some(mapping_obj) = mapping.as_object() {
+    for (target, link) in mapping_obj {
+      if MAPPING_METADATA_KEYS.contains(&target.as_str()) || link.is_null() {
+        continue;
+      }
+      if link.get("path").and_then(JsonValue::as_str).is_some() {
+        links.insert(target.clone(), link.clone());
+      }
+    }
+  }
+
+  links
 }
 
 // --- Link detection (simplified) ---
@@ -784,12 +807,7 @@ fn read_mappings_raw(path: &Path) -> MappingLinks {
   let mut result = HashMap::new();
   if let Some(mappings) = json.get("mappings").and_then(JsonValue::as_object) {
     for (skill_name, mapping) in mappings {
-      let mut links = HashMap::new();
-      if let Some(mapping_links) = mapping.get("links").and_then(JsonValue::as_object) {
-        for (target, link) in mapping_links {
-          links.insert(target.clone(), link.clone());
-        }
-      }
+      let links = mapping_links_from_value(mapping);
       if !links.is_empty() {
         result.insert(skill_name.clone(), links);
       }
@@ -1358,6 +1376,42 @@ mod tests {
     assert!(alpha["canonicalPath"].as_str().unwrap().ends_with("/skills/alpha"));
     assert_eq!(alpha["links"]["codex"]["mode"], "junction");
     assert_eq!(alpha["links"]["codex"]["type"], "standard");
+
+    let _ = fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn read_mappings_raw_accepts_legacy_schema_without_links_wrapper() {
+    let root = unique_temp_dir("legacy-schema-root");
+    let registry_path = root.join("registry").join("mappings.json");
+    fs::create_dir_all(registry_path.parent().unwrap()).expect("registry dir");
+    fs::write(
+      &registry_path,
+      serde_json::json!({
+        "mappings": {
+          "alpha": {
+            "codex": {
+              "path": "C:/Users/example/.codex/skills/alpha",
+              "mode": "junction",
+              "status": "linked",
+              "type": "standard",
+              "linkedAt": "100",
+              "updatedAt": "100"
+            }
+          }
+        }
+      })
+      .to_string(),
+    )
+    .expect("write legacy mappings");
+
+    let mappings = read_mappings_raw(&registry_path);
+
+    assert_eq!(
+      mappings["alpha"]["codex"]["path"],
+      "C:/Users/example/.codex/skills/alpha"
+    );
+    assert_eq!(mappings["alpha"]["codex"]["type"], "standard");
 
     let _ = fs::remove_dir_all(root);
   }

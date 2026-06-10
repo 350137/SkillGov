@@ -1,4 +1,4 @@
-# Build a local desktop exe for SkillGov — runs tests, builds SPA, compiles release, copies to dist/SkillGov.exe.
+# Build a local desktop exe for SkillGov; it tests, builds, compiles, and copies the release artifact.
 # Usage: powershell -ExecutionPolicy Bypass -File scripts/desktop/build-local-exe.ps1
 
 $ErrorActionPreference = 'Stop'

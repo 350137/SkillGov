@@ -1,8 +1,12 @@
-// Skill detail component — displays selected skill info, compatibility check, and single-skill operations.
+// Skill detail component; displays selected skill info, compatibility checks, and single-skill operations.
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api';
-import { formatAppliedAgents, getStatusBadgeClass } from '../lib/filterSkills';
+import {
+  formatAppliedAgents,
+  getStatusBadgeClass,
+  resolveSkillDescription,
+} from '../lib/filterSkills';
 import type { CompatResult, Skill, TargetProfile } from '../types';
 import { ToolSelector } from './ToolSelector';
 
@@ -21,6 +25,9 @@ export function SkillDetail({ skill, targetProfiles, onActionResult }: SkillDeta
   const [result, setResult] = useState<{ status: string; message?: string } | null>(null);
 
   const agents = formatAppliedAgents(skill);
+  const description = resolveSkillDescription(skill, lang);
+  const descriptionReviewStatus = skill.displayDescription?.reviewStatus;
+  const descriptionSource = skill.displayDescription?.source;
 
   const handleCompat = async () => {
     if (!skill.path || !target) return;
@@ -49,10 +56,47 @@ export function SkillDetail({ skill, targetProfiles, onActionResult }: SkillDeta
     <div>
       <div className="font-semibold text-base mb-0.5">{skill.name}</div>
       <div className="text-sm text-gray-500 mb-3">
-        {[skill.sourceLabel || skill.source, skill.validationStatus, ...agents]
-          .filter(Boolean)
-          .join(' · ') || '-'}
+        {agents.length > 0
+          ? `${t('tableAppliedAgentsChip')}: ${agents.join(' - ')}`
+          : `${t('tableAppliedAgentsChip')}: ${t('none')}`}
       </div>
+
+      <section className="mb-3">
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+          {t('skillIntroHeading')}
+        </h3>
+        <p className="text-sm text-gray-700 whitespace-normal break-words">
+          {description || t('noSkillPurpose')}
+        </p>
+        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+          <div>
+            <span className="block text-gray-500">{t('tableSourceLabel')}</span>
+            <span className="font-medium text-gray-700">
+              {skill.sourceLabel || skill.source || '-'}
+            </span>
+          </div>
+          <div>
+            <span className="block text-gray-500">{t('validationStatusLabel')}</span>
+            <span
+              className={`inline-block px-2 py-0.5 rounded-full font-semibold ${getStatusBadgeClass(skill.validationStatus || '')}`}
+            >
+              {skill.validationStatus || '-'}
+            </span>
+          </div>
+          {descriptionReviewStatus && (
+            <div>
+              <span className="block text-gray-500">{t('descriptionReviewStatus')}</span>
+              <span className="font-medium text-gray-700">{descriptionReviewStatus}</span>
+            </div>
+          )}
+          {descriptionSource && (
+            <div>
+              <span className="block text-gray-500">{t('descriptionSource')}</span>
+              <span className="font-medium text-gray-700">{descriptionSource}</span>
+            </div>
+          )}
+        </div>
+      </section>
 
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-3 mb-1">
         {t('targetAgentHeading')}

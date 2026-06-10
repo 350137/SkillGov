@@ -1,12 +1,13 @@
 // Tests for the control panel HTTP server and API endpoint responses.
 import http from 'node:http';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { startServer } from '../server.js';
 
 let server: http.Server;
 const PORT = 4190;
 const BASE = `http://127.0.0.1:${PORT}`;
 let sessionCookie = '';
+const originalFetch = globalThis.fetch;
 
 function requestText(
   path: string,
@@ -72,6 +73,10 @@ beforeAll(async () => {
 
 afterAll(() => {
   server.close();
+});
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
 });
 
 describe('Control Panel API', () => {
@@ -250,6 +255,134 @@ describe('Control Panel API', () => {
   it('returns error for rollback without target', async () => {
     const data = await fetchJson('/api/rollback', {});
     expect(data).toHaveProperty('error');
+  });
+
+  it('returns error for remote/search without query', async () => {
+    const data = await fetchJson('/api/remote/search', {});
+    expect(data).toHaveProperty('error');
+    expect((data as { error: string }).error).toContain('query');
+  });
+
+  it('returns error for remote/search with non-string query', async () => {
+    const res = await requestText(
+      '/api/remote/search',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+      },
+      JSON.stringify({ query: 123 }),
+    );
+    const data = JSON.parse(res.text);
+    expect(res.statusCode).toBe(200);
+    expect(data).toHaveProperty('error');
+    expect((data as { error: string }).error).toContain('query');
+  });
+
+  it('returns error for remote/preview without remoteId', async () => {
+    const data = await fetchJson('/api/remote/preview', {});
+    expect(data).toHaveProperty('error');
+    expect((data as { error: string }).error).toContain('remoteId');
+  });
+
+  it('returns error for remote/preview with non-string remoteId', async () => {
+    const res = await requestText(
+      '/api/remote/preview',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+      },
+      JSON.stringify({ remoteId: 123 }),
+    );
+    const data = JSON.parse(res.text);
+    expect(res.statusCode).toBe(200);
+    expect(data).toHaveProperty('error');
+    expect((data as { error: string }).error).toContain('remoteId');
+  });
+
+  it('returns error for remote/install without remoteId', async () => {
+    const data = await fetchJson('/api/remote/install', {});
+    expect(data).toHaveProperty('error');
+    expect((data as { error: string }).error).toContain('remoteId');
+  });
+
+  it('returns error for remote/install with non-string remoteId', async () => {
+    const res = await requestText(
+      '/api/remote/install',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+      },
+      JSON.stringify({ remoteId: 123 }),
+    );
+    const data = JSON.parse(res.text);
+    expect(res.statusCode).toBe(200);
+    expect(data).toHaveProperty('error');
+    expect((data as { error: string }).error).toContain('remoteId');
+  });
+
+  it('rejects remote API requests without the local session cookie', async () => {
+    const res = await requestText(
+      '/api/remote/search',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      },
+      JSON.stringify({ query: 'typescript' }),
+    );
+
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.text)).toHaveProperty('error');
+  });
+
+  it('returns normalized remote search results', async () => {
+    let requestedUrl = '';
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      requestedUrl = String(input);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          skills: [
+            {
+              id: 'github/awesome-copilot/javascript-typescript-jest',
+              skillId: 'javascript-typescript-jest',
+              name: 'javascript-typescript-jest',
+              installs: 11038,
+              source: 'github/awesome-copilot',
+            },
+          ],
+        }),
+      } as Response;
+    }) as typeof fetch;
+
+    const data = await fetchJson('/api/remote/search', { query: 'typescript', limit: 100 });
+
+    expect(requestedUrl).toContain('https://skills.sh/api/search');
+    expect(requestedUrl).toContain('q=typescript');
+    expect(requestedUrl).toContain('limit=50');
+    expect(data).toMatchObject({
+      query: 'typescript',
+      source: 'skills.sh',
+      count: 1,
+      skills: [
+        {
+          id: 'github/awesome-copilot/javascript-typescript-jest',
+          skillId: 'javascript-typescript-jest',
+          name: 'javascript-typescript-jest',
+          installs: 11038,
+          source: 'github/awesome-copilot',
+        },
+      ],
+    });
   });
 
   it('returns 404 for unknown route', async () => {

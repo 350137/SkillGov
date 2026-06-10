@@ -16,15 +16,18 @@ import {
   getProjectStatus,
   importSkill,
   initProject,
+  installRemoteSkill,
   installSkill,
   listTargetProfiles,
   loadConfig,
   mapSkill,
   parseFrontmatter,
+  previewRemoteSkill,
   readSkillDescriptions,
   resolveSkillDescription,
   rollbackLastInstall,
   runDoctor,
+  searchRemoteSkills,
   uninstallSkill,
   unmapSkill,
   validateSkill,
@@ -338,6 +341,44 @@ const apiRoutes: Record<string, ApiHandler> = {
       projectRoot: config.projectRoot,
       operationsPath: `${config.projectRoot}/registry/operations.jsonl`,
       mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+    }) as unknown as Record<string, unknown>;
+  },
+
+  'remote/search': async (body) => {
+    const query = typeof body.query === 'string' ? body.query : '';
+    const limit = typeof body.limit === 'number' ? body.limit : undefined;
+    if (!query) return { error: 'Missing "query" field' };
+    const config = loadConfig();
+    const inventory = discoverSkillInventory({
+      projectRoot: config.projectRoot,
+      registryPath: `${config.projectRoot}/registry/skills.json`,
+      mappingsPath: `${config.projectRoot}/registry/mappings.json`,
+      targets: config.targets,
+    });
+    return searchRemoteSkills(query, {
+      limit,
+      installedSkills: inventory.skills.map((skill) => ({
+        name: skill.name,
+        validationStatus: skill.validationStatus,
+      })),
+    }) as unknown as Record<string, unknown>;
+  },
+
+  'remote/preview': async (body) => {
+    const remoteId = typeof body.remoteId === 'string' ? body.remoteId : '';
+    if (!remoteId) return { error: 'Missing "remoteId" field' };
+    return previewRemoteSkill(remoteId) as unknown as Record<string, unknown>;
+  },
+
+  'remote/install': async (body) => {
+    const remoteId = typeof body.remoteId === 'string' ? body.remoteId : '';
+    if (!remoteId) return { error: 'Missing "remoteId" field' };
+    const config = loadConfig();
+    return installRemoteSkill(remoteId, {
+      projectRoot: config.projectRoot,
+      incoming: `${config.projectRoot}/incoming`,
+      skills: `${config.projectRoot}/skills`,
+      registryPath: `${config.projectRoot}/registry/skills.json`,
     }) as unknown as Record<string, unknown>;
   },
 

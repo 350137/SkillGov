@@ -259,6 +259,10 @@ fn merge_candidates(candidates: Vec<SkillCandidate>) -> Vec<SkillCandidate> {
   by_name.into_values().collect()
 }
 
+// --- Registry types ---
+
+type MappingLinks = HashMap<String, HashMap<String, JsonValue>>;
+
 // --- Registry reading ---
 
 struct ImportedSkill {
@@ -321,7 +325,7 @@ fn is_junction_or_symlink(path: &Path) -> bool {
   #[cfg(windows)]
   {
     use std::os::windows::fs::MetadataExt;
-    if let Ok(meta) = fs::metadata(path) {
+    if let Ok(meta) = fs::symlink_metadata(path) {
       let attrs = meta.file_attributes();
       // FILE_ATTRIBUTE_REPARSE_POINT = 0x400
       return attrs & 0x400 != 0;
@@ -339,7 +343,18 @@ fn is_junction_or_symlink(path: &Path) -> bool {
 fn paths_resolve_same(a: &Path, b: &Path) -> bool {
   let ra = fs::canonicalize(a).unwrap_or_else(|_| a.to_path_buf());
   let rb = fs::canonicalize(b).unwrap_or_else(|_| b.to_path_buf());
-  ra == rb
+
+  #[cfg(windows)]
+  {
+    return ra
+      .to_string_lossy()
+      .eq_ignore_ascii_case(&rb.to_string_lossy());
+  }
+
+  #[cfg(not(windows))]
+  {
+    ra == rb
+  }
 }
 
 // --- Command implementations ---
@@ -642,8 +657,10 @@ fn create_junction_or_symlink(target: &Path, link: &Path, mode: &str) -> Result<
   {
     if mode == "junction" || mode == "symlink" {
       // Use mklink /J on Windows for junction creation
+      let link_str = link.to_string_lossy().replace('/', "\\");
+      let target_str = target.to_string_lossy().replace('/', "\\");
       let status = std::process::Command::new("cmd")
-        .args(["/C", "mklink", "/J", &link.to_string_lossy(), &target.to_string_lossy()])
+        .args(["/C", "mklink", "/J", &link_str, &target_str])
         .output()
         .map_err(|e| format!("Failed to run mklink: {e}"))?;
       if !status.status.success() {
@@ -683,8 +700,10 @@ fn remove_link(link: &Path) -> Result<(), String> {
         .map_err(|e| format!("Failed to remove symlink: {e}"))?;
     }
   } else {
-    fs::remove_dir_all(link)
-      .map_err(|e| format!("Failed to remove directory: {e}"))?;
+    return Err(format!(
+      "Refusing to remove plain directory: {}",
+      link.display()
+    ));
   }
   Ok(())
 }
@@ -707,8 +726,41 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
   Ok(())
 }
 
-fn write_mappings_registry(path: &Path, mappings: &HashMap<String, HashMap<String, JsonValue>>) -> Result<(), String> {
-  let json = serde_json::json!({ "mappings": mappings });
+fn write_mappings_registry(
+  path: &Path,
+  project_root: &Path,
+  mappings: &MappingLinks,
+) -> Result<(), String> {
+  let updated_at = chrono_timestamp();
+  let mut mappings_obj = serde_json::Map::new();
+
+  for (skill_name, links) in mappings {
+    if links.is_empty() {
+      continue;
+    }
+
+    let canonical_path = project_root
+      .join("skills")
+      .join(skill_name)
+      .to_string_lossy()
+      .replace('\\', "/");
+    let mut links_obj = serde_json::Map::new();
+    for (target, link) in links {
+      links_obj.insert(target.clone(), link.clone());
+    }
+
+    mappings_obj.insert(
+      skill_name.clone(),
+      serde_json::json!({
+        "skillName": skill_name,
+        "canonicalPath": canonical_path,
+        "links": links_obj,
+        "updatedAt": updated_at,
+      }),
+    );
+  }
+
+  let json = serde_json::json!({ "mappings": mappings_obj });
   if let Some(parent) = path.parent() {
     fs::create_dir_all(parent)
       .map_err(|e| format!("Failed to create registry dir: {e}"))?;
@@ -720,7 +772,7 @@ fn write_mappings_registry(path: &Path, mappings: &HashMap<String, HashMap<Strin
   Ok(())
 }
 
-fn read_mappings_raw(path: &Path) -> HashMap<String, HashMap<String, JsonValue>> {
+fn read_mappings_raw(path: &Path) -> MappingLinks {
   let raw = match fs::read_to_string(path) {
     Ok(r) => r,
     Err(_) => return HashMap::new(),
@@ -738,7 +790,9 @@ fn read_mappings_raw(path: &Path) -> HashMap<String, HashMap<String, JsonValue>>
           links.insert(target.clone(), link.clone());
         }
       }
-      result.insert(skill_name.clone(), links);
+      if !links.is_empty() {
+        result.insert(skill_name.clone(), links);
+      }
     }
   }
   result
@@ -929,8 +983,19 @@ fn map_skill_impl(root: &Path, skill_name: String, target: String) -> Result<Sin
     }
   }
   create_junction_or_symlink(&skill_path, &link_path, &profile.link_mode)?;
-  skill_links.insert(target.clone(), serde_json::json!({"type": "standard", "linkedAt": chrono_timestamp()}));
-  write_mappings_registry(&mappings_path, &mappings)?;
+  let now = chrono_timestamp();
+  skill_links.insert(
+    target.clone(),
+    serde_json::json!({
+      "path": link_path.to_string_lossy().replace('\\', "/"),
+      "mode": profile.link_mode,
+      "status": "linked",
+      "type": "standard",
+      "linkedAt": now,
+      "updatedAt": now
+    }),
+  );
+  write_mappings_registry(&mappings_path, root, &mappings)?;
   Ok(SingleResult { status: "mapped".into(), message: Some(format!("Mapped '{}' to {}", skill_name, target)) })
 }
 
@@ -942,15 +1007,44 @@ fn unmap_skill_impl(root: &Path, skill_name: String, target: String) -> Result<S
   let first_skill_dir = profile.skill_dirs.first()
     .ok_or_else(|| format!("No skill dirs for target: {target}"))?;
   let link_path = PathBuf::from(first_skill_dir).join(&skill_name);
-  if link_path.exists() {
-    remove_link(&link_path)?;
-  }
+
   let mappings_path = root.join("registry").join("mappings.json");
   let mut mappings = read_mappings_raw(&mappings_path);
+
+  if !link_path.exists() {
+    if let Some(skill_links) = mappings.get_mut(&skill_name) {
+      skill_links.remove(&target);
+    }
+    mappings.retain(|_, links| !links.is_empty());
+    write_mappings_registry(&mappings_path, root, &mappings)?;
+    return Ok(SingleResult {
+      status: "not-found".into(),
+      message: Some(format!("No link found for '{}' on {}", skill_name, target)),
+    });
+  }
+
+  if !is_junction_or_symlink(&link_path) {
+    return Ok(SingleResult {
+      status: "refused".into(),
+      message: Some("Target is a plain directory, not a managed link.".into()),
+    });
+  }
+
+  let canonical_path = root.join("skills").join(&skill_name);
+  if !paths_resolve_same(&link_path, &canonical_path) {
+    return Ok(SingleResult {
+      status: "refused".into(),
+      message: Some("Link does not point to the canonical skill path.".into()),
+    });
+  }
+
+  remove_link(&link_path)?;
+
   if let Some(skill_links) = mappings.get_mut(&skill_name) {
     skill_links.remove(&target);
   }
-  write_mappings_registry(&mappings_path, &mappings)?;
+  mappings.retain(|_, links| !links.is_empty());
+  write_mappings_registry(&mappings_path, root, &mappings)?;
   Ok(SingleResult { status: "unmapped".into(), message: Some(format!("Unmapped '{}' from {}", skill_name, target)) })
 }
 
@@ -962,23 +1056,67 @@ fn adopt_skill_impl(root: &Path, skill_name: String, target: String) -> Result<S
   let first_skill_dir = profile.skill_dirs.first()
     .ok_or_else(|| format!("No skill dirs for target: {target}"))?;
   let agent_skill_path = PathBuf::from(first_skill_dir).join(&skill_name);
-  if !agent_skill_path.exists() {
-    return Ok(SingleResult { status: "not-found".into(), message: Some(format!("Skill '{}' not found in {}", skill_name, first_skill_dir)) });
-  }
   let project_skill_path = root.join("skills").join(&skill_name);
-  if !project_skill_path.exists() {
-    copy_dir_recursive(&agent_skill_path, &project_skill_path)?;
+
+  if !project_skill_path.join("SKILL.md").exists() {
+    return Ok(SingleResult {
+      status: "not-found".into(),
+      message: Some(format!("Skill '{}' not found at {}", skill_name, project_skill_path.display())),
+    });
   }
-  if agent_skill_path.exists() && is_junction_or_symlink(&agent_skill_path) {
-    remove_link(&agent_skill_path)?;
+
+  if !agent_skill_path.exists() {
+    return Ok(SingleResult {
+      status: "blocked".into(),
+      message: Some(format!("No existing directory at {} to adopt", agent_skill_path.display())),
+    });
   }
+
+  if is_junction_or_symlink(&agent_skill_path) {
+    if paths_resolve_same(&agent_skill_path, &project_skill_path) {
+      return Ok(SingleResult {
+        status: "already-linked".into(),
+        message: Some(format!("'{}' is already linked to {}", skill_name, target)),
+      });
+    }
+    return Ok(SingleResult {
+      status: "blocked".into(),
+      message: Some("Target is already a link that points elsewhere.".into()),
+    });
+  }
+
+  let backup_path = root
+    .join("backups")
+    .join(chrono_timestamp())
+    .join(&target)
+    .join(&skill_name);
+  copy_dir_recursive(&agent_skill_path, &backup_path)?;
+  fs::remove_dir_all(&agent_skill_path)
+    .map_err(|e| format!("Failed to remove adopted source directory: {e}"))?;
   create_junction_or_symlink(&project_skill_path, &agent_skill_path, &profile.link_mode)?;
+
   let mappings_path = root.join("registry").join("mappings.json");
   let mut mappings = read_mappings_raw(&mappings_path);
   let skill_links = mappings.entry(skill_name.clone()).or_default();
-  skill_links.insert(target.clone(), serde_json::json!({"type": "adopted", "linkedAt": chrono_timestamp()}));
-  write_mappings_registry(&mappings_path, &mappings)?;
-  Ok(SingleResult { status: "adopted".into(), message: Some(format!("Adopted '{}' from {}", skill_name, target)) })
+  let now = chrono_timestamp();
+  skill_links.insert(
+    target.clone(),
+    serde_json::json!({
+      "path": agent_skill_path.to_string_lossy().replace('\\', "/"),
+      "mode": profile.link_mode,
+      "status": "linked",
+      "type": "standard",
+      "linkedAt": now,
+      "backupPath": backup_path.to_string_lossy().replace('\\', "/"),
+      "updatedAt": now
+    }),
+  );
+  write_mappings_registry(&mappings_path, root, &mappings)?;
+
+  Ok(SingleResult {
+    status: "adopted".into(),
+    message: Some(format!("Adopted '{}' from {}", skill_name, target)),
+  })
 }
 
 #[tauri::command]
@@ -1072,6 +1210,28 @@ pub fn run_doctor(workspace_root: State<'_, PathBuf>) -> Result<DoctorResult, St
   Ok(DoctorResult { issues })
 }
 
+fn link_timestamp(link: &JsonValue) -> u128 {
+  link
+    .get("updatedAt")
+    .or_else(|| link.get("linkedAt"))
+    .and_then(JsonValue::as_str)
+    .and_then(|s| s.parse::<u128>().ok())
+    .unwrap_or(0)
+}
+
+fn latest_mapped_skill_for_target(mappings: &MappingLinks, target: &str) -> Option<String> {
+  mappings
+    .iter()
+    .filter_map(|(skill_name, links)| {
+      links
+        .get(target)
+        .filter(|link| !link.is_null())
+        .map(|link| (skill_name.clone(), link_timestamp(link)))
+    })
+    .max_by_key(|(_, timestamp)| *timestamp)
+    .map(|(skill_name, _)| skill_name)
+}
+
 #[tauri::command]
 pub fn rollback_install(
   workspace_root: State<'_, PathBuf>,
@@ -1081,21 +1241,10 @@ pub fn rollback_install(
   let mappings_path = root.join("registry").join("mappings.json");
   let mappings = read_mappings_raw(&mappings_path);
 
-  // Find the last mapped skill for this target
-  let mut last_skill: Option<String> = None;
-  for (skill_name, links) in &mappings {
-    if let Some(link) = links.get(&target) {
-      if !link.is_null() {
-        last_skill = Some(skill_name.clone());
-      }
-    }
-  }
-
-  let skill_name = last_skill.ok_or_else(|| {
+  let skill_name = latest_mapped_skill_for_target(&mappings, &target).ok_or_else(|| {
     format!("No mapped skills found for target: {target}")
   })?;
 
-  // Call unmap
   unmap_skill(workspace_root, skill_name.clone(), target.clone())?;
 
   Ok(SingleResult {
@@ -1168,4 +1317,166 @@ fn chrono_timestamp() -> String {
     .unwrap_or_default()
     .as_secs();
   format!("{secs}")
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use std::time::{SystemTime, UNIX_EPOCH};
+
+  fn unique_temp_dir(name: &str) -> PathBuf {
+    let suffix = SystemTime::now()
+      .duration_since(UNIX_EPOCH)
+      .unwrap_or_default()
+      .as_nanos();
+    std::env::temp_dir().join(format!("skillgov-desktop-{name}-{suffix}"))
+  }
+
+  #[test]
+  fn write_mappings_registry_preserves_core_schema() {
+    let root = unique_temp_dir("schema-root");
+    let registry_path = root.join("registry").join("mappings.json");
+    let mut mappings: MappingLinks = HashMap::new();
+    mappings.entry("alpha".into()).or_default().insert(
+      "codex".into(),
+      serde_json::json!({
+        "path": "C:/Users/example/.codex/skills/alpha",
+        "mode": "junction",
+        "status": "linked",
+        "type": "standard",
+        "linkedAt": "123",
+        "updatedAt": "123"
+      }),
+    );
+
+    write_mappings_registry(&registry_path, &root, &mappings).expect("write mappings");
+
+    let raw = fs::read_to_string(&registry_path).expect("read mappings");
+    let json: JsonValue = serde_json::from_str(&raw).expect("parse mappings");
+    let alpha = &json["mappings"]["alpha"];
+    assert_eq!(alpha["skillName"], "alpha");
+    assert!(alpha["canonicalPath"].as_str().unwrap().ends_with("/skills/alpha"));
+    assert_eq!(alpha["links"]["codex"]["mode"], "junction");
+    assert_eq!(alpha["links"]["codex"]["type"], "standard");
+
+    let _ = fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn unmap_refuses_plain_directory_and_keeps_user_files() {
+    let root = unique_temp_dir("unmap-root");
+    let project_skill = root.join("skills").join("alpha");
+    let target_root = root.join("agent-skills");
+    let target_skill = target_root.join("alpha");
+    fs::create_dir_all(&project_skill).expect("project skill dir");
+    fs::create_dir_all(&target_skill).expect("target skill dir");
+    fs::write(project_skill.join("SKILL.md"), "# managed").expect("project skill");
+    fs::write(target_skill.join("SKILL.md"), "# local user copy").expect("target skill");
+    fs::write(
+      root.join("skillgov.config.json"),
+      serde_json::json!({
+        "projectRoot": root.to_string_lossy().replace('\\', "/"),
+        "targets": [{
+          "id": "local",
+          "label": "Local",
+          "skillDirs": [target_root.to_string_lossy().replace('\\', "/")],
+          "linkMode": "junction"
+        }]
+      })
+      .to_string(),
+    )
+    .expect("config");
+
+    let result = unmap_skill_impl(&root, "alpha".into(), "local".into()).expect("unmap result");
+
+    assert_eq!(result.status, "refused");
+    assert!(target_skill.join("SKILL.md").exists());
+
+    let _ = fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn adopt_backs_up_plain_directory_before_replacing_it() {
+    let root = unique_temp_dir("adopt-root");
+    let project_skill = root.join("skills").join("alpha");
+    let target_root = root.join("agent-skills");
+    let target_skill = target_root.join("alpha");
+    fs::create_dir_all(&project_skill).expect("project skill dir");
+    fs::create_dir_all(&target_skill).expect("target skill dir");
+    fs::write(project_skill.join("SKILL.md"), "# managed").expect("project skill");
+    fs::write(target_skill.join("SKILL.md"), "# local user copy").expect("target skill");
+    fs::write(
+      root.join("skillgov.config.json"),
+      serde_json::json!({
+        "projectRoot": root.to_string_lossy().replace('\\', "/"),
+        "targets": [{
+          "id": "local",
+          "label": "Local",
+          "skillDirs": [target_root.to_string_lossy().replace('\\', "/")],
+          "linkMode": "junction"
+        }]
+      })
+      .to_string(),
+    )
+    .expect("config");
+
+    let result = adopt_skill_impl(&root, "alpha".into(), "local".into()).expect("adopt result");
+
+    assert_eq!(result.status, "adopted");
+    assert!(root.join("backups").exists());
+    assert!(paths_resolve_same(&target_skill, &project_skill));
+
+    let _ = fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn map_records_full_link_object() {
+    let root = unique_temp_dir("map-root");
+    let project_skill = root.join("skills").join("alpha");
+    let target_root = root.join("agent-skills");
+    fs::create_dir_all(&project_skill).expect("project skill dir");
+    fs::write(project_skill.join("SKILL.md"), "# managed").expect("project skill");
+    fs::write(
+      root.join("skillgov.config.json"),
+      serde_json::json!({
+        "projectRoot": root.to_string_lossy().replace('\\', "/"),
+        "targets": [{
+          "id": "local",
+          "label": "Local",
+          "skillDirs": [target_root.to_string_lossy().replace('\\', "/")],
+          "linkMode": "junction"
+        }]
+      })
+      .to_string(),
+    )
+    .expect("config");
+
+    let result = map_skill_impl(&root, "alpha".into(), "local".into()).expect("map result");
+    assert_eq!(result.status, "mapped");
+
+    let raw = fs::read_to_string(root.join("registry").join("mappings.json")).expect("mappings");
+    let json: JsonValue = serde_json::from_str(&raw).expect("json");
+    let link = &json["mappings"]["alpha"]["links"]["local"];
+    assert_eq!(link["mode"], "junction");
+    assert_eq!(link["status"], "linked");
+    assert_eq!(link["type"], "standard");
+    assert!(link["path"].as_str().unwrap().ends_with("/agent-skills/alpha"));
+
+    let _ = fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn latest_mapped_skill_uses_link_timestamp_not_hashmap_order() {
+    let mut mappings: MappingLinks = HashMap::new();
+    mappings.entry("old".into()).or_default().insert(
+      "codex".into(),
+      serde_json::json!({ "linkedAt": "100", "updatedAt": "100" }),
+    );
+    mappings.entry("new".into()).or_default().insert(
+      "codex".into(),
+      serde_json::json!({ "linkedAt": "200", "updatedAt": "200" }),
+    );
+
+    assert_eq!(latest_mapped_skill_for_target(&mappings, "codex"), Some("new".into()));
+  }
 }

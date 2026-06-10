@@ -330,20 +330,15 @@ registry.
 
 SkillGov also includes a lightweight Tauri desktop shell in `apps/desktop`.
 
-The desktop shell does not create a second UI. It starts the local
-`apps/control-panel` service and opens the existing control panel in a native
-window. This follows the same central-skill-library idea as tools like
-skills-hub, while keeping SkillGov's current TypeScript core and web UI as the
-source of truth.
+The desktop shell does not create a second UI and does not start the local HTTP
+server. It builds the control panel SPA and loads it directly in a native Tauri
+window.
 
 Development command:
 
 ```text
 pnpm desktop:dev
 ```
-
-The shell uses port `4280` by default. Set `SKILLGOV_DESKTOP_PORT` to override
-the local port.
 
 ### Local EXE
 
@@ -354,14 +349,6 @@ corepack pnpm desktop:local-exe
 ```
 
 This produces `dist/SkillGov.exe`. Double-click it to open the desktop shell.
-It starts the control panel server on port 4280 and loads it in a native window.
-
-The shell performs a health check before loading: it verifies the service on
-port 4280 is actually a SkillGov control panel by requesting `/api/status`. If
-the health check fails, the window will not load.
-
-Control panel output is logged to `logs/desktop-control-panel.log` for
-troubleshooting.
 
 **Note:** The exe depends on the project directory, Node.js, Corepack, pnpm,
 and the existing `node_modules`. It is not a standalone portable binary.

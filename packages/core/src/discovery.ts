@@ -124,7 +124,7 @@ function mergeCandidates(candidates: SkillCandidate[]): SkillCandidate[] {
       byName.set(candidate.name, candidate);
     }
   }
-  return [...byName.values()];
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function computeAgentStates(

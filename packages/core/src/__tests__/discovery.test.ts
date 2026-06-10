@@ -139,6 +139,20 @@ describe('discoverSkills', () => {
     expect(names).toEqual(['claude-skill', 'codex-skill']);
   });
 
+  it('returns skills in stable alphabetical order', () => {
+    createSkill(join(tmpDir, '.codex', 'skills', 'zeta-skill'), 'zeta-skill');
+    createSkill(join(tmpDir, '.claude', 'skills', 'alpha-skill'), 'alpha-skill');
+    createSkill(join(tmpDir, 'project', 'skills', 'middle-skill'), 'middle-skill');
+
+    const result = discoverSkills({
+      home: tmpDir,
+      projectRoot: join(tmpDir, 'project'),
+      targets: defaultTargets(),
+    });
+
+    expect(result.map((s) => s.name)).toEqual(['alpha-skill', 'middle-skill', 'zeta-skill']);
+  });
+
   it('marks already-imported skills when registryPath provided', () => {
     createSkill(join(tmpDir, '.codex', 'skills', 'existing-skill'), 'existing-skill');
     const registryPath = join(tmpDir, 'registry', 'skills.json');

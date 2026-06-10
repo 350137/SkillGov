@@ -274,7 +274,9 @@ fn merge_candidates(candidates: Vec<SkillCandidate>) -> Vec<SkillCandidate> {
       by_name.insert(candidate.name.clone(), candidate);
     }
   }
-  by_name.into_values().collect()
+  let mut merged: Vec<SkillCandidate> = by_name.into_values().collect();
+  merged.sort_by(|a, b| a.name.cmp(&b.name));
+  merged
 }
 
 // --- Registry types ---
@@ -618,6 +620,56 @@ fn validate_skill_path(skill_path: &str) -> String {
   let skill_md = path.join("SKILL.md");
   if !skill_md.exists() {
     return "fail".into();
+  }
+  let content = match fs::read_to_string(&skill_md) {
+    Ok(content) => content,
+    Err(_) => return "fail".into(),
+  };
+  let mut lines = content.lines();
+  if lines.next().map(str::trim) != Some("---") {
+    return "fail".into();
+  }
+
+  let mut frontmatter: HashMap<String, String> = HashMap::new();
+  let mut closed = false;
+  for line in lines.by_ref() {
+    let trimmed = line.trim();
+    if trimmed == "---" {
+      closed = true;
+      break;
+    }
+    if trimmed.is_empty() {
+      continue;
+    }
+    let Some((raw_key, raw_value)) = trimmed.split_once(':') else {
+      return "fail".into();
+    };
+    let key = raw_key.trim();
+    if key.is_empty() {
+      return "fail".into();
+    }
+    frontmatter.insert(key.to_string(), raw_value.trim().trim_matches('"').to_string());
+  }
+  if !closed {
+    return "fail".into();
+  }
+
+  let Some(name) = frontmatter.get("name").filter(|value| !value.is_empty()) else {
+    return "fail".into();
+  };
+  if frontmatter
+    .get("description")
+    .filter(|value| !value.is_empty())
+    .is_none()
+  {
+    return "fail".into();
+  }
+  if !is_safe_file_name(name) {
+    return "fail".into();
+  }
+
+  if path.file_name().and_then(|part| part.to_str()) != Some(name.as_str()) {
+    return "fixable".into();
   }
   "pass".into()
 }
@@ -1571,6 +1623,54 @@ mod tests {
     assert!(result
       .expect_err("unsafe skill name should be rejected")
       .contains("safe file name"));
+
+    let _ = fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn merge_candidates_returns_skills_sorted_by_name() {
+    let merged = merge_candidates(vec![
+      SkillCandidate {
+        name: "zeta-skill".into(),
+        path: "zeta".into(),
+        source: "agent".into(),
+      },
+      SkillCandidate {
+        name: "alpha-skill".into(),
+        path: "alpha".into(),
+        source: "agent".into(),
+      },
+      SkillCandidate {
+        name: "middle-skill".into(),
+        path: "middle".into(),
+        source: "project".into(),
+      },
+    ]);
+
+    let names: Vec<String> = merged.into_iter().map(|skill| skill.name).collect();
+    assert_eq!(names, vec!["alpha-skill", "middle-skill", "zeta-skill"]);
+  }
+
+  #[test]
+  fn validate_skill_path_rejects_invalid_skill_metadata() {
+    let root = unique_temp_dir("invalid-skill-validation-root");
+    let missing_description = root.join("missing-description");
+    let mismatched_name = root.join("mismatched-name");
+    fs::create_dir_all(&missing_description).expect("missing description dir");
+    fs::create_dir_all(&mismatched_name).expect("mismatched name dir");
+    fs::write(
+      missing_description.join("SKILL.md"),
+      "---\nname: missing-description\n---\n\n# Missing description\n",
+    )
+    .expect("missing description skill");
+    fs::write(
+      mismatched_name.join("SKILL.md"),
+      "---\nname: other-name\ndescription: mismatch\n---\n\n# Mismatch\n",
+    )
+    .expect("mismatched skill");
+
+    assert_eq!(validate_skill_path(&missing_description.to_string_lossy()), "fail");
+    assert_eq!(validate_skill_path(&mismatched_name.to_string_lossy()), "fixable");
 
     let _ = fs::remove_dir_all(root);
   }

@@ -1079,7 +1079,7 @@ pub fn rollback_install(
 ) -> Result<SingleResult, String> {
   let root: &Path = &workspace_root;
   let mappings_path = root.join("registry").join("mappings.json");
-  let mut mappings = read_mappings_raw(&mappings_path);
+  let mappings = read_mappings_raw(&mappings_path);
 
   // Find the last mapped skill for this target
   let mut last_skill: Option<String> = None;

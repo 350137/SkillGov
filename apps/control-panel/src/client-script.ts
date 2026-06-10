@@ -21,6 +21,10 @@ const STATUS_LABEL_KEYS: Record<string, string> = {
   unknown: 'unknownStatus',
 };
 
+declare const selectedSkillNames: Set<string>;
+declare function updatePanelVisibility(): void;
+declare function renderDiscoverPage(): void;
+
 interface BrowserSkill {
   name: string;
   path?: string;
@@ -167,7 +171,7 @@ function renderCompatibilityResultBody(data: Record<string, unknown>): void {
 
 async function checkSelectedCompatibilityBody(): Promise<void> {
   const selectedSkill = window.selectedSkill;
-  const targetSelect = document.getElementById('target-agent-select');
+  const targetSelect = document.getElementById('target-agent-select') as HTMLSelectElement | null;
   const output = document.getElementById('output');
   if (!selectedSkill) {
     if (output) output.textContent = window.t('noSkillSelected');

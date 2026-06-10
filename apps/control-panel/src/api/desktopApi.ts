@@ -5,6 +5,9 @@ import type {
   CompatResult,
   DiscoverResponse,
   DoctorResult,
+  RemoteInstallResponse,
+  RemoteSearchResponse,
+  RemoteSkillPreview,
   SingleResult,
   StatusResponse,
   TargetProfile,
@@ -47,4 +50,13 @@ export const desktopApi = {
   doctor: () => invoke<DoctorResult>('run_doctor'),
 
   rollback: (target: string) => invoke<SingleResult>('rollback_install', { target }),
+
+  searchRemoteSkills: (query: string, limit?: number) =>
+    invoke<RemoteSearchResponse>('search_remote_skills', { query, limit }),
+
+  previewRemoteSkill: (remoteId: string) =>
+    invoke<RemoteSkillPreview>('preview_remote_skill', { remoteId }),
+
+  installRemoteSkill: (remoteId: string) =>
+    invoke<RemoteInstallResponse>('install_remote_skill', { remoteId }),
 };

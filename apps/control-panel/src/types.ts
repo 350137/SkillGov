@@ -80,4 +80,40 @@ export interface DoctorResult {
   issues: Array<{ severity: string; message: string }>;
 }
 
+export interface RemoteSkillResult {
+  id: string;
+  skillId: string;
+  name: string;
+  source: string;
+  installs?: number;
+  installed?: boolean;
+  validationStatus?: string;
+}
+
+export interface RemoteSearchResponse {
+  query: string;
+  source: string;
+  count: number;
+  skills: RemoteSkillResult[];
+}
+
+export interface RemoteSkillPreview {
+  id: string;
+  name?: string;
+  description?: string;
+  fileCount: number;
+  totalBytes: number;
+  remoteHash?: string;
+  status: string;
+  issues: string[];
+}
+
+export interface RemoteInstallResponse {
+  status: string;
+  skillName?: string;
+  issues: string[];
+  message?: string;
+  origin?: string;
+}
+
 export type Language = 'en' | 'zh';

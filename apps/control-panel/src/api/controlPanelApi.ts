@@ -4,6 +4,9 @@ import type {
   CompatResult,
   DiscoverResponse,
   DoctorResult,
+  RemoteInstallResponse,
+  RemoteSearchResponse,
+  RemoteSkillPreview,
   SingleResult,
   StatusResponse,
 } from '../types';
@@ -44,4 +47,11 @@ export const webApi = {
 
   doctor: () => post<DoctorResult>('doctor'),
   rollback: (target: string) => post<SingleResult>('rollback', { target }),
+
+  searchRemoteSkills: (query: string, limit?: number) =>
+    post<RemoteSearchResponse>('remote/search', { query, limit }),
+  previewRemoteSkill: (remoteId: string) =>
+    post<RemoteSkillPreview>('remote/preview', { remoteId }),
+  installRemoteSkill: (remoteId: string) =>
+    post<RemoteInstallResponse>('remote/install', { remoteId }),
 };

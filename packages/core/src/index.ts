@@ -56,7 +56,9 @@ export { importSkill } from './import.js';
 export type { ImportOptions, ImportResult } from './import.js';
 export {
   normalizeRemoteQuery,
+  previewRemoteSkill,
   safeDownloadedFilePath,
+  searchRemoteSkills,
   validateDownloadedSkillPayload,
   validateRemoteSkillId,
 } from './remote-skills.js';
@@ -64,8 +66,14 @@ export type {
   NormalizedRemoteQuery,
   RemoteDownloadedFile,
   RemoteDownloadedSkillPayload,
+  RemoteFetch,
+  RemoteFetchResponse,
   RemoteInstallResult,
+  RemoteInstalledSkill,
   RemotePayloadValidation,
+  RemoteRequestOptions,
+  RemoteSearchOptions,
+  RemoteSearchResponse,
   RemoteSkillPreview,
   RemoteSkillResult,
 } from './remote-skills.js';

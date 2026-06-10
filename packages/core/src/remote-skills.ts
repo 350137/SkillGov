@@ -11,6 +11,13 @@ export interface RemoteSkillResult {
   validationStatus?: string;
 }
 
+export interface RemoteSearchResponse {
+  query: string;
+  source: 'skills.sh';
+  count: number;
+  skills: RemoteSkillResult[];
+}
+
 export interface RemoteSkillPreview {
   id: string;
   name?: string;
@@ -53,6 +60,34 @@ export interface RemotePayloadValidation {
   skillMd?: string;
 }
 
+export interface RemoteInstalledSkill {
+  name: string;
+  validationStatus?: string;
+}
+
+export interface RemoteRequestOptions {
+  fetch?: RemoteFetch;
+  timeoutMs?: number;
+}
+
+export interface RemoteSearchOptions extends RemoteRequestOptions {
+  limit?: number;
+  installedSkills?: RemoteInstalledSkill[];
+}
+
+export type RemoteFetch = (
+  url: string,
+  init?: { signal?: AbortSignal },
+) => Promise<RemoteFetchResponse>;
+
+export interface RemoteFetchResponse {
+  ok: boolean;
+  status: number;
+  statusText?: string;
+  json: () => Promise<unknown>;
+}
+
+const SKILLS_API_BASE = 'https://skills.sh/api';
 const MAX_QUERY_LENGTH = 100;
 const DEFAULT_REMOTE_LIMIT = 20;
 const MIN_REMOTE_LIMIT = 1;
@@ -165,6 +200,70 @@ export function validateDownloadedSkillPayload(payload: unknown): RemotePayloadV
   };
 }
 
+export async function searchRemoteSkills(
+  query: string,
+  options: RemoteSearchOptions = {},
+): Promise<RemoteSearchResponse> {
+  const normalized = normalizeRemoteQuery(query, options.limit);
+  const url = new URL(`${SKILLS_API_BASE}/search`);
+  url.searchParams.set('q', normalized.query);
+  url.searchParams.set('limit', String(normalized.limit));
+
+  const raw = await requestRemoteJson(url.toString(), 'Remote skill search', options);
+  if (!raw || typeof raw !== 'object' || !Array.isArray((raw as { skills?: unknown }).skills)) {
+    throw new Error('Remote skill search returned an invalid response.');
+  }
+
+  const installedByName = new Map(
+    (options.installedSkills || []).map((skill) => [skill.name, skill.validationStatus]),
+  );
+  const skills = (raw as { skills: unknown[] }).skills
+    .map((item) => normalizeRemoteSearchItem(item, installedByName))
+    .filter((item): item is RemoteSkillResult => item !== null);
+
+  return {
+    query: normalized.query,
+    source: 'skills.sh',
+    count: skills.length,
+    skills,
+  };
+}
+
+export async function previewRemoteSkill(
+  remoteId: string,
+  options: RemoteRequestOptions = {},
+): Promise<RemoteSkillPreview> {
+  const id = validateRemoteSkillId(remoteId);
+  const raw = await requestRemoteJson(`${SKILLS_API_BASE}/download/${id}`, 'Remote skill preview', {
+    ...options,
+  });
+  const validation = validateDownloadedSkillPayload(raw);
+  const frontmatter = validation.skillMd ? parseSkillMdFrontmatter(validation.skillMd) : undefined;
+  const issues = [...validation.issues, ...(frontmatter?.errors || [])];
+  if (validation.status === 'pass' && !frontmatter?.data.name) {
+    issues.push('Root SKILL.md frontmatter must include a name.');
+  }
+  if (validation.status === 'pass' && !frontmatter?.data.description) {
+    issues.push('Root SKILL.md frontmatter must include a description.');
+  }
+
+  const remoteHash =
+    raw && typeof raw === 'object' && typeof (raw as { hash?: unknown }).hash === 'string'
+      ? (raw as { hash: string }).hash
+      : undefined;
+
+  return {
+    id,
+    name: frontmatter?.data.name,
+    description: frontmatter?.data.description,
+    fileCount: validation.fileCount,
+    totalBytes: validation.totalBytes,
+    remoteHash,
+    status: issues.length === 0 ? 'pass' : 'fail',
+    issues,
+  };
+}
+
 function isDownloadedPayload(payload: unknown): payload is RemoteDownloadedSkillPayload {
   if (!payload || typeof payload !== 'object') return false;
   const files = (payload as { files?: unknown }).files;
@@ -178,6 +277,119 @@ function isDownloadedPayload(payload: unknown): payload is RemoteDownloadedSkill
         typeof (file as RemoteDownloadedFile).contents === 'string',
     )
   );
+}
+
+function normalizeRemoteSearchItem(
+  item: unknown,
+  installedByName: Map<string, string | undefined>,
+): RemoteSkillResult | null {
+  if (!item || typeof item !== 'object') return null;
+  const raw = item as Record<string, unknown>;
+  if (
+    typeof raw.id !== 'string' ||
+    typeof raw.skillId !== 'string' ||
+    typeof raw.name !== 'string' ||
+    typeof raw.source !== 'string'
+  ) {
+    return null;
+  }
+
+  let id: string;
+  try {
+    id = validateRemoteSkillId(raw.id);
+  } catch {
+    return null;
+  }
+
+  const validationStatus = installedByName.get(raw.name);
+  return {
+    id,
+    skillId: raw.skillId,
+    name: raw.name,
+    source: raw.source,
+    installs: typeof raw.installs === 'number' ? raw.installs : undefined,
+    installed: installedByName.has(raw.name),
+    validationStatus,
+  };
+}
+
+async function requestRemoteJson(
+  url: string,
+  label: string,
+  options: RemoteRequestOptions,
+): Promise<unknown> {
+  const fetchImpl = options.fetch || defaultRemoteFetch();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 10_000);
+
+  try {
+    const response = await fetchImpl(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`${label} failed with HTTP ${response.status} ${response.statusText || ''}`);
+    }
+    return response.json();
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      throw new Error(`${label} timed out.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function defaultRemoteFetch(): RemoteFetch {
+  if (typeof globalThis.fetch !== 'function') {
+    throw new Error('Remote skill requests require fetch support.');
+  }
+  return globalThis.fetch as RemoteFetch;
+}
+
+function parseSkillMdFrontmatter(content: string): {
+  data: Record<string, string>;
+  errors: string[];
+} {
+  const data: Record<string, string> = {};
+  const errors: string[] = [];
+
+  if (!content.startsWith('---')) {
+    return { data, errors: ['Root SKILL.md must start with frontmatter.'] };
+  }
+
+  const endIndex = content.indexOf('---', 3);
+  if (endIndex === -1) {
+    return { data, errors: ['Root SKILL.md frontmatter is not closed.'] };
+  }
+
+  const raw = content.slice(3, endIndex).trim();
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const colonIndex = trimmed.indexOf(':');
+    if (colonIndex === -1) {
+      errors.push(`Unparseable frontmatter line: "${trimmed}"`);
+      continue;
+    }
+    const key = trimmed.slice(0, colonIndex).trim();
+    const value = trimmed.slice(colonIndex + 1).trim();
+    if (!key) {
+      errors.push(`Unparseable frontmatter line: "${trimmed}"`);
+      continue;
+    }
+    data[key] = stripQuotes(value);
+  }
+
+  return { data, errors };
+}
+
+function stripQuotes(value: string): string {
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
 }
 
 function validateDownloadedPath(downloadedPath: string): string {

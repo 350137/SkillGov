@@ -8,9 +8,13 @@
 #   4. No node.exe / pnpm / tsx child processes spawned
 #   5. Port 4280 is NOT listening (no HTTP server)
 
+param(
+    [string]$Exe = 'dist/SkillGov.exe'
+)
+
 $ErrorActionPreference = 'Stop'
 
-$exe = 'dist/SkillGov.exe'
+$exe = $Exe
 $port = 4280
 $settleSec = 5
 

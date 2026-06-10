@@ -54,6 +54,21 @@ export type { ValidationResult, ValidationIssue } from './validator.js';
 export { hashFile, hashDirectory } from './hash.js';
 export { importSkill } from './import.js';
 export type { ImportOptions, ImportResult } from './import.js';
+export {
+  normalizeRemoteQuery,
+  safeDownloadedFilePath,
+  validateDownloadedSkillPayload,
+  validateRemoteSkillId,
+} from './remote-skills.js';
+export type {
+  NormalizedRemoteQuery,
+  RemoteDownloadedFile,
+  RemoteDownloadedSkillPayload,
+  RemoteInstallResult,
+  RemotePayloadValidation,
+  RemoteSkillPreview,
+  RemoteSkillResult,
+} from './remote-skills.js';
 export { checkCompatibility } from './compat.js';
 export type { CompatibilityStatus, CompatibilityIssue, CompatibilityResult } from './compat.js';
 export { generateRepairTask, generateOverlayTask } from './tasks.js';

@@ -12,6 +12,7 @@ import {
   symlinkSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { assertSafeFileName } from './names.js';
 import { readRegistry, writeRegistry } from './registry.js';
 import type {
   InstallRecord,
@@ -137,7 +138,10 @@ export function copyDir(src: string, dest: string): void {
   for (const entry of readdirSync(src)) {
     const srcPath = resolve(src, entry);
     const destPath = resolve(dest, entry);
-    const stat = statSync(srcPath);
+    const stat = lstatSync(srcPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`Refusing to copy symbolic link or junction: ${srcPath}`);
+    }
     if (stat.isDirectory()) {
       copyDir(srcPath, destPath);
     } else {
@@ -269,6 +273,8 @@ export function linkManagedSkillToAgent(
   targetName: SkillMappingTarget,
   options: LinkManagedSkillOptions,
 ): LinkManagedSkillResult {
+  assertSafeFileName(skillName, 'Skill name');
+  assertSafeFileName(targetName, 'Target name');
   const canonicalPath = resolve(options.projectRoot, 'skills', skillName);
   const canonicalSkillMd = join(canonicalPath, 'SKILL.md');
   const profile = getTargetProfile(targetName, options.targetProfiles);
@@ -445,6 +451,8 @@ export function mapSkill(
   targetName: string,
   options: MapSkillOptions,
 ): MapSkillResult {
+  assertSafeFileName(skillName, 'Skill name');
+  assertSafeFileName(targetName, 'Target name');
   const canonicalPath = resolve(options.projectRoot, 'skills', skillName);
   if (!existsSync(join(canonicalPath, 'SKILL.md'))) {
     return {
@@ -554,6 +562,8 @@ export function unmapSkill(
   targetName: string,
   options: UnmapSkillOptions,
 ): UnmapSkillResult {
+  assertSafeFileName(skillName, 'Skill name');
+  assertSafeFileName(targetName, 'Target name');
   const profile = getTargetProfile(targetName, options.targetProfiles);
   const targetRoot = options.targetSkillRoot || profile?.skillDirs[0];
   if (!targetRoot) {
@@ -638,6 +648,8 @@ export function adoptSkill(
   targetName: string,
   options: AdoptSkillOptions,
 ): AdoptSkillResult {
+  assertSafeFileName(skillName, 'Skill name');
+  assertSafeFileName(targetName, 'Target name');
   const canonicalPath = resolve(options.projectRoot, 'skills', skillName);
   if (!existsSync(join(canonicalPath, 'SKILL.md'))) {
     return {

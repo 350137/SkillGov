@@ -95,6 +95,22 @@ describe('validateSkill', () => {
     ).toBe(true);
   });
 
+  it('fails when skill name is not a safe file name', () => {
+    const invalidNames = ['../escape', 'bad/name', 'Bad Name', 'bad:name'];
+
+    for (const invalidName of invalidNames) {
+      const dir = createSkill(`unsafe-${invalidNames.indexOf(invalidName)}`, invalidName);
+      const result = validateSkill(dir);
+
+      expect(result.status).toBe('fail');
+      expect(
+        result.issues.some(
+          (i) => i.field === 'name' && i.message.toLowerCase().includes('safe file name'),
+        ),
+      ).toBe(true);
+    }
+  });
+
   it('warns when SKILL.md references a non-existent file', () => {
     const dir = join(tmpDir, 'broken-ref');
     mkdirSync(dir, { recursive: true });

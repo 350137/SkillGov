@@ -65,6 +65,20 @@ describe('generateRepairTask', () => {
     expect(result.content).toContain('skillgov validate');
     expect(result.content).toContain('skillgov import');
   });
+
+  it('rejects unsafe skill names instead of writing outside the repair task directory', () => {
+    const skillPath = createMinimalSkill('unsafe-repair');
+    const validation: ValidationResult = {
+      status: 'fixable',
+      skillName: '../escape',
+      issues: [{ severity: 'warning', message: 'Unsafe name.' }],
+    };
+
+    expect(() => generateRepairTask({ skillPath, validation, projectRoot: tmpDir })).toThrow(
+      /safe file name/i,
+    );
+    expect(existsSync(join(tmpDir, 'tasks', 'escape.md'))).toBe(false);
+  });
 });
 
 describe('generateOverlayTask', () => {
@@ -107,5 +121,25 @@ describe('generateOverlayTask', () => {
     });
     expect(result.content).toContain('skillgov install');
     expect(norm(result.content)).toContain('overlays/claude/needs-overlay');
+  });
+
+  it('rejects unsafe overlay task path segments', () => {
+    const skillPath = createMinimalSkill('needs-overlay');
+    const compatResult: CompatibilityResult = {
+      status: 'needs-overlay',
+      skillName: 'needs-overlay',
+      targetName: '../outside',
+      issues: [{ severity: 'warning', message: 'Test issue.', category: 'dependency' }],
+    };
+
+    expect(() =>
+      generateOverlayTask({
+        skillPath,
+        targetName: '../outside',
+        compatResult,
+        projectRoot: tmpDir,
+      }),
+    ).toThrow(/safe file name/i);
+    expect(existsSync(join(tmpDir, 'tasks', 'outside'))).toBe(false);
   });
 });

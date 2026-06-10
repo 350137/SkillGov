@@ -2,6 +2,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import { parseFrontmatter } from './frontmatter.js';
+import { isSafeFileName } from './names.js';
 
 export interface ValidationIssue {
   severity: 'error' | 'warning';
@@ -103,6 +104,15 @@ export function validateSkill(skillPath: string): ValidationResult {
   // If required fields are missing, fail early
   if (!name || !description) {
     return { status: 'fail', issues };
+  }
+
+  if (!isSafeFileName(name)) {
+    issues.push({
+      severity: 'error',
+      message:
+        'Skill name must be a safe file name using lowercase letters, numbers, dashes, and underscores.',
+      field: 'name',
+    });
   }
 
   // 5. Name stability: name matches directory name

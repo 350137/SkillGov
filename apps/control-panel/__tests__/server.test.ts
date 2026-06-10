@@ -5,14 +5,46 @@ import { startServer } from '../server.js';
 
 let server: http.Server;
 const PORT = 4190;
-const BASE = `http://localhost:${PORT}`;
+const BASE = `http://127.0.0.1:${PORT}`;
+let sessionCookie = '';
+
+function requestText(
+  path: string,
+  options: http.RequestOptions = {},
+  body?: string,
+): Promise<{ statusCode: number; headers: http.IncomingHttpHeaders; text: string }> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(`${BASE}${path}`, options, (res) => {
+      let data = '';
+      res.on('data', (chunk: string) => {
+        data += chunk;
+      });
+      res.on('end', () =>
+        resolve({ statusCode: res.statusCode || 0, headers: res.headers, text: data }),
+      );
+    });
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+async function refreshSessionCookie(): Promise<void> {
+  const res = await requestText('/');
+  const setCookie = res.headers['set-cookie'];
+  sessionCookie = Array.isArray(setCookie) ? setCookie[0].split(';')[0] : '';
+}
 
 function fetchJson(path: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const url = `${BASE}${path}`;
-    const options: http.RequestOptions = body
-      ? { method: 'POST', headers: { 'Content-Type': 'application/json' } }
-      : { method: 'GET' };
+    const options: http.RequestOptions = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(sessionCookie ? { Cookie: sessionCookie } : {}),
+      },
+    };
 
     const req = http.request(url, options, (res) => {
       let data = '';
@@ -28,13 +60,14 @@ function fetchJson(path: string, body?: Record<string, unknown>): Promise<Record
       });
     });
     req.on('error', reject);
-    if (body) req.write(JSON.stringify(body));
+    req.write(JSON.stringify(body ?? {}));
     req.end();
   });
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   server = startServer(PORT);
+  await refreshSessionCookie();
 });
 
 afterAll(() => {
@@ -57,6 +90,16 @@ describe('Control Panel API', () => {
     expect(res).toContain('SkillGov Control Panel');
     // SPA serves a minimal shell with root div; legacy page has inline content
     expect(res).toContain('<!DOCTYPE html>');
+  });
+
+  it('sets a strict local session cookie for API requests', async () => {
+    const res = await requestText('/');
+    const setCookie = res.headers['set-cookie'];
+
+    expect(Array.isArray(setCookie)).toBe(true);
+    expect(setCookie?.[0]).toContain('skillgov_session=');
+    expect(setCookie?.[0]).toContain('HttpOnly');
+    expect(setCookie?.[0]).toContain('SameSite=Strict');
   });
 
   it('serves a language switcher with Chinese and English labels', async () => {
@@ -124,6 +167,54 @@ describe('Control Panel API', () => {
   it('returns error for import without sourcePath', async () => {
     const data = await fetchJson('/api/import', {});
     expect(data).toHaveProperty('error');
+  });
+
+  it('rejects cross-origin API requests', async () => {
+    const res = await requestText(
+      '/api/map',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://evil.example',
+        },
+      },
+      JSON.stringify({ skillName: 'nonexistent', target: 'codex' }),
+    );
+
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.text)).toHaveProperty('error');
+  });
+
+  it('rejects POST API requests without the local session cookie', async () => {
+    const res = await requestText(
+      '/api/map',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      },
+      JSON.stringify({ skillName: 'nonexistent', target: 'codex' }),
+    );
+
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.text)).toHaveProperty('error');
+  });
+
+  it('rejects API requests with oversized JSON bodies', async () => {
+    const res = await requestText(
+      '/api/status',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+      },
+      JSON.stringify({ payload: 'x'.repeat(1_100_000) }),
+    );
+
+    expect(res.statusCode).toBe(413);
+    expect(JSON.parse(res.text)).toHaveProperty('error');
   });
 
   it('returns error for compat without args', async () => {
@@ -286,30 +377,38 @@ describe('Control Panel API', () => {
     expect(results[0]).toHaveProperty('status');
   });
 
-  it('returns batch install results with total and results array', async () => {
-    const data = await fetchJson('/api/install/batch', {
-      skillNames: ['nonexistent-skill'],
-      target: 'codex',
-    });
-    expect(data).toHaveProperty('total');
-    expect(data).toHaveProperty('results');
-    const results = data.results as Array<Record<string, unknown>>;
-    expect(results.length).toBe(1);
-    expect(results[0]).toHaveProperty('name');
-    expect(results[0]).toHaveProperty('status');
+  it('rejects legacy batch install API', async () => {
+    const res = await requestText(
+      '/api/install/batch',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+      },
+      JSON.stringify({ skillNames: ['nonexistent-skill'], target: 'codex' }),
+    );
+
+    expect(res.statusCode).toBe(410);
+    expect(JSON.parse(res.text)).toMatchObject({ error: expect.stringContaining('map/batch') });
   });
 
-  it('returns batch uninstall results with total and results array', async () => {
-    const data = await fetchJson('/api/uninstall/batch', {
-      skillNames: ['nonexistent-skill'],
-      target: 'codex',
-    });
-    expect(data).toHaveProperty('total');
-    expect(data).toHaveProperty('results');
-    const results = data.results as Array<Record<string, unknown>>;
-    expect(results.length).toBe(1);
-    expect(results[0]).toHaveProperty('name');
-    expect(results[0]).toHaveProperty('status');
+  it('rejects legacy batch uninstall API', async () => {
+    const res = await requestText(
+      '/api/uninstall/batch',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+      },
+      JSON.stringify({ skillNames: ['nonexistent-skill'], target: 'codex' }),
+    );
+
+    expect(res.statusCode).toBe(410);
+    expect(JSON.parse(res.text)).toMatchObject({ error: expect.stringContaining('unmap/batch') });
   });
 
   it('serves the SPA with React app script', async () => {
@@ -356,14 +455,38 @@ describe('Control Panel API', () => {
     expect(data).toHaveProperty('error');
   });
 
-  it('marks legacy install response with legacy flag', async () => {
-    const data = await fetchJson('/api/install', { skillName: 'nonexistent', target: 'codex' });
-    expect(data).toHaveProperty('legacy', true);
+  it('rejects legacy install API', async () => {
+    const res = await requestText(
+      '/api/install',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+      },
+      JSON.stringify({ skillName: 'nonexistent', target: 'codex' }),
+    );
+
+    expect(res.statusCode).toBe(410);
+    expect(JSON.parse(res.text)).toMatchObject({ error: expect.stringContaining('map') });
   });
 
-  it('marks legacy uninstall response with legacy flag', async () => {
-    const data = await fetchJson('/api/uninstall', { skillName: 'nonexistent', target: 'codex' });
-    expect(data).toHaveProperty('legacy', true);
+  it('rejects legacy uninstall API', async () => {
+    const res = await requestText(
+      '/api/uninstall',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+      },
+      JSON.stringify({ skillName: 'nonexistent', target: 'codex' }),
+    );
+
+    expect(res.statusCode).toBe(410);
+    expect(JSON.parse(res.text)).toMatchObject({ error: expect.stringContaining('unmap') });
   });
 
   it('returns error for map/batch without skillNames', async () => {

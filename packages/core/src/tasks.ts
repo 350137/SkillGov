@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type { CompatibilityResult } from './compat.js';
 import { loadConfig } from './config.js';
+import { assertSafeFileName } from './names.js';
 import type { ValidationResult } from './validator.js';
 
 export interface RepairTaskOptions {
@@ -33,6 +34,7 @@ export function generateRepairTask(options: RepairTaskOptions): TaskResult {
   const { skillPath, validation, projectRoot } = options;
   const root = resolveProjectRoot(projectRoot);
   const skillName = validation.skillName || dirname(skillPath).split(/[/\\]/).pop() || 'unknown';
+  assertSafeFileName(skillName, 'Skill name');
   const taskDir = resolve(root, 'tasks', 'repair');
   const taskPath = resolve(taskDir, `${skillName}.md`);
 
@@ -88,6 +90,8 @@ export function generateOverlayTask(options: OverlayTaskOptions): TaskResult {
   const { skillPath, targetName, compatResult, projectRoot } = options;
   const root = resolveProjectRoot(projectRoot);
   const skillName = compatResult.skillName || dirname(skillPath).split(/[/\\]/).pop() || 'unknown';
+  assertSafeFileName(skillName, 'Skill name');
+  assertSafeFileName(targetName, 'Target name');
   const taskDir = resolve(root, 'tasks', 'overlay', targetName);
   const taskPath = resolve(taskDir, `${skillName}.md`);
 

@@ -207,6 +207,24 @@ fn home_dir() -> String {
     .replace('\\', "/")
 }
 
+fn is_safe_file_name(value: &str) -> bool {
+  let mut chars = value.chars();
+  match chars.next() {
+    Some(c) if c.is_ascii_lowercase() || c.is_ascii_digit() => {}
+    _ => return false,
+  }
+  chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
+}
+
+fn ensure_safe_file_name(value: &str, label: &str) -> Result<(), String> {
+  if is_safe_file_name(value) {
+    return Ok(());
+  }
+  Err(format!(
+    "{label} must be a safe file name using lowercase letters, numbers, dashes, and underscores."
+  ))
+}
+
 // --- Skill scanning ---
 
 struct SkillCandidate {
@@ -975,6 +993,8 @@ fn batch_operation(
 }
 
 fn map_skill_impl(root: &Path, skill_name: String, target: String) -> Result<SingleResult, String> {
+  ensure_safe_file_name(&skill_name, "Skill name")?;
+  ensure_safe_file_name(&target, "Target name")?;
   let (_, target_entries) = load_config(root);
   let profiles = resolve_targets(&target_entries);
   let profile = find_profile(&profiles, &target)
@@ -1018,6 +1038,8 @@ fn map_skill_impl(root: &Path, skill_name: String, target: String) -> Result<Sin
 }
 
 fn unmap_skill_impl(root: &Path, skill_name: String, target: String) -> Result<SingleResult, String> {
+  ensure_safe_file_name(&skill_name, "Skill name")?;
+  ensure_safe_file_name(&target, "Target name")?;
   let (_, target_entries) = load_config(root);
   let profiles = resolve_targets(&target_entries);
   let profile = find_profile(&profiles, &target)
@@ -1067,6 +1089,8 @@ fn unmap_skill_impl(root: &Path, skill_name: String, target: String) -> Result<S
 }
 
 fn adopt_skill_impl(root: &Path, skill_name: String, target: String) -> Result<SingleResult, String> {
+  ensure_safe_file_name(&skill_name, "Skill name")?;
+  ensure_safe_file_name(&target, "Target name")?;
   let (_, target_entries) = load_config(root);
   let profiles = resolve_targets(&target_entries);
   let profile = find_profile(&profiles, &target)
@@ -1255,6 +1279,7 @@ pub fn rollback_install(
   workspace_root: State<'_, PathBuf>,
   target: String,
 ) -> Result<SingleResult, String> {
+  ensure_safe_file_name(&target, "Target name")?;
   let root: &Path = &workspace_root;
   let mappings_path = root.join("registry").join("mappings.json");
   let mappings = read_mappings_raw(&mappings_path);
@@ -1515,6 +1540,37 @@ mod tests {
     assert_eq!(link["status"], "linked");
     assert_eq!(link["type"], "standard");
     assert!(link["path"].as_str().unwrap().ends_with("/agent-skills/alpha"));
+
+    let _ = fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn map_rejects_unsafe_skill_name_before_resolving_paths() {
+    let root = unique_temp_dir("unsafe-map-root");
+    let escaped_skill = root.join("escape");
+    let target_root = root.join("agent-skills");
+    fs::create_dir_all(&escaped_skill).expect("escaped skill dir");
+    fs::write(escaped_skill.join("SKILL.md"), "# escaped").expect("escaped skill");
+    fs::write(
+      root.join("skillgov.config.json"),
+      serde_json::json!({
+        "projectRoot": root.to_string_lossy().replace('\\', "/"),
+        "targets": [{
+          "id": "local",
+          "label": "Local",
+          "skillDirs": [target_root.to_string_lossy().replace('\\', "/")],
+          "linkMode": "copy"
+        }]
+      })
+      .to_string(),
+    )
+    .expect("config");
+
+    let result = map_skill_impl(&root, "../escape".into(), "local".into());
+
+    assert!(result
+      .expect_err("unsafe skill name should be rejected")
+      .contains("safe file name"));
 
     let _ = fs::remove_dir_all(root);
   }

@@ -1,6 +1,6 @@
 // Tests for skill import flow — copies external skill into incoming, validates, and promotes.
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // Tests for skill import flow — copies external skill into incoming, validates, and promotes to skills directory.
@@ -106,6 +106,18 @@ describe('importSkill', () => {
     expect(result.status).toBe('pass');
     const copiedIcon = readFileSync(join(skills, 'binary-test', 'icon.png'));
     expect(copiedIcon[0]).toBe(0x89);
+  });
+
+  it('refuses to import skills that contain symlinked directories', () => {
+    const source = createSourceSkill('linked-source');
+    const external = join(tmpDir, 'external-secret');
+    mkdirSync(external, { recursive: true });
+    writeFileSync(join(external, 'secret.txt'), 'do not import', 'utf-8');
+    symlinkSync(external, join(source, 'external'), 'junction');
+    const { incoming, skills } = createProjectDirs();
+
+    expect(() => importSkill(source, { incoming, skills })).toThrow(/symbolic link|junction/i);
+    expect(existsSync(join(skills, 'linked-source', 'external', 'secret.txt'))).toBe(false);
   });
 
   it('fixable skill is placed in incoming and not promoted', () => {

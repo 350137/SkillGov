@@ -1,4 +1,5 @@
 // Local web control panel server — provides a button-based UI over @skillgov/core operations via HTTP API endpoints.
+import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import { join } from 'node:path';
@@ -40,10 +41,82 @@ try {
 }
 
 const PORT = Number.parseInt(process.env.PORT || '4173', 10);
+const HOST = '127.0.0.1';
+const API_BODY_LIMIT_BYTES = 1_000_000;
+const SESSION_COOKIE = 'skillgov_session';
+const sessionToken = randomBytes(32).toString('hex');
 
 type ApiHandler = (
   body: Record<string, unknown>,
 ) => Promise<Record<string, unknown>> | Record<string, unknown>;
+
+class PayloadTooLargeError extends Error {
+  constructor() {
+    super('Request body is too large.');
+    this.name = 'PayloadTooLargeError';
+  }
+}
+
+const disabledApiRoutes: Record<string, string> = {
+  install: 'Legacy install API is disabled. Use map instead.',
+  uninstall: 'Legacy uninstall API is disabled. Use unmap instead.',
+  'install/batch': 'Legacy install batch API is disabled. Use map/batch instead.',
+  'uninstall/batch': 'Legacy uninstall batch API is disabled. Use unmap/batch instead.',
+};
+
+function setSessionCookie(res: http.ServerResponse): void {
+  res.setHeader(
+    'Set-Cookie',
+    `${SESSION_COOKIE}=${sessionToken}; HttpOnly; SameSite=Strict; Path=/`,
+  );
+}
+
+function parseCookieHeader(cookieHeader: string | undefined): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  for (const pair of (cookieHeader || '').split(';')) {
+    const [rawName, ...rawValue] = pair.trim().split('=');
+    if (!rawName || rawValue.length === 0) continue;
+    cookies[rawName] = rawValue.join('=');
+  }
+  return cookies;
+}
+
+function hasValidSession(req: http.IncomingMessage): boolean {
+  return parseCookieHeader(req.headers.cookie)[SESSION_COOKIE] === sessionToken;
+}
+
+function isLocalHostname(hostname: string): boolean {
+  return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
+}
+
+function requestHost(req: http.IncomingMessage): string {
+  return (req.headers.host || '')
+    .split(':')[0]
+    .replace(/^\[|\]$/g, '')
+    .toLowerCase();
+}
+
+function isAllowedOrigin(req: http.IncomingMessage): boolean {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try {
+    const parsed = new URL(origin);
+    return parsed.hostname.toLowerCase() === requestHost(req) && isLocalHostname(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function applyCorsHeaders(req: http.IncomingMessage, res: http.ServerResponse): void {
+  const origin = req.headers.origin;
+  if (origin && isAllowedOrigin(req)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
 
 function sendJson(res: http.ServerResponse, statusCode: number, payload: unknown): void {
   const json = JSON.stringify(payload);
@@ -496,31 +569,47 @@ const apiRoutes: Record<string, ApiHandler> = {
 };
 
 function parseBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let data = '';
+    let size = 0;
+    let settled = false;
     req.on('data', (chunk: string) => {
+      if (settled) return;
+      size += Buffer.byteLength(chunk);
+      if (size > API_BODY_LIMIT_BYTES) {
+        settled = true;
+        reject(new PayloadTooLargeError());
+        return;
+      }
       data += chunk;
     });
     req.on('end', () => {
+      if (settled) return;
       try {
         resolve(JSON.parse(data));
       } catch {
         resolve({});
       }
     });
+    req.on('error', (err) => {
+      if (settled) return;
+      reject(err);
+    });
   });
 }
 
-export function startServer(port: number = PORT): http.Server {
+export function startServer(port: number = PORT, host: string = HOST): http.Server {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
     const path = url.pathname;
 
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    applyCorsHeaders(req, res);
 
     if (req.method === 'OPTIONS') {
+      if (!isAllowedOrigin(req)) {
+        sendJson(res, 403, { error: 'Cross-origin requests are not allowed.' });
+        return;
+      }
       res.writeHead(204);
       res.end();
       return;
@@ -528,6 +617,7 @@ export function startServer(port: number = PORT): http.Server {
 
     // Serve SPA index.html for all non-API GET requests (supports client-side routing)
     if (req.method === 'GET' && !path.startsWith('/api/')) {
+      setSessionCookie(res);
       // Try to serve static file from SPA build
       if (spaIndexHtml && path !== '/') {
         const filePath = join(SPA_ROOT, path);
@@ -567,12 +657,41 @@ export function startServer(port: number = PORT): http.Server {
     // API routes — accept both GET and POST
     if ((req.method === 'GET' || req.method === 'POST') && path.startsWith('/api/')) {
       const route = path.slice(5); // Remove '/api/'
+      const disabledMessage = disabledApiRoutes[route];
+      if (disabledMessage) {
+        sendJson(res, 410, { error: disabledMessage });
+        return;
+      }
       const handler = apiRoutes[route];
       if (!handler) {
         sendJson(res, 404, { error: `Unknown API: ${route}` });
         return;
       }
-      const body = req.method === 'GET' ? {} : await parseBody(req);
+      if (req.method === 'POST') {
+        if (!isAllowedOrigin(req)) {
+          sendJson(res, 403, { error: 'Cross-origin requests are not allowed.' });
+          return;
+        }
+        if (!hasValidSession(req)) {
+          sendJson(res, 403, { error: 'Missing or invalid local session cookie.' });
+          return;
+        }
+        const contentLength = Number(req.headers['content-length'] || 0);
+        if (contentLength > API_BODY_LIMIT_BYTES) {
+          sendJson(res, 413, { error: 'Request body is too large.' });
+          return;
+        }
+      }
+      let body: Record<string, unknown> = {};
+      try {
+        body = req.method === 'GET' ? {} : await parseBody(req);
+      } catch (err) {
+        if (err instanceof PayloadTooLargeError) {
+          sendJson(res, 413, { error: err.message });
+          return;
+        }
+        throw err;
+      }
       try {
         const result = await handler(body);
         sendJson(res, 200, result);
@@ -586,8 +705,8 @@ export function startServer(port: number = PORT): http.Server {
     res.end('Not found');
   });
 
-  server.listen(port, () => {
-    console.log(`SkillGov Control Panel running at http://localhost:${port}`);
+  server.listen(port, host, () => {
+    console.log(`SkillGov Control Panel running at http://${host}:${port}`);
   });
 
   return server;

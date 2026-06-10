@@ -11,6 +11,7 @@ import {
   removeMappingLink,
   upsertMapping,
 } from './mapping.js';
+import { assertSafeFileName } from './names.js';
 import { appendOperation, readOperations } from './operations.js';
 import type { Operation } from './operations.js';
 import type { SkillMappingLink } from './registry.js';
@@ -68,6 +69,8 @@ export function installSkill(
   options: InstallOptions,
 ): InstallResult {
   const { projectRoot, operationsPath, mappingsPath } = options;
+  assertSafeFileName(skillName, 'Skill name');
+  assertSafeFileName(targetName, 'Target name');
 
   // 1. Find skill source
   const skillSource = resolveSkillSource(projectRoot, skillName, targetName);
@@ -120,11 +123,30 @@ export function installSkill(
   const type: 'standard' | 'overlay' = isOverlay ? 'overlay' : 'standard';
 
   if (isOverlay) {
-    // Overlays: create link directly, then record in mappings
     if (existsSync(targetSkillDir)) {
-      rmSync(targetSkillDir, { recursive: true, force: true });
+      const detection = detectLinkType(targetSkillDir);
+      if (detection.type === 'directory') {
+        return {
+          status: 'blocked',
+          skillName,
+          targetName,
+          linkPath: targetSkillDir,
+          message:
+            'Target is a plain directory, not a SkillGov-managed link. Use adoptSkill before installing an overlay.',
+        };
+      }
+      if (!pathsResolveToSameLocation(targetSkillDir, skillSource)) {
+        return {
+          status: 'blocked',
+          skillName,
+          targetName,
+          linkPath: targetSkillDir,
+          message: 'Target link does not point to this SkillGov overlay. Manual cleanup needed.',
+        };
+      }
+    } else {
+      createLink(skillSource, targetSkillDir, linkMode);
     }
-    createLink(skillSource, targetSkillDir, linkMode);
     const now = new Date().toISOString();
     const link: SkillMappingLink = {
       path: targetSkillDir,
@@ -180,6 +202,8 @@ export function uninstallSkill(
   options: InstallOptions,
 ): InstallResult {
   const { operationsPath, mappingsPath } = options;
+  assertSafeFileName(skillName, 'Skill name');
+  assertSafeFileName(targetName, 'Target name');
 
   // 1. Read mapping to find the link for this skill+target
   const mappings = readSkillMappings(mappingsPath);
@@ -280,6 +304,7 @@ export function rollbackLastInstall(
   options: InstallOptions,
 ): InstallResult | null {
   const { operationsPath } = options;
+  assertSafeFileName(targetName, 'Target name');
   const ops = readOperations(operationsPath);
 
   // Find the most recent completed install operation for this target

@@ -124,6 +124,25 @@ describe('installSkill', () => {
     expect(mappings.mappings['test-skill'].links.codex?.type).toBe('overlay');
   });
 
+  it('refuses overlay install when the target path is a plain directory', () => {
+    mkdirSync(join(tmpDir, 'overlays', 'codex', 'test-skill'), { recursive: true });
+    writeFileSync(
+      join(tmpDir, 'overlays', 'codex', 'test-skill', 'SKILL.md'),
+      '---\nname: test-skill\ndescription: codex overlay\n---\n\nOverlay.\n',
+      'utf-8',
+    );
+    const options = makeOptions();
+    const targetSkillDir = join(tmpDir, 'target-skills', 'test-skill');
+    mkdirSync(targetSkillDir, { recursive: true });
+    writeFileSync(join(targetSkillDir, 'keep.txt'), 'user content', 'utf-8');
+
+    const result = installSkill('test-skill', 'codex', 'copy', options);
+
+    expect(result.status).toBe('blocked');
+    expect(result.message).toContain('plain directory');
+    expect(existsSync(join(targetSkillDir, 'keep.txt'))).toBe(true);
+  });
+
   it('installs a standard skill to a custom target via mapping logic', () => {
     const options = makeOptions();
     const result = installSkill('test-skill', 'opencode', 'copy', options);

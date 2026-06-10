@@ -1,7 +1,12 @@
 // Tests for remote skill intake guards; validates query, remote IDs, payload limits, and safe file paths.
+import { randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { type SkillsRegistry, readRegistry } from '../registry.js';
 import {
+  installRemoteSkill,
   normalizeRemoteQuery,
   previewRemoteSkill,
   safeDownloadedFilePath,
@@ -114,6 +119,154 @@ describe('remote skill guards', () => {
     expect(() => safeDownloadedFilePath(stagingDir, 'C:/outside.md')).toThrow(/unsafe/i);
     expect(() => safeDownloadedFilePath(stagingDir, 'docs\\outside.md')).toThrow(/unsafe/i);
     expect(() => safeDownloadedFilePath(stagingDir, 'docs/bad:name.md')).toThrow(/unsafe/i);
+  });
+});
+
+describe('remote skill install', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = join(tmpdir(), `skillgov-remote-install-${randomUUID()}`);
+    mkdirSync(tmpDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function projectRoot(): string {
+    const root = join(tmpDir, 'project');
+    mkdirSync(join(root, 'incoming'), { recursive: true });
+    mkdirSync(join(root, 'skills'), { recursive: true });
+    mkdirSync(join(root, 'registry'), { recursive: true });
+    return root;
+  }
+
+  it('downloads a valid remote skill through the import pipeline', async () => {
+    const root = projectRoot();
+
+    const result = await installRemoteSkill('github/awesome-copilot/javascript-typescript-jest', {
+      projectRoot: root,
+      fetch: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => validPayload({ 'docs/guide.md': 'Use this skill.' }),
+      }),
+    });
+
+    expect(result).toMatchObject({
+      status: 'pass',
+      skillName: 'remote-test',
+      origin: 'remote:skills.sh:github/awesome-copilot/javascript-typescript-jest',
+    });
+    expect(existsSync(join(root, 'skills', 'remote-test', 'SKILL.md'))).toBe(true);
+    expect(existsSync(join(root, 'skills', 'remote-test', 'docs', 'guide.md'))).toBe(true);
+    expect(existsSync(join(root, 'incoming', '.remote-downloads'))).toBe(false);
+
+    const registry = readRegistry<SkillsRegistry>(join(root, 'registry', 'skills.json'), {
+      skills: {},
+    });
+    expect(registry.skills['remote-test'].origin).toBe(
+      'remote:skills.sh:github/awesome-copilot/javascript-typescript-jest',
+    );
+  });
+
+  it('rejects invalid remote skills without leaving incoming files', async () => {
+    const root = projectRoot();
+
+    const result = await installRemoteSkill('github/example/broken-skill', {
+      projectRoot: root,
+      fetch: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          files: [
+            {
+              path: 'SKILL.md',
+              contents: '---\nname: broken-skill\n---\n\n# Missing description\n',
+            },
+          ],
+          hash: 'abc123',
+        }),
+      }),
+    });
+
+    expect(result.status).toBe('fail');
+    expect(result.issues.join('\n')).toMatch(/description/i);
+    expect(existsSync(join(root, 'incoming', 'broken-skill'))).toBe(false);
+    expect(existsSync(join(root, 'incoming', '.remote-downloads'))).toBe(false);
+    expect(existsSync(join(root, 'skills', 'broken-skill'))).toBe(false);
+  });
+
+  it('replaces an existing managed skill with a clear message', async () => {
+    const root = projectRoot();
+    const existing = join(root, 'skills', 'remote-test');
+    mkdirSync(existing, { recursive: true });
+    writeFileSync(join(existing, 'old.txt'), 'old file', 'utf-8');
+
+    const result = await installRemoteSkill('github/example/remote-test', {
+      projectRoot: root,
+      fetch: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => validPayload({ 'new.txt': 'new file' }),
+      }),
+    });
+
+    expect(result.status).toBe('pass');
+    expect(result.message).toMatch(/replaced/i);
+    expect(existsSync(join(root, 'skills', 'remote-test', 'old.txt'))).toBe(false);
+    expect(readFileSync(join(root, 'skills', 'remote-test', 'new.txt'), 'utf-8')).toBe('new file');
+  });
+
+  it('rejects traversal payloads without writing outside the project', async () => {
+    const root = projectRoot();
+    const outside = join(root, 'outside.txt');
+
+    const result = await installRemoteSkill('github/example/escape-skill', {
+      projectRoot: root,
+      fetch: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          files: [
+            {
+              path: 'SKILL.md',
+              contents:
+                '---\nname: escape-skill\ndescription: a traversal test skill\n---\n\n# Escape\n',
+            },
+            { path: '../outside.txt', contents: 'escape' },
+          ],
+          hash: 'abc123',
+        }),
+      }),
+    });
+
+    expect(result.status).toBe('fail');
+    expect(result.issues.join('\n')).toMatch(/unsafe/i);
+    expect(existsSync(outside)).toBe(false);
+    expect(existsSync(join(root, 'skills', 'escape-skill'))).toBe(false);
+  });
+
+  it('rejects install directories outside the project root before fetching', async () => {
+    const root = projectRoot();
+    let fetched = false;
+
+    await expect(
+      installRemoteSkill('github/example/outside-target', {
+        projectRoot: root,
+        incoming: join(tmpDir, 'outside-incoming'),
+        fetch: async () => {
+          fetched = true;
+          return {
+            ok: true,
+            status: 200,
+            json: async () => validPayload(),
+          };
+        },
+      }),
+    ).rejects.toThrow(/project root/i);
+    expect(fetched).toBe(false);
   });
 });
 

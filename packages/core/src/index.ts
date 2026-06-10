@@ -55,6 +55,7 @@ export { hashFile, hashDirectory } from './hash.js';
 export { importSkill } from './import.js';
 export type { ImportOptions, ImportResult } from './import.js';
 export {
+  installRemoteSkill,
   normalizeRemoteQuery,
   previewRemoteSkill,
   safeDownloadedFilePath,
@@ -68,6 +69,7 @@ export type {
   RemoteDownloadedSkillPayload,
   RemoteFetch,
   RemoteFetchResponse,
+  RemoteInstallOptions,
   RemoteInstallResult,
   RemoteInstalledSkill,
   RemotePayloadValidation,

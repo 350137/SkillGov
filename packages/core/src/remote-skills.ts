@@ -1,5 +1,8 @@
 // Remote skill intake helpers validate search input, remote IDs, downloaded payloads, and staging paths.
-import { isAbsolute, relative, resolve } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { importSkill } from './import.js';
+import { isSafeFileName } from './names.js';
 
 export interface RemoteSkillResult {
   id: string;
@@ -35,6 +38,13 @@ export interface RemoteInstallResult {
   issues: string[];
   message?: string;
   origin?: string;
+}
+
+export interface RemoteInstallOptions extends RemoteRequestOptions {
+  projectRoot: string;
+  incoming?: string;
+  skills?: string;
+  registryPath?: string;
 }
 
 export interface NormalizedRemoteQuery {
@@ -264,6 +274,88 @@ export async function previewRemoteSkill(
   };
 }
 
+export async function installRemoteSkill(
+  remoteId: string,
+  options: RemoteInstallOptions,
+): Promise<RemoteInstallResult> {
+  const id = validateRemoteSkillId(remoteId);
+  const origin = `remote:skills.sh:${id}`;
+  const projectRoot = resolve(options.projectRoot);
+  const incomingDir = resolveProjectOwnedPath(
+    projectRoot,
+    options.incoming ?? join(projectRoot, 'incoming'),
+    'Incoming directory',
+  );
+  const skillsDir = resolveProjectOwnedPath(
+    projectRoot,
+    options.skills ?? join(projectRoot, 'skills'),
+    'Skills directory',
+  );
+  const registryPath = resolveProjectOwnedPath(
+    projectRoot,
+    options.registryPath ?? join(projectRoot, 'registry', 'skills.json'),
+    'Skills registry path',
+  );
+  const raw = await requestRemoteJson(`${SKILLS_API_BASE}/download/${id}`, 'Remote skill install', {
+    ...options,
+  });
+  const validation = validateDownloadedSkillPayload(raw);
+  const frontmatter = validation.skillMd ? parseSkillMdFrontmatter(validation.skillMd) : undefined;
+  const issues = [...validation.issues, ...(frontmatter?.errors || [])];
+  const skillName = frontmatter?.data.name;
+
+  if (validation.status === 'pass' && !skillName) {
+    issues.push('Root SKILL.md frontmatter must include a name.');
+  }
+  if (skillName && !isSafeFileName(skillName)) {
+    issues.push('Root SKILL.md frontmatter name must be a safe local skill name.');
+  }
+  if (validation.status === 'pass' && !frontmatter?.data.description) {
+    issues.push('Root SKILL.md frontmatter must include a description.');
+  }
+
+  if (!isDownloadedPayload(raw) || issues.length > 0 || !skillName) {
+    return { status: 'fail', skillName, issues, origin };
+  }
+
+  const remoteDownloadsDir = resolve(incomingDir, '.remote-downloads');
+  const tempRoot = resolve(remoteDownloadsDir, safeRemoteStagingName(id));
+  const sourceDir = resolve(tempRoot, skillName);
+  const existed = existsSync(join(skillsDir, skillName));
+
+  try {
+    mkdirSync(sourceDir, { recursive: true });
+    for (const file of raw.files) {
+      const target = safeDownloadedFilePath(sourceDir, file.path);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, file.contents, 'utf-8');
+    }
+
+    const imported = importSkill(sourceDir, {
+      incoming: incomingDir,
+      skills: skillsDir,
+      origin,
+      registryPath,
+    });
+
+    return {
+      status: imported.status,
+      skillName: imported.skillName,
+      issues: imported.issues,
+      origin,
+      message:
+        imported.status === 'pass'
+          ? existed
+            ? `Replaced existing managed skill "${imported.skillName}".`
+            : `Installed remote skill "${imported.skillName}".`
+          : undefined,
+    };
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+    removeDirIfEmpty(remoteDownloadsDir);
+  }
+}
+
 function isDownloadedPayload(payload: unknown): payload is RemoteDownloadedSkillPayload {
   if (!payload || typeof payload !== 'object') return false;
   const files = (payload as { files?: unknown }).files;
@@ -390,6 +482,33 @@ function stripQuotes(value: string): string {
     return value.slice(1, -1);
   }
   return value;
+}
+
+function safeRemoteStagingName(remoteId: string): string {
+  return remoteId.replace(/[/.]/g, '_');
+}
+
+function resolveProjectOwnedPath(
+  projectRoot: string,
+  candidatePath: string,
+  label: string,
+): string {
+  const resolved = resolve(candidatePath);
+  const rel = relative(projectRoot, resolved);
+  if (rel.startsWith('..') || isAbsolute(rel)) {
+    throw new Error(`${label} must stay inside the project root.`);
+  }
+  return resolved;
+}
+
+function removeDirIfEmpty(dir: string): void {
+  try {
+    if (readdirSync(dir).length === 0) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  } catch {
+    // Directory may not exist if validation failed before staging.
+  }
 }
 
 function validateDownloadedPath(downloadedPath: string): string {

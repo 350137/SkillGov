@@ -8,7 +8,67 @@ import { FilterBar } from '../components/FilterBar';
 import { SkillDetail } from '../components/SkillDetail';
 import { SKILL_PAGE_SIZE, SkillList } from '../components/SkillList';
 import { type FilterOptions, filterSkills } from '../lib/filterSkills';
-import type { DiscoverResponse, Skill, StatusResponse, TargetProfile } from '../types';
+import type { Skill, TargetProfile } from '../types';
+
+type MetricTone = 'plum' | 'green' | 'red' | 'gray';
+
+const metricStyles: Record<MetricTone, { icon: string; value: string; path: string }> = {
+  plum: {
+    icon: 'bg-[#965276] text-white',
+    value: 'text-[#965276]',
+    path: 'M7 6.5c0-1.38 2.24-2.5 5-2.5s5 1.12 5 2.5v11c0 1.38-2.24 2.5-5 2.5s-5-1.12-5-2.5v-11Zm0 0c0 1.38 2.24 2.5 5 2.5s5-1.12 5-2.5M7 12c0 1.38 2.24 2.5 5 2.5s5-1.12 5-2.5',
+  },
+  green: {
+    icon: 'bg-[#647f5f] text-white',
+    value: 'text-[#647f5f]',
+    path: 'M20 6 9 17l-5-5',
+  },
+  red: {
+    icon: 'bg-[#c74e42] text-white',
+    value: 'text-[#c74e42]',
+    path: 'M12 4 21 20H3L12 4Zm0 5v5m0 3h.01',
+  },
+  gray: {
+    icon: 'bg-[#817b78] text-white',
+    value: 'text-[#6f6968]',
+    path: 'M4 7.5h6l2 2h8v8.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7.5Z',
+  },
+};
+
+interface MetricCardProps {
+  label: string;
+  value: number;
+  tone: MetricTone;
+}
+
+function MetricCard({ label, value, tone }: MetricCardProps) {
+  const style = metricStyles[tone];
+
+  return (
+    <div className="flex min-h-[132px] items-center gap-7 rounded-lg border border-[#e6deda] bg-white/82 px-8 py-7 shadow-[0_18px_50px_rgba(80,55,45,0.06)]">
+      <div
+        className={`flex h-[74px] w-[74px] items-center justify-center rounded-full ${style.icon} shadow-inner`}
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="h-9 w-9"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.8"
+        >
+          <path d={style.path} />
+        </svg>
+      </div>
+      <div>
+        <div className="text-lg font-semibold text-[#2b2528]">{label}</div>
+        <div className={`mt-3 text-5xl font-semibold leading-none ${style.value}`}>{value}</div>
+      </div>
+    </div>
+  );
+}
 
 export function MySkills() {
   const { t, i18n } = useTranslation();
@@ -16,12 +76,10 @@ export function MySkills() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const [statusData, setStatusData] = useState<StatusResponse | null>(null);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [nonSkillDirs, setNonSkillDirs] = useState<string[]>([]);
   const [targetProfiles, setTargetProfiles] = useState<TargetProfile[]>([]);
   const [filters, setFilters] = useState<FilterOptions>({});
-  const [view, setView] = useState<'status' | 'purpose'>('status');
   const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set());
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const [page, setPage] = useState(0);
@@ -30,8 +88,7 @@ export function MySkills() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [status, disc] = await Promise.all([api.getStatus(), api.discover()]);
-      setStatusData(status);
+      const disc = await api.discover();
       setSkills(disc.skills);
       setNonSkillDirs(disc.nonSkillDirectories);
       setTargetProfiles(disc.targetProfiles);
@@ -48,6 +105,13 @@ export function MySkills() {
   }, [loadData, searchParams, navigate]);
 
   const filtered = filterSkills(skills, filters, lang);
+
+  useEffect(() => {
+    if (filtered.length === 0) return;
+    if (selectedNames.size === 1 && filtered.some((s) => selectedNames.has(s.name))) return;
+    setSelectedSkill(filtered[0]);
+    setSelectedNames(new Set([filtered[0].name]));
+  }, [filtered, selectedNames]);
 
   const appliedCount = skills.filter((s) =>
     (s.agentStates || []).some(
@@ -96,11 +160,6 @@ export function MySkills() {
     setSelectedNames(new Set());
   };
 
-  const handleViewChange = (v: 'status' | 'purpose') => {
-    setView(v);
-    setSelectedNames(new Set());
-  };
-
   const selectionCount = selectedNames.size;
   const panelSkill =
     selectionCount === 1
@@ -108,63 +167,35 @@ export function MySkills() {
       : selectedSkill;
 
   return (
-    <div className="p-4">
-      <div id="status-cards" className="flex gap-2 mb-3 flex-wrap">
-        {[
-          { value: skills.length, label: t('metricTotal') },
-          { value: appliedCount, label: t('metricApplied') },
-          { value: problemCount, label: t('metricProblem') },
-          { value: nonSkillDirs.length, label: t('metricNonSkill') },
-        ].map((card) => (
-          <div
-            key={card.label}
-            className="bg-white border border-gray-200 rounded-lg px-4 py-2 min-w-[100px] flex-1 text-center"
-          >
-            <div className="text-xl font-bold text-gray-900 leading-tight">{card.value}</div>
-            <div className="text-xs text-gray-500 leading-tight">{card.label}</div>
-          </div>
-        ))}
+    <div className="p-6">
+      <div
+        id="status-cards"
+        data-testid="dashboard-metrics"
+        className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+      >
+        <MetricCard label={t('metricTotal')} value={skills.length} tone="plum" />
+        <MetricCard label={t('metricApplied')} value={appliedCount} tone="green" />
+        <MetricCard label={t('metricProblem')} value={problemCount} tone="red" />
+        <MetricCard label={t('metricNonSkill')} value={nonSkillDirs.length} tone="gray" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4 items-start">
-        <div id="skill-library-card" className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
-            <h2 className="text-base font-semibold">{t('discoverHeading')}</h2>
-            <div data-testid="skill-library-header-actions" className="flex items-center gap-2">
-              <div className="flex gap-1.5">
-                <button
-                  type="button"
-                  onClick={loadData}
-                  disabled={loading}
-                  className="px-2.5 py-1 bg-blue-600 text-white border border-blue-700 rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {t('scanLocal')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {}}
-                  className="px-2.5 py-1 border border-gray-300 rounded text-xs font-medium hover:bg-gray-50"
-                >
-                  {t('exportButton')}
-                </button>
-              </div>
-              <div className="flex gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleViewChange('status')}
-                  className={`px-2.5 py-1 text-xs rounded border ${view === 'status' ? 'bg-blue-600 text-white border-blue-700' : 'border-gray-300'}`}
-                >
-                  {t('libraryStatusView')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleViewChange('purpose')}
-                  className={`px-2.5 py-1 text-xs rounded border ${view === 'purpose' ? 'bg-blue-600 text-white border-blue-700' : 'border-gray-300'}`}
-                >
-                  {t('libraryPurposeView')}
-                </button>
-              </div>
-            </div>
+      <div className="mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div
+          id="skill-library-card"
+          className="rounded-lg border border-[#e6deda] bg-white/86 p-6 shadow-[0_22px_60px_rgba(80,55,45,0.06)]"
+        >
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-2xl font-semibold tracking-normal text-[#201b1e]">
+              {t('discoverHeading')}
+            </h2>
+            <button
+              type="button"
+              onClick={loadData}
+              disabled={loading}
+              className="rounded border border-[#d9cfca] px-3 py-2 text-sm font-medium text-[#5c5357] transition hover:bg-[#f8f3f1] disabled:opacity-50"
+            >
+              {t('scanLocal')}
+            </button>
           </div>
 
           <div data-testid="skill-library-toolbar">
@@ -173,12 +204,13 @@ export function MySkills() {
               onFiltersChange={handleFiltersChange}
               skills={skills}
               targetProfiles={targetProfiles}
+              onAddSkill={() => navigate('/explore')}
             />
           </div>
 
           <SkillList
             skills={filtered}
-            view={view}
+            view="status"
             selectedNames={selectedNames}
             onToggleSelect={handleToggleSelect}
             onTogglePage={handleTogglePage}
@@ -191,18 +223,20 @@ export function MySkills() {
 
         <div
           id="skill-action-card"
-          className="bg-white border border-gray-200 rounded-lg p-4 flex flex-col max-h-[calc(100vh-190px)] min-h-[520px] overflow-hidden"
+          className="flex min-h-[620px] max-h-[calc(100vh-48px)] flex-col overflow-hidden rounded-lg border border-[#e6deda] bg-white/88 shadow-[0_22px_60px_rgba(80,55,45,0.06)]"
         >
-          <div className="mb-3 pb-2 border-b border-gray-100">
-            <h2 className="text-base font-semibold">{t('operationsHeading')}</h2>
+          <div className="border-b border-[#eadfdd] px-6 py-5">
+            <h2 className="text-2xl font-semibold text-[#201b1e]">{t('operationsHeading')}</h2>
           </div>
 
           {selectionCount === 0 && !panelSkill && (
-            <div className="text-sm text-gray-400 text-center py-5">{t('noSelectionHint')}</div>
+            <div className="px-6 py-8 text-center text-sm text-[#8c8387]">
+              {t('noSelectionHint')}
+            </div>
           )}
 
           {selectionCount === 1 && panelSkill && (
-            <div className="overflow-y-auto flex-1">
+            <div className="flex-1 overflow-y-auto px-6 py-5">
               <SkillDetail
                 skill={panelSkill}
                 targetProfiles={targetProfiles}
@@ -212,7 +246,7 @@ export function MySkills() {
           )}
 
           {selectionCount > 1 && (
-            <div className="overflow-y-auto flex-1">
+            <div className="flex-1 overflow-y-auto px-6 py-5">
               <BatchActions
                 selectedNames={[...selectedNames]}
                 targetProfiles={targetProfiles}
@@ -221,31 +255,6 @@ export function MySkills() {
               />
             </div>
           )}
-
-          <div className="flex gap-2 mt-3 opacity-60 hover:opacity-100">
-            <button
-              type="button"
-              onClick={async () => {
-                const d = await api.doctor();
-                alert(JSON.stringify(d, null, 2));
-              }}
-              className="px-3 py-1.5 border border-gray-300 rounded text-sm hover:bg-gray-50"
-            >
-              {t('doctorButton')}
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                if (targetProfiles[0]) {
-                  const d = await api.rollback(targetProfiles[0].id);
-                  alert(JSON.stringify(d, null, 2));
-                }
-              }}
-              className="px-3 py-1.5 bg-red-600 text-white border border-red-700 rounded text-sm hover:bg-red-700"
-            >
-              {t('rollbackButton')}
-            </button>
-          </div>
         </div>
       </div>
     </div>

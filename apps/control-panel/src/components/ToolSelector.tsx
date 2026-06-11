@@ -12,7 +12,7 @@ export function ToolSelector({ targetProfiles, value, onChange }: ToolSelectorPr
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm mb-2"
+      className="mb-2 h-11 w-full rounded border border-[#ded4d0] bg-white px-3 text-base text-[#282326] shadow-sm"
     >
       {targetProfiles.map((p) => (
         <option key={p.id} value={p.id}>

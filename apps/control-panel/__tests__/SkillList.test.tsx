@@ -52,14 +52,19 @@ describe('SkillList', () => {
     expect(container.textContent).not.toContain('skill-16');
   });
 
-  it('hides the source column and shows multiple agents in one dropdown', async () => {
+  it('shows the screenshot-style status table columns and multiple agent chips', async () => {
     const onSelectSkill = vi.fn();
     const skills: Skill[] = [
       {
         name: 'multi-agent-skill',
+        displayDescription: {
+          en: 'Supports repeatable governance workflows.',
+        },
         path: 'D:/SkillGov/skills/multi-agent-skill',
         sourceLabel: 'Codex plugin cache',
         validationStatus: 'pass',
+        version: '1.2.3',
+        mappingSummary: { total: 2, linked: 2, missing: 0, conflict: 0 },
         agentStates: [
           {
             profileId: 'claude',
@@ -95,14 +100,22 @@ describe('SkillList', () => {
 
     expect(container.textContent).not.toContain('Source');
     expect(container.textContent).not.toContain('Codex plugin cache');
+    expect(container.textContent).not.toContain('Path');
+    expect(container.textContent).toContain('Description');
+    expect(container.textContent).toContain('Target Agent');
+    expect(container.textContent).toContain('Version');
+    expect(container.textContent).toContain('Supports repeatable governance workflows.');
+    expect(container.textContent).toContain('Claude');
+    expect(container.textContent).toContain('Codex');
+    expect(container.textContent).toContain('Mapped');
+    expect(container.textContent).toContain('1.2.3');
 
-    const agentSelect = container.querySelector('select[aria-label="Agents"]');
-    expect(agentSelect).toBeTruthy();
-    expect(agentSelect?.querySelectorAll('option')).toHaveLength(2);
+    expect(container.querySelector('select[aria-label="Agents"]')).toBeFalsy();
 
+    const firstRow = container.querySelector('tbody tr');
     await act(async () => {
-      agentSelect?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      firstRow?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
-    expect(onSelectSkill).not.toHaveBeenCalled();
+    expect(onSelectSkill).toHaveBeenCalledOnce();
   });
 });

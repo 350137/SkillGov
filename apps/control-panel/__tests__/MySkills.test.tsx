@@ -49,7 +49,32 @@ afterEach(() => {
 });
 
 describe('MySkills', () => {
-  it('places refresh and export actions in the skill library header', async () => {
+  it('renders the dashboard metrics and primary skill-library action', async () => {
+    apiMock.discover.mockResolvedValue({
+      skills: [
+        {
+          name: 'brainstorming',
+          validationStatus: 'pass',
+          mappingSummary: { total: 1, linked: 1, missing: 0, conflict: 0 },
+          agentStates: [
+            {
+              profileId: 'claude',
+              profileLabel: 'Claude',
+              state: 'managed-linked',
+              path: 'D:/SkillGov/skills/brainstorming',
+            },
+          ],
+        },
+        {
+          name: 'docx-mcp',
+          validationStatus: 'fail',
+          mappingSummary: { total: 1, linked: 0, missing: 0, conflict: 1 },
+        },
+      ],
+      nonSkillDirectories: ['logs'],
+      targetProfiles: [],
+    });
+
     await act(async () => {
       root.render(
         <MemoryRouter>
@@ -59,12 +84,18 @@ describe('MySkills', () => {
       await Promise.resolve();
     });
 
-    const headerActions = container.querySelector('[data-testid="skill-library-header-actions"]');
+    const metrics = container.querySelector('[data-testid="dashboard-metrics"]');
     const toolbar = container.querySelector('[data-testid="skill-library-toolbar"]');
 
-    expect(headerActions?.textContent).toContain('Refresh Skill Library');
-    expect(headerActions?.textContent).toContain('Export');
-    expect(toolbar?.textContent).not.toContain('Refresh Skill Library');
-    expect(toolbar?.textContent).not.toContain('Export');
+    expect(metrics?.textContent).toContain('Total Skills');
+    expect(metrics?.textContent).toContain('2');
+    expect(metrics?.textContent).toContain('Applied');
+    expect(metrics?.textContent).toContain('1');
+    expect(metrics?.textContent).toContain('Issues');
+    expect(metrics?.textContent).toContain('1');
+    expect(metrics?.textContent).toContain('Non-Skill Dirs');
+    expect(metrics?.textContent).toContain('1');
+    expect(toolbar?.textContent).toContain('Add Skill');
+    expect(toolbar?.textContent).toContain('Default Sort');
   });
 });

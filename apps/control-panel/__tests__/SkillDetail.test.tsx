@@ -29,13 +29,15 @@ afterEach(() => {
 });
 
 describe('SkillDetail', () => {
-  it('shows the skill introduction and validation metadata', async () => {
+  it('shows the operations panel summary and screenshot-style actions', async () => {
     const skill: Skill = {
       name: 'gh-address-comments',
       path: 'D:/SkillGov/skills/gh-address-comments',
       source: 'cache',
       sourceLabel: 'Codex plugin cache',
       validationStatus: 'fail',
+      version: '1.3.0',
+      mappingSummary: { total: 1, linked: 0, missing: 0, conflict: 1 },
       displayDescription: {
         en: 'Address actionable GitHub pull request review feedback.',
         reviewStatus: 'needs-review',
@@ -62,7 +64,12 @@ describe('SkillDetail', () => {
     expect(textContent()).toContain('Address actionable GitHub pull request review feedback.');
     expect(textContent()).toContain('Codex plugin cache');
     expect(textContent()).toContain('fail');
+    expect(textContent()).toContain('1.3.0');
     expect(textContent()).toContain('needs-review');
     expect(textContent()).toContain('SKILL.md description');
+    expect(textContent()).toContain('Apply Skill');
+    expect(textContent()).toContain('View Details');
+    expect(textContent()).toContain('Disable / Delete');
+    expect(textContent()).toContain('1 blocking warning detected');
   });
 });

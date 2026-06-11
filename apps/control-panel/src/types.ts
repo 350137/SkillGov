@@ -29,6 +29,7 @@ export interface Skill {
   source?: string;
   sourceLabel?: string;
   validationStatus?: string;
+  version?: string;
   agentStates?: AgentState[];
   mappingSummary?: MappingSummary;
   displayDescription?: DisplayDescription;

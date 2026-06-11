@@ -8,7 +8,7 @@ import {
 } from '../lib/filterSkills';
 import type { Skill, TargetProfile } from '../types';
 
-const PAGE_SIZE = 20;
+export const SKILL_PAGE_SIZE = 15;
 
 interface SkillListProps {
   skills: Skill[];
@@ -34,9 +34,9 @@ export function SkillList({
 }: SkillListProps) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language.startsWith('zh') ? 'zh' : 'en';
-  const totalPages = Math.ceil(skills.length / PAGE_SIZE);
-  const start = page * PAGE_SIZE;
-  const pageSkills = skills.slice(start, start + PAGE_SIZE);
+  const totalPages = Math.ceil(skills.length / SKILL_PAGE_SIZE);
+  const start = page * SKILL_PAGE_SIZE;
+  const pageSkills = skills.slice(start, start + SKILL_PAGE_SIZE);
   const allPageSelected =
     pageSkills.length > 0 && pageSkills.every((s) => selectedNames.has(s.name));
 

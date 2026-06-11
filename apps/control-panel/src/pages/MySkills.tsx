@@ -6,7 +6,7 @@ import { api } from '../api';
 import { BatchActions } from '../components/BatchActions';
 import { FilterBar } from '../components/FilterBar';
 import { SkillDetail } from '../components/SkillDetail';
-import { SkillList } from '../components/SkillList';
+import { SKILL_PAGE_SIZE, SkillList } from '../components/SkillList';
 import { type FilterOptions, filterSkills } from '../lib/filterSkills';
 import type { DiscoverResponse, Skill, StatusResponse, TargetProfile } from '../types';
 
@@ -68,8 +68,8 @@ export function MySkills() {
   };
 
   const handleTogglePage = (checked: boolean) => {
-    const start = page * 20;
-    const pageSkills = filtered.slice(start, start + 20);
+    const start = page * SKILL_PAGE_SIZE;
+    const pageSkills = filtered.slice(start, start + SKILL_PAGE_SIZE);
     setSelectedNames((prev) => {
       const next = new Set(prev);
       for (const s of pageSkills) {
@@ -108,8 +108,8 @@ export function MySkills() {
       : selectedSkill;
 
   return (
-    <div className="p-6">
-      <div id="status-cards" className="flex gap-3 mb-5 flex-wrap">
+    <div className="p-4">
+      <div id="status-cards" className="flex gap-2 mb-3 flex-wrap">
         {[
           { value: skills.length, label: t('metricTotal') },
           { value: appliedCount, label: t('metricApplied') },
@@ -118,15 +118,15 @@ export function MySkills() {
         ].map((card) => (
           <div
             key={card.label}
-            className="bg-white border border-gray-200 rounded-lg px-5 py-3 min-w-[120px] flex-1 text-center"
+            className="bg-white border border-gray-200 rounded-lg px-4 py-2 min-w-[100px] flex-1 text-center"
           >
-            <div className="text-2xl font-bold text-gray-900">{card.value}</div>
-            <div className="text-xs text-gray-500 mt-0.5">{card.label}</div>
+            <div className="text-xl font-bold text-gray-900 leading-tight">{card.value}</div>
+            <div className="text-xs text-gray-500 leading-tight">{card.label}</div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4 items-start">
         <div id="skill-library-card" className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
             <h2 className="text-base font-semibold">{t('discoverHeading')}</h2>

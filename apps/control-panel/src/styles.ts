@@ -29,28 +29,29 @@ h3 { font-size: 0.9rem; margin: 14px 0 6px; color: #555; }
 /* --- Status Cards --- */
 #status-cards {
   display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: 8px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
 }
 .stat-card {
   background: #fff;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
-  padding: 12px 20px;
-  min-width: 120px;
+  padding: 8px 16px;
+  min-width: 100px;
   flex: 1;
   text-align: center;
 }
 .stat-card .stat-value {
-  font-size: 1.6rem;
+  font-size: 1.25rem;
+  line-height: 1.1;
   font-weight: 700;
   color: #1a1a2e;
 }
 .stat-card .stat-label {
   font-size: 0.78rem;
   color: #888;
-  margin-top: 2px;
+  line-height: 1.1;
 }
 
 /* --- Main Two-Column Layout --- */

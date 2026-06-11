@@ -639,7 +639,7 @@ function applyLanguage(language) {
 }
 
 let discoverPage = 0;
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 15;
 let latestDiscoverData = [];
 let latestNonSkillDirectories = [];
 

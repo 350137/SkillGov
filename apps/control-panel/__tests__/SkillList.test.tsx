@@ -52,8 +52,9 @@ describe('SkillList', () => {
     expect(container.textContent).not.toContain('skill-16');
   });
 
-  it('shows the screenshot-style status table columns and multiple agent chips', async () => {
+  it('shows the compact status table with multi-select and agent selector', async () => {
     const onSelectSkill = vi.fn();
+    const onToggleSelect = vi.fn();
     const skills: Skill[] = [
       {
         name: 'multi-agent-skill',
@@ -63,7 +64,6 @@ describe('SkillList', () => {
         path: 'D:/SkillGov/skills/multi-agent-skill',
         sourceLabel: 'Codex plugin cache',
         validationStatus: 'pass',
-        version: '1.2.3',
         mappingSummary: { total: 2, linked: 2, missing: 0, conflict: 0 },
         agentStates: [
           {
@@ -88,7 +88,7 @@ describe('SkillList', () => {
           skills={skills}
           view="status"
           selectedNames={new Set()}
-          onToggleSelect={vi.fn()}
+          onToggleSelect={onToggleSelect}
           onTogglePage={vi.fn()}
           onSelectSkill={onSelectSkill}
           page={0}
@@ -100,22 +100,64 @@ describe('SkillList', () => {
 
     expect(container.textContent).not.toContain('Source');
     expect(container.textContent).not.toContain('Codex plugin cache');
-    expect(container.textContent).not.toContain('Path');
-    expect(container.textContent).toContain('Description');
-    expect(container.textContent).toContain('Target Agent');
-    expect(container.textContent).toContain('Version');
-    expect(container.textContent).toContain('Supports repeatable governance workflows.');
-    expect(container.textContent).toContain('Claude');
-    expect(container.textContent).toContain('Codex');
-    expect(container.textContent).toContain('Mapped');
-    expect(container.textContent).toContain('1.2.3');
+    expect(container.textContent).not.toContain('Description');
+    expect(container.textContent).not.toContain('Supports repeatable governance workflows.');
+    expect(container.textContent).toContain('#');
+    expect(container.textContent).toContain('Skill');
+    expect(container.textContent).toContain('Status');
+    expect(container.textContent).toContain('Agent');
+    expect(container.textContent).toContain('Mapping');
+    expect(container.textContent).toContain('Path');
+    expect(container.textContent).toContain('2/2');
+    expect(container.textContent).toContain('D:/SkillGov/skills/multi-agent-skill');
 
-    expect(container.querySelector('select[aria-label="Agents"]')).toBeFalsy();
+    expect(container.querySelectorAll('tbody svg')).toHaveLength(0);
+
+    const agentSelect = container.querySelector('select[aria-label="Agents"]');
+    expect(agentSelect).toBeTruthy();
+    expect(agentSelect?.querySelectorAll('option')).toHaveLength(2);
+
+    const rowCheckbox = container.querySelector('tbody input[type="checkbox"]');
+    await act(async () => {
+      rowCheckbox?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onToggleSelect).toHaveBeenCalledWith('multi-agent-skill');
+    expect(onSelectSkill).not.toHaveBeenCalled();
 
     const firstRow = container.querySelector('tbody tr');
     await act(async () => {
       firstRow?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(onSelectSkill).toHaveBeenCalledOnce();
+  });
+
+  it('keeps descriptions in the purpose view only', async () => {
+    const skills: Skill[] = [
+      {
+        name: 'purpose-skill',
+        validationStatus: 'pass',
+        displayDescription: {
+          en: 'Purpose copy belongs in the purpose view.',
+        },
+      },
+    ];
+
+    await act(async () => {
+      root.render(
+        <SkillList
+          skills={skills}
+          view="purpose"
+          selectedNames={new Set()}
+          onToggleSelect={vi.fn()}
+          onTogglePage={vi.fn()}
+          onSelectSkill={vi.fn()}
+          page={0}
+          onPageChange={vi.fn()}
+          targetProfiles={[]}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain('Purpose copy belongs in the purpose view.');
   });
 });

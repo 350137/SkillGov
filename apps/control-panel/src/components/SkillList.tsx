@@ -21,40 +21,28 @@ function AppliedAgentsCell({ agents, label, noneLabel }: AppliedAgentsCellProps)
     return <span className="text-[#9a9295]">{noneLabel}</span>;
   }
 
+  if (agents.length === 1) {
+    return (
+      <span className="inline-block max-w-[120px] truncate rounded bg-[#eef2ff] px-2 py-1 text-sm text-[#2f35d5]">
+        {agents[0]}
+      </span>
+    );
+  }
+
   return (
-    <div aria-label={label} className="flex flex-wrap gap-1.5">
+    <select
+      aria-label={label}
+      defaultValue={agents[0]}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+      className="h-9 max-w-[130px] rounded border border-[#d3d9e1] bg-white px-2 text-sm"
+    >
       {agents.map((agent) => (
-        <span
-          key={agent}
-          className="max-w-[96px] truncate rounded-lg border border-[#ded8d5] bg-[#f8f6f5] px-3 py-1 text-sm text-[#282326]"
-          title={agent}
-        >
+        <option key={agent} value={agent}>
           {agent}
-        </span>
+        </option>
       ))}
-    </div>
-  );
-}
-
-function SkillIcon({ status }: { status?: string }) {
-  const tone =
-    status === 'fail' ? 'bg-[#c74e42]' : status === 'fixable' ? 'bg-[#b88242]' : 'bg-[#965276]';
-
-  return (
-    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${tone}`}>
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 24 24"
-        className="h-6 w-6 text-white"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      >
-        <path d="M12 3v2m0 14v2m7-9h2M3 12h2m11.95-4.95 1.42-1.42M5.63 18.37l1.42-1.42m0-9.9L5.63 5.63m12.74 12.74-1.42-1.42M9 12a3 3 0 1 1 6 0c0 1.2-.7 1.8-1.5 2.4-.7.5-1.5 1.2-1.5 2.1" />
-      </svg>
-    </span>
+    </select>
   );
 }
 
@@ -81,6 +69,8 @@ export function SkillList({
   skills,
   view,
   selectedNames,
+  onToggleSelect,
+  onTogglePage,
   onSelectSkill,
   page,
   onPageChange,
@@ -90,6 +80,8 @@ export function SkillList({
   const totalPages = Math.ceil(skills.length / SKILL_PAGE_SIZE);
   const start = page * SKILL_PAGE_SIZE;
   const pageSkills = skills.slice(start, start + SKILL_PAGE_SIZE);
+  const allPageSelected =
+    pageSkills.length > 0 && pageSkills.every((s) => selectedNames.has(s.name));
 
   if (skills.length === 0) {
     return <p className="py-8 text-center text-sm text-[#8c8387]">{t('noSkills')}</p>;
@@ -131,27 +123,34 @@ export function SkillList({
           <table className="w-full border-collapse text-base">
             <thead>
               <tr className="bg-[#fbf8f6] text-left text-sm font-semibold text-[#3d3639]">
+                <th className="w-10 px-4 py-4 text-center">
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    onChange={(e) => onTogglePage(e.target.checked)}
+                    title={t('selectAll')}
+                    className="h-4 w-4"
+                  />
+                </th>
+                <th className="whitespace-nowrap px-4 py-4">{t('tableNumber')}</th>
                 <th className="whitespace-nowrap px-4 py-4">{t('tableSkill')}</th>
-                <th className="whitespace-nowrap px-4 py-4">{t('tableSkillDescription')}</th>
                 <th className="whitespace-nowrap px-4 py-4">{t('tableStatus')}</th>
-                <th className="whitespace-nowrap px-4 py-4">{t('targetAgentHeading')}</th>
+                <th className="whitespace-nowrap px-4 py-4">{t('tableAgent')}</th>
                 <th className="whitespace-nowrap px-4 py-4">{t('tableMappingStatus')}</th>
-                <th className="whitespace-nowrap px-4 py-4">{t('versionLabel')}</th>
+                <th className="whitespace-nowrap px-4 py-4">{t('tablePathLabel')}</th>
               </tr>
             </thead>
             <tbody>
-              {pageSkills.map((s) => {
+              {pageSkills.map((s, i) => {
                 const agents = formatAppliedAgents(s);
                 const mapping = getMappingStatus(s.mappingSummary);
                 const selected = selectedNames.has(s.name);
                 const mappingLabel =
-                  mapping === 'linked'
-                    ? t('mappingStatusLinked')
+                  mapping === 'linked' || mapping === 'partial'
+                    ? `${s.mappingSummary?.linked || 0}/${s.mappingSummary?.total || 0}`
                     : mapping === 'conflict'
                       ? t('mappingStatusConflict')
-                      : mapping === 'partial'
-                        ? `${s.mappingSummary?.linked || 0}/${s.mappingSummary?.total || 0}`
-                        : t('mappingStatusUnmapped');
+                      : t('mappingStatusUnmapped');
 
                 return (
                   <tr
@@ -165,41 +164,48 @@ export function SkillList({
                     }}
                     tabIndex={0}
                   >
-                    <td className="px-4 py-4">
-                      <div className="flex min-w-[180px] items-center gap-3">
-                        <SkillIcon status={s.validationStatus} />
-                        <span className="font-semibold text-[#1f1a1d]">{s.name}</span>
-                      </div>
+                    <td
+                      className="px-4 py-3 text-center"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedNames.has(s.name)}
+                        onChange={() => onToggleSelect(s.name)}
+                        className="h-4 w-4"
+                      />
                     </td>
-                    <td className="px-4 py-4 text-[#292427]">
-                      <div className="max-h-14 max-w-[320px] overflow-hidden leading-7">
-                        {resolveSkillDescription(s, lang) || t('noSkillPurpose')}
-                      </div>
+                    <td className="whitespace-nowrap px-4 py-3 text-[#637083]">{start + i + 1}</td>
+                    <td className="px-4 py-3">
+                      <span className="font-semibold text-[#1f1a1d]">{s.name}</span>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-3">
                       <span
-                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1 text-sm font-medium ${getStatusBadgeClass(s.validationStatus || '')}`}
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ${getStatusBadgeClass(s.validationStatus || '')}`}
                       >
-                        <span className="h-2 w-2 rounded-full bg-current" />
                         {s.validationStatus || '-'}
                       </span>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-3">
                       <AppliedAgentsCell
                         agents={agents}
                         label={t('tableAppliedAgentsChip')}
                         noneLabel={t('none')}
                       />
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-3">
                       <span
-                        className={`inline-flex whitespace-nowrap rounded-lg border px-3 py-1 text-sm font-medium ${mappingBadgeClass(mapping)}`}
+                        className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-sm font-semibold ${mappingBadgeClass(mapping)}`}
                       >
                         {mappingLabel}
                       </span>
                     </td>
-                    <td className="min-w-14 whitespace-nowrap px-4 py-4 text-[#342e31]">
-                      {s.version || '-'}
+                    <td
+                      className="max-w-[260px] overflow-hidden text-ellipsis whitespace-nowrap px-4 py-3 text-[#4d5a70]"
+                      title={s.path}
+                    >
+                      {s.path || '-'}
                     </td>
                   </tr>
                 );

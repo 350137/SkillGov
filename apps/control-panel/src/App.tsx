@@ -9,6 +9,8 @@ import { Settings } from './pages/Settings';
 import { Tags } from './pages/Tags';
 import type { TargetProfile } from './types';
 
+const appIconUrl = new URL('../../desktop/src-tauri/icons/icon.ico', import.meta.url).href;
+
 type NavIcon = 'skills' | 'explore' | 'tags' | 'settings';
 
 const navIcons: Record<NavIcon, string> = {
@@ -65,9 +67,12 @@ export function App() {
       <div className="flex min-h-screen">
         <aside className="flex w-[280px] shrink-0 flex-col border-r border-[#eadfdd] bg-[#fbf8f6] px-5 py-6">
           <div className="flex items-center gap-4">
-            <div className="flex h-[68px] w-[68px] items-center justify-center rounded-lg bg-[#965276] text-[28px] font-semibold text-white shadow-sm">
-              Sg
-            </div>
+            <img
+              src={appIconUrl}
+              alt="SkillGov"
+              data-testid="app-brand-icon"
+              className="h-[68px] w-[68px] rounded-lg object-cover shadow-sm"
+            />
             <div className="min-w-0">
               <div className="text-[28px] font-semibold leading-tight text-[#191619]">SkillGov</div>
               <div className="mt-2 whitespace-nowrap text-xs text-[#6f676b]">

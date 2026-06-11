@@ -95,7 +95,16 @@ describe('MySkills', () => {
     expect(metrics?.textContent).toContain('1');
     expect(metrics?.textContent).toContain('Non-Skill Dirs');
     expect(metrics?.textContent).toContain('1');
+    expect(toolbar?.querySelector('details')).toBeFalsy();
+    expect(toolbar?.querySelectorAll('select')).toHaveLength(5);
+    expect(toolbar?.textContent).toContain('All Statuses');
+    expect(toolbar?.textContent).toContain('All Sources');
+    expect(toolbar?.textContent).toContain('All Mappings');
+    expect(toolbar?.textContent).toContain('All Agents');
     expect(toolbar?.textContent).toContain('Add Skill');
     expect(toolbar?.textContent).toContain('Default Sort');
+    expect(container.textContent).toContain('Export');
+    expect(container.textContent).toContain('Skill Status');
+    expect(container.textContent).toContain('Skill Purpose');
   });
 });

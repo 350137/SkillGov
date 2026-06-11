@@ -199,7 +199,10 @@ export function MySkills() {
             <h2 className="text-2xl font-semibold tracking-normal text-[#201b1e]">
               {t('discoverHeading')}
             </h2>
-            <div className="flex flex-wrap items-center gap-2">
+            <div
+              data-testid="skill-library-header-actions"
+              className="flex flex-wrap items-center gap-2"
+            >
               <button
                 type="button"
                 onClick={loadData}
@@ -207,6 +210,25 @@ export function MySkills() {
                 className="rounded bg-[#965276] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#854669] disabled:opacity-50"
               >
                 {t('scanLocal')}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/explore')}
+                className="flex items-center gap-2 rounded bg-[#965276] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#854669]"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.8"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                <span>{t('addSkillButton')}</span>
               </button>
               <button
                 type="button"
@@ -244,9 +266,7 @@ export function MySkills() {
             <FilterBar
               filters={filters}
               onFiltersChange={handleFiltersChange}
-              skills={skills}
               targetProfiles={targetProfiles}
-              onAddSkill={() => navigate('/explore')}
             />
           </div>
 

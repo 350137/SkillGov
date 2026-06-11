@@ -86,6 +86,7 @@ describe('MySkills', () => {
 
     const metrics = container.querySelector('[data-testid="dashboard-metrics"]');
     const toolbar = container.querySelector('[data-testid="skill-library-toolbar"]');
+    const headerActions = container.querySelector('[data-testid="skill-library-header-actions"]');
 
     expect(metrics?.textContent).toContain('Total Skills');
     expect(metrics?.textContent).toContain('2');
@@ -96,15 +97,17 @@ describe('MySkills', () => {
     expect(metrics?.textContent).toContain('Non-Skill Dirs');
     expect(metrics?.textContent).toContain('1');
     expect(toolbar?.querySelector('details')).toBeFalsy();
-    expect(toolbar?.querySelectorAll('select')).toHaveLength(5);
+    expect(toolbar?.querySelectorAll('select')).toHaveLength(4);
     expect(toolbar?.textContent).toContain('All Statuses');
-    expect(toolbar?.textContent).toContain('All Sources');
+    expect(toolbar?.textContent).not.toContain('All Sources');
     expect(toolbar?.textContent).toContain('All Mappings');
     expect(toolbar?.textContent).toContain('All Agents');
-    expect(toolbar?.textContent).toContain('Add Skill');
+    expect(toolbar?.textContent).not.toContain('Add Skill');
     expect(toolbar?.textContent).toContain('Default Sort');
-    expect(container.textContent).toContain('Export');
-    expect(container.textContent).toContain('Skill Status');
-    expect(container.textContent).toContain('Skill Purpose');
+    expect(headerActions?.textContent).toContain('Refresh Skill Library');
+    expect(headerActions?.textContent).toContain('Add Skill');
+    expect(headerActions?.textContent).toContain('Export');
+    expect(headerActions?.textContent).toContain('Skill Status');
+    expect(headerActions?.textContent).toContain('Skill Purpose');
   });
 });

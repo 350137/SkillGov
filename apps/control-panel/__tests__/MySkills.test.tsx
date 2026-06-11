@@ -87,6 +87,8 @@ describe('MySkills', () => {
     const metrics = container.querySelector('[data-testid="dashboard-metrics"]');
     const toolbar = container.querySelector('[data-testid="skill-library-toolbar"]');
     const headerActions = container.querySelector('[data-testid="skill-library-header-actions"]');
+    const metricCards = Array.from(metrics?.children || []);
+    const firstMetricIcon = metricCards[0]?.querySelector('div');
 
     expect(metrics?.textContent).toContain('Total Skills');
     expect(metrics?.textContent).toContain('2');
@@ -96,6 +98,13 @@ describe('MySkills', () => {
     expect(metrics?.textContent).toContain('1');
     expect(metrics?.textContent).toContain('Non-Skill Dirs');
     expect(metrics?.textContent).toContain('1');
+    expect(metrics?.className).toContain('max-w-[1280px]');
+    expect(metricCards).toHaveLength(4);
+    expect(metricCards[0]?.className).toContain('min-h-[116px]');
+    expect(metricCards[0]?.className).toContain('gap-5');
+    expect(metricCards[0]?.className).toContain('px-6');
+    expect(firstMetricIcon?.className).toContain('h-[64px]');
+    expect(firstMetricIcon?.className).toContain('w-[64px]');
     expect(toolbar?.querySelector('details')).toBeFalsy();
     expect(toolbar?.querySelectorAll('select')).toHaveLength(4);
     expect(toolbar?.textContent).toContain('All Statuses');

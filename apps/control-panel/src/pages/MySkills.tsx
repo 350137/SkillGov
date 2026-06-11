@@ -45,14 +45,14 @@ function MetricCard({ label, value, tone }: MetricCardProps) {
   const style = metricStyles[tone];
 
   return (
-    <div className="flex min-h-[132px] items-center gap-7 rounded-lg border border-[#e6deda] bg-white/82 px-8 py-7 shadow-[0_18px_50px_rgba(80,55,45,0.06)]">
+    <div className="flex min-h-[116px] items-center gap-5 rounded-lg border border-[#e6deda] bg-white/82 px-6 py-5 shadow-[0_18px_50px_rgba(80,55,45,0.06)]">
       <div
-        className={`flex h-[74px] w-[74px] items-center justify-center rounded-full ${style.icon} shadow-inner`}
+        className={`flex h-[64px] w-[64px] items-center justify-center rounded-full ${style.icon} shadow-inner`}
       >
         <svg
           aria-hidden="true"
           viewBox="0 0 24 24"
-          className="h-9 w-9"
+          className="h-8 w-8"
           fill="none"
           stroke="currentColor"
           strokeLinecap="round"
@@ -63,8 +63,8 @@ function MetricCard({ label, value, tone }: MetricCardProps) {
         </svg>
       </div>
       <div>
-        <div className="text-lg font-semibold text-[#2b2528]">{label}</div>
-        <div className={`mt-3 text-5xl font-semibold leading-none ${style.value}`}>{value}</div>
+        <div className="text-base font-semibold text-[#2b2528]">{label}</div>
+        <div className={`mt-2 text-4xl font-semibold leading-none ${style.value}`}>{value}</div>
       </div>
     </div>
   );
@@ -182,7 +182,7 @@ export function MySkills() {
       <div
         id="status-cards"
         data-testid="dashboard-metrics"
-        className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+        className="grid max-w-[1280px] gap-4 md:grid-cols-2 xl:grid-cols-4"
       >
         <MetricCard label={t('metricTotal')} value={skills.length} tone="plum" />
         <MetricCard label={t('metricApplied')} value={appliedCount} tone="green" />

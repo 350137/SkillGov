@@ -10,6 +10,42 @@ import type { Skill, TargetProfile } from '../types';
 
 export const SKILL_PAGE_SIZE = 15;
 
+interface AppliedAgentsCellProps {
+  agents: string[];
+  label: string;
+  noneLabel: string;
+}
+
+function AppliedAgentsCell({ agents, label, noneLabel }: AppliedAgentsCellProps) {
+  if (agents.length === 0) {
+    return <span className="text-gray-400">{noneLabel}</span>;
+  }
+
+  if (agents.length === 1) {
+    return (
+      <span className="inline-block max-w-[120px] truncate px-1.5 py-0.5 rounded text-xs bg-indigo-50 text-indigo-700">
+        {agents[0]}
+      </span>
+    );
+  }
+
+  return (
+    <select
+      aria-label={label}
+      defaultValue={agents[0]}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+      className="max-w-[130px] w-full px-1.5 py-0.5 border border-gray-300 rounded text-xs bg-white"
+    >
+      {agents.map((agent) => (
+        <option key={agent} value={agent}>
+          {agent}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 interface SkillListProps {
   skills: Skill[];
   view: 'status' | 'purpose';
@@ -92,7 +128,6 @@ export function SkillList({
               <th className="py-2 px-3">{t('tableStatus')}</th>
               <th className="py-2 px-3">{t('tableAppliedAgentsChip')}</th>
               <th className="py-2 px-3">{t('tableMappingStatus')}</th>
-              <th className="py-2 px-3">{t('tableSourceLabel')}</th>
               <th className="py-2 px-3">{t('tablePathLabel')}</th>
             </tr>
           </thead>
@@ -130,19 +165,16 @@ export function SkillList({
                       {s.validationStatus || '-'}
                     </span>
                   </td>
-                  <td className="py-2 px-3">
-                    {agents.length > 0 ? (
-                      agents.map((a) => (
-                        <span
-                          key={a}
-                          className="inline-block px-1.5 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-700 mr-1"
-                        >
-                          {a}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-gray-400">{t('none')}</span>
-                    )}
+                  <td
+                    className="py-2 px-3 whitespace-nowrap"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    <AppliedAgentsCell
+                      agents={agents}
+                      label={t('tableAppliedAgentsChip')}
+                      noneLabel={t('none')}
+                    />
                   </td>
                   <td className="py-2 px-3">
                     <span
@@ -165,7 +197,6 @@ export function SkillList({
                             : t('mappingStatusUnmapped')}
                     </span>
                   </td>
-                  <td className="py-2 px-3 text-gray-500">{s.sourceLabel || s.source || '-'}</td>
                   <td
                     className="py-2 px-3 text-gray-500 max-w-[180px] overflow-hidden text-overflow-ellipsis whitespace-nowrap"
                     title={s.path}

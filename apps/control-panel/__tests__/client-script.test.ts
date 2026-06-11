@@ -695,8 +695,8 @@ describe('XSS prevention in rendered HTML', () => {
     expect(controlPanelClientScript).toContain('escapeHtml(s.validationStatus');
   });
 
-  it('renderDiscoverPage uses escapeHtml for source', () => {
-    expect(controlPanelClientScript).toContain('escapeHtml(s.sourceLabel');
+  it('renderDiscoverPage does not render the source column in status view', () => {
+    expect(controlPanelClientScript).not.toContain("'<th>' + t('tableSourceLabel')");
   });
 
   it('renderDiscoverPage uses escapeHtml for path including title attribute', () => {

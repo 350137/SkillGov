@@ -10,7 +10,7 @@ import { Tags } from './pages/Tags';
 import type { TargetProfile } from './types';
 
 export function App() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [targetProfiles, setTargetProfiles] = useState<TargetProfile[]>([]);
   const [projectRoot, setProjectRoot] = useState('');
   const [version, setVersion] = useState('');
@@ -56,14 +56,6 @@ export function App() {
             <NavLink to="/settings" className={navLinkClass}>
               {t('settings')}
             </NavLink>
-            <select
-              value={i18n.language.startsWith('zh') ? 'zh' : 'en'}
-              onChange={(e) => i18n.changeLanguage(e.target.value)}
-              className="mt-2 w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white"
-            >
-              <option value="zh">中文</option>
-              <option value="en">English</option>
-            </select>
           </nav>
         </aside>
 

@@ -774,7 +774,12 @@ function formatAppliedAgents(skill) {
 function formatAppliedAgentsChip(skill) {
   const active = (skill.agentStates || []).filter((s) => s.state === 'managed-linked' || s.state === 'unmanaged-local');
   if (active.length === 0) return '<span class="agent-chip">' + escapeHtml(t('none')) + '</span>';
-  return active.map((a) => '<span class="agent-chip">' + escapeHtml(a.profileLabel || a.profileId) + '</span>').join('');
+  if (active.length === 1) return '<span class="agent-chip">' + escapeHtml(active[0].profileLabel || active[0].profileId) + '</span>';
+  const options = active.map((a) => {
+    const label = escapeHtml(a.profileLabel || a.profileId);
+    return '<option value="' + label + '">' + label + '</option>';
+  }).join('');
+  return '<select class="agent-select" aria-label="' + escapeHtml(t('tableAppliedAgentsChip')) + '" onclick="event.stopPropagation()" onkeydown="event.stopPropagation()">' + options + '</select>';
 }
 
 function formatMappingBadge(summary) {
@@ -818,7 +823,6 @@ function renderStatusRows(page, start) {
     const rowNumber = start + index + 1;
     const escName = escapeHtml(s.name);
     const escStatus = escapeHtml(s.validationStatus || '');
-    const escSource = escapeHtml(s.sourceLabel || s.source || '');
     const escPath = escapeHtml(s.path || '');
     const escPathDisplay = escapeHtml(s.path || '-');
     const checked = selectedSkillNames.has(s.name) ? 'checked' : '';
@@ -829,7 +833,6 @@ function renderStatusRows(page, start) {
       '<td><span class="status-badge ' + badgeClass + '">' + escStatus + '</span></td>' +
       '<td>' + formatAppliedAgentsChip(s) + '</td>' +
       '<td>' + formatMappingBadge(s.mappingSummary) + '</td>' +
-      '<td>' + escSource + '</td>' +
       '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escPath + '">' + escPathDisplay + '</td>' +
       '</tr>';
   }).join('');
@@ -890,7 +893,6 @@ function renderDiscoverPage() {
         '<th>' + t('tableStatus') + '</th>' +
         '<th>' + t('tableAppliedAgentsChip') + '</th>' +
         '<th>' + t('tableMappingStatus') + '</th>' +
-        '<th>' + t('tableSourceLabel') + '</th>' +
         '<th>' + t('tablePathLabel') + '</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }

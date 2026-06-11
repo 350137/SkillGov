@@ -201,12 +201,26 @@ tr:hover { background: #f8f9fa; }
 /* --- Agent Chip --- */
 .agent-chip {
   display: inline-block;
+  max-width: 120px;
   padding: 1px 7px;
   border-radius: 10px;
   font-size: 0.72rem;
   background: #e8eaf6;
   color: #3949ab;
   margin-right: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.agent-select {
+  max-width: 130px;
+  width: 100%;
+  padding: 2px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 0.72rem;
 }
 
 /* --- Mapping Chip --- */

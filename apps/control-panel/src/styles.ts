@@ -80,14 +80,22 @@ h3 { font-size: 0.9rem; margin: 14px 0 6px; color: #555; }
   justify-content: space-between;
   gap: 12px;
 }
+.skill-library-header-actions,
+.library-action-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .library-view-toggle {
   display: inline-flex;
   gap: 6px;
   align-items: center;
 }
-.view-toggle {
+.view-toggle,
+.compact-action {
   padding: 5px 10px;
   font-size: 0.78rem;
+  line-height: 1.1;
 }
 .view-toggle.active {
   background: #0066cc;

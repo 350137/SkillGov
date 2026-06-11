@@ -40,9 +40,15 @@ ${controlPanelStyles}
   <div id="skill-library-card" class="card">
     <div class="card-header skill-library-header">
       <h2 data-i18n="discoverHeading">Skill Library</h2>
-      <div class="library-view-toggle" role="group" aria-label="Skill library view">
-        <button id="library-view-status" class="view-toggle active" onclick="setLibraryView('status')" data-i18n="libraryStatusView">Skill Status</button>
-        <button id="library-view-purpose" class="view-toggle" onclick="setLibraryView('purpose')" data-i18n="libraryPurposeView">Skill Purpose</button>
+      <div class="skill-library-header-actions">
+        <div class="library-action-buttons">
+          <button onclick="callAPI('discover')" class="primary compact-action" data-i18n="scanLocal">Refresh Skill Library</button>
+          <button onclick="handleExport()" class="compact-action" data-i18n="exportButton">Export</button>
+        </div>
+        <div class="library-view-toggle" role="group" aria-label="Skill library view">
+          <button id="library-view-status" class="view-toggle active" onclick="setLibraryView('status')" data-i18n="libraryStatusView">Skill Status</button>
+          <button id="library-view-purpose" class="view-toggle" onclick="setLibraryView('purpose')" data-i18n="libraryPurposeView">Skill Purpose</button>
+        </div>
       </div>
     </div>
     <div class="toolbar">
@@ -66,8 +72,6 @@ ${controlPanelStyles}
       <select id="skill-agent-filter" aria-label="Agent Filter">
         <option value="" data-i18n="allAgents">All Agents</option>
       </select>
-      <button onclick="callAPI('discover')" class="primary" data-i18n="scanLocal">Refresh Skill Library</button>
-      <button onclick="handleExport()" data-i18n="exportButton">Export</button>
     </div>
     <div id="discover-summary"></div>
     <div id="discover-table"></div>

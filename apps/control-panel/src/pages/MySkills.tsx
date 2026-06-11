@@ -130,47 +130,50 @@ export function MySkills() {
         <div id="skill-library-card" className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
             <h2 className="text-base font-semibold">{t('discoverHeading')}</h2>
-            <div className="flex gap-1.5">
-              <button
-                type="button"
-                onClick={() => handleViewChange('status')}
-                className={`px-2.5 py-1 text-xs rounded border ${view === 'status' ? 'bg-blue-600 text-white border-blue-700' : 'border-gray-300'}`}
-              >
-                {t('libraryStatusView')}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleViewChange('purpose')}
-                className={`px-2.5 py-1 text-xs rounded border ${view === 'purpose' ? 'bg-blue-600 text-white border-blue-700' : 'border-gray-300'}`}
-              >
-                {t('libraryPurposeView')}
-              </button>
+            <div data-testid="skill-library-header-actions" className="flex items-center gap-2">
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={loadData}
+                  disabled={loading}
+                  className="px-2.5 py-1 bg-blue-600 text-white border border-blue-700 rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {t('scanLocal')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {}}
+                  className="px-2.5 py-1 border border-gray-300 rounded text-xs font-medium hover:bg-gray-50"
+                >
+                  {t('exportButton')}
+                </button>
+              </div>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleViewChange('status')}
+                  className={`px-2.5 py-1 text-xs rounded border ${view === 'status' ? 'bg-blue-600 text-white border-blue-700' : 'border-gray-300'}`}
+                >
+                  {t('libraryStatusView')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleViewChange('purpose')}
+                  className={`px-2.5 py-1 text-xs rounded border ${view === 'purpose' ? 'bg-blue-600 text-white border-blue-700' : 'border-gray-300'}`}
+                >
+                  {t('libraryPurposeView')}
+                </button>
+              </div>
             </div>
           </div>
 
-          <FilterBar
-            filters={filters}
-            onFiltersChange={handleFiltersChange}
-            skills={skills}
-            targetProfiles={targetProfiles}
-          />
-
-          <div className="flex gap-2 mb-3">
-            <button
-              type="button"
-              onClick={loadData}
-              disabled={loading}
-              className="px-3 py-1.5 bg-blue-600 text-white border border-blue-700 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
-            >
-              {t('scanLocal')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {}}
-              className="px-3 py-1.5 border border-gray-300 rounded text-sm hover:bg-gray-50"
-            >
-              {t('exportButton')}
-            </button>
+          <div data-testid="skill-library-toolbar">
+            <FilterBar
+              filters={filters}
+              onFiltersChange={handleFiltersChange}
+              skills={skills}
+              targetProfiles={targetProfiles}
+            />
           </div>
 
           <SkillList

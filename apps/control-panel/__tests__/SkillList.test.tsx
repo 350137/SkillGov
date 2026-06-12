@@ -110,8 +110,13 @@ describe('SkillList', () => {
     expect(container.textContent).toContain('Path');
     expect(container.textContent).toContain('2/2');
     expect(container.textContent).toContain('D:/SkillGov/skills/multi-agent-skill');
+    expect(container.querySelector('table')?.className).toContain('table-fixed');
 
     expect(container.querySelectorAll('tbody svg')).toHaveLength(0);
+
+    const skillNameCell = container.querySelector('[data-testid="skill-name-cell"]');
+    expect(skillNameCell?.className).toContain('truncate');
+    expect(skillNameCell?.getAttribute('title')).toBe('multi-agent-skill');
 
     const agentSelect = container.querySelector('select[aria-label="Agents"]');
     expect(agentSelect).toBeTruthy();

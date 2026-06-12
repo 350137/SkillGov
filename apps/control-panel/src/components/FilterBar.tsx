@@ -17,8 +17,8 @@ export function FilterBar({ filters, onFiltersChange, targetProfiles }: FilterBa
   };
 
   return (
-    <div className="mb-5 flex flex-wrap items-center gap-3">
-      <label className="relative w-[260px] flex-none">
+    <div className="mb-5 flex flex-nowrap items-center gap-3 overflow-x-auto pb-1">
+      <label className="relative min-w-[300px] max-w-[360px] flex-1">
         <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#5f575b]">
           <svg
             aria-hidden="true"
@@ -38,14 +38,14 @@ export function FilterBar({ filters, onFiltersChange, targetProfiles }: FilterBa
           placeholder={t('skillSearchPlaceholder')}
           value={filters.search || ''}
           onChange={(e) => update('search', e.target.value)}
-          className="h-12 w-full rounded border border-[#ded4d0] bg-white px-12 text-base text-[#282326] shadow-sm placeholder:text-[#7b7276]"
+          className="h-11 w-full rounded border border-[#ded4d0] bg-white px-12 text-sm text-[#282326] shadow-sm placeholder:text-[#7b7276]"
         />
       </label>
 
       <select
         value={filters.status || ''}
         onChange={(e) => update('status', e.target.value)}
-        className="h-12 w-[120px] rounded border border-[#ded4d0] bg-white px-3 text-base text-[#2c2629] shadow-sm"
+        className="h-11 w-[124px] shrink-0 rounded border border-[#ded4d0] bg-white px-3 text-sm text-[#2c2629] shadow-sm"
       >
         <option value="">{t('allStatuses')}</option>
         <option value="pass">{t('filterStatusPass')}</option>
@@ -56,7 +56,7 @@ export function FilterBar({ filters, onFiltersChange, targetProfiles }: FilterBa
       <select
         value={filters.mapping || ''}
         onChange={(e) => update('mapping', e.target.value)}
-        className="h-12 w-[130px] rounded border border-[#ded4d0] bg-white px-3 text-base text-[#2c2629] shadow-sm"
+        className="h-11 w-[136px] shrink-0 rounded border border-[#ded4d0] bg-white px-3 text-sm text-[#2c2629] shadow-sm"
       >
         <option value="">{t('allMappings')}</option>
         <option value="linked">{t('filterMappingLinked')}</option>
@@ -68,7 +68,7 @@ export function FilterBar({ filters, onFiltersChange, targetProfiles }: FilterBa
       <select
         value={filters.agent || ''}
         onChange={(e) => update('agent', e.target.value)}
-        className="h-12 w-[140px] rounded border border-[#ded4d0] bg-white px-3 text-base text-[#2c2629] shadow-sm"
+        className="h-11 w-[148px] shrink-0 rounded border border-[#ded4d0] bg-white px-3 text-sm text-[#2c2629] shadow-sm"
       >
         <option value="">{t('allAgents')}</option>
         {targetProfiles.map((p) => (
@@ -81,7 +81,7 @@ export function FilterBar({ filters, onFiltersChange, targetProfiles }: FilterBa
       <select
         aria-label={t('defaultSort')}
         defaultValue="default"
-        className="h-12 w-[120px] rounded border border-[#ded4d0] bg-white px-3 text-base font-medium text-[#2c2629] shadow-sm"
+        className="h-11 w-[120px] shrink-0 rounded border border-[#ded4d0] bg-white px-3 text-sm font-medium text-[#2c2629] shadow-sm"
       >
         <option value="default">{t('defaultSort')}</option>
       </select>

@@ -120,10 +120,10 @@ export function SkillList({
         </table>
       ) : (
         <div className="overflow-hidden rounded-lg border border-[#e6deda]">
-          <table className="w-full border-collapse text-base">
+          <table className="w-full table-fixed border-collapse text-base">
             <thead>
               <tr className="bg-[#fbf8f6] text-left text-sm font-semibold text-[#3d3639]">
-                <th className="w-10 px-4 py-4 text-center">
+                <th className="w-12 px-4 py-4 text-center">
                   <input
                     type="checkbox"
                     checked={allPageSelected}
@@ -132,11 +132,11 @@ export function SkillList({
                     className="h-4 w-4"
                   />
                 </th>
-                <th className="whitespace-nowrap px-4 py-4">{t('tableNumber')}</th>
-                <th className="whitespace-nowrap px-4 py-4">{t('tableSkill')}</th>
-                <th className="whitespace-nowrap px-4 py-4">{t('tableStatus')}</th>
-                <th className="whitespace-nowrap px-4 py-4">{t('tableAgent')}</th>
-                <th className="whitespace-nowrap px-4 py-4">{t('tableMappingStatus')}</th>
+                <th className="w-16 whitespace-nowrap px-4 py-4">{t('tableNumber')}</th>
+                <th className="w-[210px] whitespace-nowrap px-4 py-4">{t('tableSkill')}</th>
+                <th className="w-[104px] whitespace-nowrap px-4 py-4">{t('tableStatus')}</th>
+                <th className="w-[150px] whitespace-nowrap px-4 py-4">{t('tableAgent')}</th>
+                <th className="w-[122px] whitespace-nowrap px-4 py-4">{t('tableMappingStatus')}</th>
                 <th className="whitespace-nowrap px-4 py-4">{t('tablePathLabel')}</th>
               </tr>
             </thead>
@@ -178,7 +178,13 @@ export function SkillList({
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-[#637083]">{start + i + 1}</td>
                     <td className="px-4 py-3">
-                      <span className="font-semibold text-[#1f1a1d]">{s.name}</span>
+                      <span
+                        data-testid="skill-name-cell"
+                        className="block truncate font-semibold text-[#1f1a1d]"
+                        title={s.name}
+                      >
+                        {s.name}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -202,7 +208,7 @@ export function SkillList({
                       </span>
                     </td>
                     <td
-                      className="max-w-[260px] overflow-hidden text-ellipsis whitespace-nowrap px-4 py-3 text-[#4d5a70]"
+                      className="overflow-hidden text-ellipsis whitespace-nowrap px-4 py-3 text-[#4d5a70]"
                       title={s.path}
                     >
                       {s.path || '-'}

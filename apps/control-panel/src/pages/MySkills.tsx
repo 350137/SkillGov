@@ -190,24 +190,27 @@ export function MySkills() {
         <MetricCard label={t('metricNonSkill')} value={nonSkillDirs.length} tone="gray" />
       </div>
 
-      <div className="mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div
+        data-testid="skill-workspace-layout"
+        className="mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]"
+      >
         <div
           id="skill-library-card"
-          className="rounded-lg border border-[#e6deda] bg-white/86 p-6 shadow-[0_22px_60px_rgba(80,55,45,0.06)]"
+          className="rounded-lg border border-[#e6deda] bg-white/86 p-5 shadow-[0_22px_60px_rgba(80,55,45,0.06)]"
         >
-          <div className="mb-5 flex items-center justify-between">
+          <div className="mb-5 flex items-center justify-between gap-4">
             <h2 className="text-2xl font-semibold tracking-normal text-[#201b1e]">
               {t('discoverHeading')}
             </h2>
             <div
               data-testid="skill-library-header-actions"
-              className="flex flex-wrap items-center gap-2"
+              className="flex flex-wrap items-center justify-end gap-2"
             >
               <button
                 type="button"
                 onClick={loadData}
                 disabled={loading}
-                className="rounded bg-[#965276] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#854669] disabled:opacity-50"
+                className="rounded border border-[#d9cfca] bg-white px-3 py-2 text-sm font-medium text-[#5c5357] transition hover:bg-[#f8f3f1] disabled:opacity-50"
               >
                 {t('scanLocal')}
               </button>
@@ -237,28 +240,33 @@ export function MySkills() {
               >
                 {t('exportButton')}
               </button>
-              <button
-                type="button"
-                onClick={() => handleViewChange('status')}
-                className={`rounded px-3 py-2 text-sm font-semibold transition ${
-                  view === 'status'
-                    ? 'bg-[#965276] text-white'
-                    : 'border border-[#d9cfca] bg-white text-[#5c5357] hover:bg-[#f8f3f1]'
-                }`}
+              <div
+                data-testid="skill-view-switch"
+                className="flex overflow-hidden rounded border border-[#d9cfca] bg-white p-0.5"
               >
-                {t('libraryStatusView')}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleViewChange('purpose')}
-                className={`rounded px-3 py-2 text-sm font-semibold transition ${
-                  view === 'purpose'
-                    ? 'bg-[#965276] text-white'
-                    : 'border border-[#d9cfca] bg-white text-[#5c5357] hover:bg-[#f8f3f1]'
-                }`}
-              >
-                {t('libraryPurposeView')}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => handleViewChange('status')}
+                  className={`rounded px-3 py-1.5 text-sm font-semibold transition ${
+                    view === 'status'
+                      ? 'bg-[#965276] text-white shadow-sm'
+                      : 'text-[#5c5357] hover:bg-[#f8f3f1]'
+                  }`}
+                >
+                  {t('libraryStatusView')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleViewChange('purpose')}
+                  className={`rounded px-3 py-1.5 text-sm font-semibold transition ${
+                    view === 'purpose'
+                      ? 'bg-[#965276] text-white shadow-sm'
+                      : 'text-[#5c5357] hover:bg-[#f8f3f1]'
+                  }`}
+                >
+                  {t('libraryPurposeView')}
+                </button>
+              </div>
             </div>
           </div>
 

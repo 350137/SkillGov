@@ -85,8 +85,19 @@ describe('MySkills', () => {
     });
 
     const metrics = container.querySelector('[data-testid="dashboard-metrics"]');
+    const workspaceLayout = container.querySelector('[data-testid="skill-workspace-layout"]');
+    const skillLibraryCard = container.querySelector('#skill-library-card');
+    const actionCard = container.querySelector('#skill-action-card');
     const toolbar = container.querySelector('[data-testid="skill-library-toolbar"]');
+    const filterBar = toolbar?.firstElementChild;
     const headerActions = container.querySelector('[data-testid="skill-library-header-actions"]');
+    const headerButtons = Array.from(headerActions?.querySelectorAll('button') || []);
+    const refreshButton = headerButtons.find((button) =>
+      button.textContent?.includes('Refresh Skill Library'),
+    );
+    const addButton = headerButtons.find((button) => button.textContent?.includes('Add Skill'));
+    const exportButton = headerButtons.find((button) => button.textContent?.includes('Export'));
+    const viewSwitch = container.querySelector('[data-testid="skill-view-switch"]');
     const metricCards = Array.from(metrics?.children || []);
     const firstMetricIcon = metricCards[0]?.querySelector('div');
 
@@ -105,6 +116,12 @@ describe('MySkills', () => {
     expect(metricCards[0]?.className).toContain('px-6');
     expect(firstMetricIcon?.className).toContain('h-[64px]');
     expect(firstMetricIcon?.className).toContain('w-[64px]');
+    expect(workspaceLayout).toBeTruthy();
+    expect(workspaceLayout?.className || '').toContain('xl:grid-cols-[minmax(0,1fr)_320px]');
+    expect(skillLibraryCard?.className || '').toContain('p-5');
+    expect(actionCard?.className || '').toContain('max-h-[calc(100vh-48px)]');
+    expect(filterBar?.className || '').toContain('flex-nowrap');
+    expect(filterBar?.className || '').toContain('overflow-x-auto');
     expect(toolbar?.querySelector('details')).toBeFalsy();
     expect(toolbar?.querySelectorAll('select')).toHaveLength(4);
     expect(toolbar?.textContent).toContain('All Statuses');
@@ -118,5 +135,11 @@ describe('MySkills', () => {
     expect(headerActions?.textContent).toContain('Export');
     expect(headerActions?.textContent).toContain('Skill Status');
     expect(headerActions?.textContent).toContain('Skill Purpose');
+    expect(refreshButton?.className).toContain('border');
+    expect(refreshButton?.className).not.toContain('bg-[#965276]');
+    expect(addButton?.className).toContain('bg-[#965276]');
+    expect(exportButton?.className).toContain('border');
+    expect(viewSwitch?.className).toContain('rounded');
+    expect(viewSwitch?.querySelectorAll('button')).toHaveLength(2);
   });
 });

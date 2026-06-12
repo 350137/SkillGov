@@ -111,11 +111,11 @@ describe('MySkills', () => {
     expect(metrics?.textContent).toContain('1');
     expect(metrics?.className).toContain('max-w-[1280px]');
     expect(metricCards).toHaveLength(4);
-    expect(metricCards[0]?.className).toContain('min-h-[116px]');
-    expect(metricCards[0]?.className).toContain('gap-5');
-    expect(metricCards[0]?.className).toContain('px-6');
-    expect(firstMetricIcon?.className).toContain('h-[64px]');
-    expect(firstMetricIcon?.className).toContain('w-[64px]');
+    expect(metricCards[0]?.className).toContain('min-h-[100px]');
+    expect(metricCards[0]?.className).toContain('gap-4');
+    expect(metricCards[0]?.className).toContain('px-5');
+    expect(firstMetricIcon?.className).toContain('h-[56px]');
+    expect(firstMetricIcon?.className).toContain('w-[56px]');
     expect(workspaceLayout).toBeTruthy();
     expect(workspaceLayout?.className || '').toContain('xl:grid-cols-[minmax(0,1fr)_320px]');
     expect(skillLibraryCard?.className || '').toContain('p-5');

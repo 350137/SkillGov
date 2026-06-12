@@ -45,14 +45,14 @@ function MetricCard({ label, value, tone }: MetricCardProps) {
   const style = metricStyles[tone];
 
   return (
-    <div className="flex min-h-[116px] items-center gap-5 rounded-lg border border-[#e6deda] bg-white/82 px-6 py-5 shadow-[0_18px_50px_rgba(80,55,45,0.06)]">
+    <div className="flex min-h-[100px] items-center gap-4 rounded-lg border border-[#e6deda] bg-white/82 px-5 py-4 shadow-[0_18px_50px_rgba(80,55,45,0.06)]">
       <div
-        className={`flex h-[64px] w-[64px] items-center justify-center rounded-full ${style.icon} shadow-inner`}
+        className={`flex h-[56px] w-[56px] items-center justify-center rounded-full ${style.icon} shadow-inner`}
       >
         <svg
           aria-hidden="true"
           viewBox="0 0 24 24"
-          className="h-8 w-8"
+          className="h-7 w-7"
           fill="none"
           stroke="currentColor"
           strokeLinecap="round"
@@ -63,8 +63,8 @@ function MetricCard({ label, value, tone }: MetricCardProps) {
         </svg>
       </div>
       <div>
-        <div className="text-base font-semibold text-[#2b2528]">{label}</div>
-        <div className={`mt-2 text-4xl font-semibold leading-none ${style.value}`}>{value}</div>
+        <div className="text-sm font-semibold text-[#2b2528]">{label}</div>
+        <div className={`mt-1.5 text-3xl font-semibold leading-none ${style.value}`}>{value}</div>
       </div>
     </div>
   );

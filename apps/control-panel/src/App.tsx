@@ -56,7 +56,7 @@ export function App() {
   }, []);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex w-full items-center gap-4 rounded-lg px-4 py-3 text-base no-underline transition-colors ${
+    `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-base no-underline transition-colors ${
       isActive
         ? 'bg-[#965276] text-white shadow-sm'
         : 'text-[#2f2a2d] hover:bg-[#f3ecef] hover:text-[#965276]'
@@ -65,23 +65,21 @@ export function App() {
   return (
     <div className="min-h-screen bg-[#fbf8f6] text-[#241f22]">
       <div className="flex min-h-screen">
-        <aside className="flex w-[280px] shrink-0 flex-col border-r border-[#eadfdd] bg-[#fbf8f6] px-5 py-6">
-          <div className="flex items-center gap-4">
+        <aside className="flex w-[240px] shrink-0 flex-col border-r border-[#eadfdd] bg-[#fbf8f6] px-4 py-5">
+          <div className="flex items-center gap-3">
             <img
               src={appIconUrl}
               alt="SkillGov"
               data-testid="app-brand-icon"
-              className="h-[68px] w-[68px] rounded-lg object-cover shadow-sm"
+              className="h-[56px] w-[56px] rounded-lg object-cover shadow-sm"
             />
             <div className="min-w-0">
-              <div className="text-[28px] font-semibold leading-tight text-[#191619]">SkillGov</div>
-              <div className="mt-2 whitespace-nowrap text-xs text-[#6f676b]">
-                {t('appSubtitle')}
-              </div>
+              <div className="text-[26px] font-semibold leading-tight text-[#191619]">SkillGov</div>
+              <div className="mt-1.5 truncate text-xs text-[#6f676b]">{t('appSubtitle')}</div>
             </div>
           </div>
 
-          <nav className="mt-16 flex flex-col gap-5">
+          <nav className="mt-14 flex flex-col gap-4">
             <NavLink to="/" end className={navLinkClass}>
               <NavigationIcon icon="skills" />
               <span>{t('mySkills')}</span>

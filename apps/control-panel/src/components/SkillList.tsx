@@ -23,7 +23,7 @@ function AppliedAgentsCell({ agents, label, noneLabel }: AppliedAgentsCellProps)
 
   if (agents.length === 1) {
     return (
-      <span className="inline-block max-w-[120px] truncate rounded bg-[#eef2ff] px-2 py-1 text-sm text-[#2f35d5]">
+      <span className="inline-block max-w-[120px] truncate rounded bg-[#eef2ff] px-2 py-0.5 text-xs text-[#2f35d5]">
         {agents[0]}
       </span>
     );
@@ -35,7 +35,7 @@ function AppliedAgentsCell({ agents, label, noneLabel }: AppliedAgentsCellProps)
       defaultValue={agents[0]}
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
-      className="h-9 max-w-[130px] rounded border border-[#d3d9e1] bg-white px-2 text-sm"
+      className="h-8 max-w-[130px] rounded border border-[#d3d9e1] bg-white px-2 text-sm"
     >
       {agents.map((agent) => (
         <option key={agent} value={agent}>
@@ -120,10 +120,10 @@ export function SkillList({
         </table>
       ) : (
         <div className="overflow-hidden rounded-lg border border-[#e6deda]">
-          <table className="w-full table-fixed border-collapse text-base">
+          <table className="w-full table-fixed border-collapse text-sm">
             <thead>
               <tr className="bg-[#fbf8f6] text-left text-sm font-semibold text-[#3d3639]">
-                <th className="w-12 px-4 py-4 text-center">
+                <th className="w-12 px-3 py-3 text-center">
                   <input
                     type="checkbox"
                     checked={allPageSelected}
@@ -132,12 +132,12 @@ export function SkillList({
                     className="h-4 w-4"
                   />
                 </th>
-                <th className="w-16 whitespace-nowrap px-4 py-4">{t('tableNumber')}</th>
-                <th className="w-[210px] whitespace-nowrap px-4 py-4">{t('tableSkill')}</th>
-                <th className="w-[104px] whitespace-nowrap px-4 py-4">{t('tableStatus')}</th>
-                <th className="w-[150px] whitespace-nowrap px-4 py-4">{t('tableAgent')}</th>
-                <th className="w-[122px] whitespace-nowrap px-4 py-4">{t('tableMappingStatus')}</th>
-                <th className="whitespace-nowrap px-4 py-4">{t('tablePathLabel')}</th>
+                <th className="w-16 whitespace-nowrap px-3 py-3">{t('tableNumber')}</th>
+                <th className="w-[210px] whitespace-nowrap px-3 py-3">{t('tableSkill')}</th>
+                <th className="w-[104px] whitespace-nowrap px-3 py-3">{t('tableStatus')}</th>
+                <th className="w-[150px] whitespace-nowrap px-3 py-3">{t('tableAgent')}</th>
+                <th className="w-[122px] whitespace-nowrap px-3 py-3">{t('tableMappingStatus')}</th>
+                <th className="whitespace-nowrap px-3 py-3">{t('tablePathLabel')}</th>
               </tr>
             </thead>
             <tbody>
@@ -165,7 +165,7 @@ export function SkillList({
                     tabIndex={0}
                   >
                     <td
-                      className="px-4 py-3 text-center"
+                      className="px-3 py-2 text-center"
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => e.stopPropagation()}
                     >
@@ -176,8 +176,8 @@ export function SkillList({
                         className="h-4 w-4"
                       />
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-[#637083]">{start + i + 1}</td>
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap px-3 py-2 text-[#637083]">{start + i + 1}</td>
+                    <td className="px-3 py-2">
                       <span
                         data-testid="skill-name-cell"
                         className="block truncate font-semibold text-[#1f1a1d]"
@@ -186,29 +186,29 @@ export function SkillList({
                         {s.name}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <span
-                        className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ${getStatusBadgeClass(s.validationStatus || '')}`}
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusBadgeClass(s.validationStatus || '')}`}
                       >
                         {s.validationStatus || '-'}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <AppliedAgentsCell
                         agents={agents}
                         label={t('tableAppliedAgentsChip')}
                         noneLabel={t('none')}
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <span
-                        className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-sm font-semibold ${mappingBadgeClass(mapping)}`}
+                        className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${mappingBadgeClass(mapping)}`}
                       >
                         {mappingLabel}
                       </span>
                     </td>
                     <td
-                      className="overflow-hidden text-ellipsis whitespace-nowrap px-4 py-3 text-[#4d5a70]"
+                      className="overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2 text-[#4d5a70]"
                       title={s.path}
                     >
                       {s.path || '-'}
@@ -221,7 +221,7 @@ export function SkillList({
         </div>
       )}
 
-      <div className="mt-6 flex flex-wrap items-center gap-3 text-base">
+      <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
         <span className="mr-auto text-[#3a3336]">
           {t('pageInfoTotal', { total: skills.length })}
         </span>
@@ -229,7 +229,7 @@ export function SkillList({
           type="button"
           disabled={page === 0}
           onClick={() => onPageChange(0)}
-          className="rounded border border-[#e2d8d4] px-5 py-3 text-[#8a8084] transition hover:bg-[#fbf8f6] disabled:opacity-45"
+          className="rounded border border-[#e2d8d4] px-4 py-2 text-[#8a8084] transition hover:bg-[#fbf8f6] disabled:opacity-45"
         >
           {t('firstPage')}
         </button>
@@ -237,18 +237,18 @@ export function SkillList({
           type="button"
           disabled={page === 0}
           onClick={() => onPageChange(page - 1)}
-          className="rounded border border-[#e2d8d4] px-5 py-3 text-[#8a8084] transition hover:bg-[#fbf8f6] disabled:opacity-45"
+          className="rounded border border-[#e2d8d4] px-4 py-2 text-[#8a8084] transition hover:bg-[#fbf8f6] disabled:opacity-45"
         >
           {t('prevPage')}
         </button>
-        <span className="rounded border border-[#965276] px-5 py-3 font-semibold text-[#965276]">
+        <span className="rounded border border-[#965276] px-4 py-2 font-semibold text-[#965276]">
           {page + 1}
         </span>
         <button
           type="button"
           disabled={page >= totalPages - 1}
           onClick={() => onPageChange(page + 1)}
-          className="rounded border border-[#e2d8d4] px-5 py-3 text-[#8a8084] transition hover:bg-[#fbf8f6] disabled:opacity-45"
+          className="rounded border border-[#e2d8d4] px-4 py-2 text-[#8a8084] transition hover:bg-[#fbf8f6] disabled:opacity-45"
         >
           {t('nextPage')}
         </button>
@@ -256,7 +256,7 @@ export function SkillList({
           type="button"
           disabled={page >= totalPages - 1}
           onClick={() => onPageChange(Math.max(totalPages - 1, 0))}
-          className="rounded border border-[#e2d8d4] px-5 py-3 text-[#8a8084] transition hover:bg-[#fbf8f6] disabled:opacity-45"
+          className="rounded border border-[#e2d8d4] px-4 py-2 text-[#8a8084] transition hover:bg-[#fbf8f6] disabled:opacity-45"
         >
           {t('lastPage')}
         </button>

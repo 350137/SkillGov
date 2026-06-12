@@ -111,8 +111,14 @@ describe('SkillList', () => {
     expect(container.textContent).toContain('2/2');
     expect(container.textContent).toContain('D:/SkillGov/skills/multi-agent-skill');
     expect(container.querySelector('table')?.className).toContain('table-fixed');
+    expect(container.querySelector('table')?.className).toContain('text-sm');
 
     expect(container.querySelectorAll('tbody svg')).toHaveLength(0);
+
+    const firstHeaderCell = container.querySelector('thead th');
+    const firstBodyCell = container.querySelector('tbody td');
+    expect(firstHeaderCell?.className).toContain('py-3');
+    expect(firstBodyCell?.className).toContain('py-2');
 
     const skillNameCell = container.querySelector('[data-testid="skill-name-cell"]');
     expect(skillNameCell?.className).toContain('truncate');
@@ -121,6 +127,7 @@ describe('SkillList', () => {
     const agentSelect = container.querySelector('select[aria-label="Agents"]');
     expect(agentSelect).toBeTruthy();
     expect(agentSelect?.querySelectorAll('option')).toHaveLength(2);
+    expect(agentSelect?.className).toContain('h-8');
 
     const rowCheckbox = container.querySelector('tbody input[type="checkbox"]');
     await act(async () => {

@@ -60,9 +60,21 @@ describe('App', () => {
     });
 
     const brandIcon = container.querySelector('[data-testid="app-brand-icon"]');
+    const sidebar = container.querySelector('aside');
 
     expect(brandIcon?.tagName).toBe('IMG');
     expect(brandIcon?.getAttribute('alt')).toBe('SkillGov');
     expect(brandIcon?.getAttribute('src')).toContain('icon.ico');
+    expect(brandIcon?.className).toContain('h-[56px]');
+    expect(brandIcon?.className).toContain('w-[56px]');
+    expect(sidebar?.className).toContain('w-[240px]');
+    expect(container.textContent).toContain('Skills');
+    expect(container.textContent).not.toContain('My Skills');
+  });
+
+  it('uses a concise Chinese label for the skills navigation item', async () => {
+    await i18n.changeLanguage('zh');
+
+    expect(i18n.t('mySkills')).toBe('技能');
   });
 });

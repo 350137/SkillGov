@@ -15,9 +15,18 @@ async function post<T>(endpoint: string, body?: Record<string, unknown>): Promis
   const res = await fetch(`/api/${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
     body: JSON.stringify(body ?? {}),
   });
-  return res.json();
+  const payload = await res.json();
+  if (!res.ok || (payload && typeof payload.error === 'string')) {
+    throw new Error(
+      typeof payload.error === 'string'
+        ? payload.error
+        : `Request failed with status ${res.status}`,
+    );
+  }
+  return payload;
 }
 
 export const webApi = {

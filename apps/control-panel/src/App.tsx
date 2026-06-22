@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Route, Routes } from 'react-router-dom';
 import { api } from './api';
+import { preloadRemoteSkillSections } from './components/RemoteSkillMarketplace';
 import { Explore } from './pages/Explore';
 import { MySkills } from './pages/MySkills';
 import { Settings } from './pages/Settings';
@@ -53,6 +54,7 @@ export function App() {
         setVersion(data.apiVersion || '');
       })
       .catch(() => {});
+    preloadRemoteSkillSections(api).catch(() => {});
   }, []);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>

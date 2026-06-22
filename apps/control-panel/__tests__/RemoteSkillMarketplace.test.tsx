@@ -3,7 +3,11 @@
 import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RemoteSkillMarketplace } from '../src/components/RemoteSkillMarketplace';
+import {
+  RemoteSkillMarketplace,
+  preloadRemoteSkillSections,
+  resetRemoteSkillSectionPreload,
+} from '../src/components/RemoteSkillMarketplace';
 import '../src/i18n';
 import type { RemoteInstallResponse, RemoteSearchResponse, RemoteSkillPreview } from '../src/types';
 
@@ -31,6 +35,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  resetRemoteSkillSectionPreload();
 });
 
 describe('RemoteSkillMarketplace', () => {
@@ -81,8 +86,86 @@ describe('RemoteSkillMarketplace', () => {
     expect(textContent()).toContain('Design');
     expect(textContent()).toContain('Programming');
     expect(textContent()).toContain('Daily Work');
+    expect(textContent()).toContain('AI');
+    expect(textContent()).toContain('Writing');
+    expect(textContent()).toContain('Research');
+    expect(textContent()).toContain('Automation');
+    expect(textContent()).toContain('Documentation');
+    expect(textContent()).toContain('Data');
     expect(textContent().indexOf('high-download-skill')).toBeLessThan(
       textContent().indexOf('low-download-skill'),
     );
+  });
+
+  it('reuses preloaded recommendation sections instead of searching again on mount', async () => {
+    const apiClient: TestApiClient = {
+      searchRemoteSkills: vi.fn(async (query) => ({
+        query,
+        source: 'skills.sh',
+        count: 1,
+        skills: [
+          {
+            id: `github/example/${query}`,
+            skillId: query,
+            name: `${query}-channel-skill`,
+            source: 'github/example',
+            installs: 12,
+          },
+        ],
+      })),
+      previewRemoteSkill: vi.fn(),
+      installRemoteSkill: vi.fn(),
+    };
+
+    await preloadRemoteSkillSections(apiClient);
+    const callsAfterPreload = apiClient.searchRemoteSkills.mock.calls.length;
+
+    await act(async () => {
+      root.render(<RemoteSkillMarketplace apiClient={apiClient} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(apiClient.searchRemoteSkills).toHaveBeenCalledTimes(callsAfterPreload);
+    expect(textContent()).toContain('ai-channel-skill');
+    expect(textContent()).toContain('documentation-channel-skill');
+  });
+
+  it('keeps other recommendation channels visible when one channel fails', async () => {
+    const apiClient: TestApiClient = {
+      searchRemoteSkills: vi.fn(async (query) => {
+        if (query === 'ai') {
+          throw new Error('network unavailable');
+        }
+        return {
+          query,
+          source: 'skills.sh',
+          count: 1,
+          skills: [
+            {
+              id: `github/example/${query}`,
+              skillId: query,
+              name: `${query}-skill`,
+              source: 'github/example',
+              installs: 8,
+            },
+          ],
+        };
+      }),
+      previewRemoteSkill: vi.fn(),
+      installRemoteSkill: vi.fn(),
+    };
+
+    await act(async () => {
+      root.render(<RemoteSkillMarketplace apiClient={apiClient} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(textContent()).toContain('skill-skill');
+    expect(textContent()).toContain('documentation-skill');
+    expect(textContent()).toContain('AI');
+    expect(textContent()).not.toContain('network unavailable');
+    expect(textContent()).not.toContain('not iterable');
   });
 });

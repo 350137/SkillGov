@@ -5,11 +5,15 @@ import { type Root, createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
+import { resetRemoteSkillSectionPreload } from '../src/components/RemoteSkillMarketplace';
 import i18n from '../src/i18n';
 
 const apiMock = vi.hoisted(() => ({
   getStatus: vi.fn(),
   discover: vi.fn(),
+  searchRemoteSkills: vi.fn(),
+  previewRemoteSkill: vi.fn(),
+  installRemoteSkill: vi.fn(),
 }));
 
 vi.mock('../src/api', () => ({
@@ -37,6 +41,12 @@ beforeEach(async () => {
     nonSkillDirectories: [],
     targetProfiles: [],
   });
+  apiMock.searchRemoteSkills.mockResolvedValue({
+    query: 'skill',
+    source: 'skills.sh',
+    count: 0,
+    skills: [],
+  });
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -45,6 +55,7 @@ beforeEach(async () => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  resetRemoteSkillSectionPreload();
   vi.clearAllMocks();
 });
 
@@ -76,5 +87,22 @@ describe('App', () => {
     await i18n.changeLanguage('zh');
 
     expect(i18n.t('mySkills')).toBe('技能');
+  });
+
+  it('preloads explore skill channels during app startup', async () => {
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <App />
+        </MemoryRouter>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(apiMock.searchRemoteSkills).toHaveBeenCalledWith('skill', 12);
+    expect(apiMock.searchRemoteSkills).toHaveBeenCalledWith('ai', 8);
+    expect(apiMock.searchRemoteSkills).toHaveBeenCalledWith('documentation', 8);
+    expect(apiMock.searchRemoteSkills.mock.calls.length).toBeGreaterThanOrEqual(8);
   });
 });

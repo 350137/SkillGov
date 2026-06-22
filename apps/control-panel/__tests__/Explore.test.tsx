@@ -66,7 +66,11 @@ describe('Explore', () => {
     });
 
     expect(container.textContent).toContain('Recommended Skills');
+    expect(container.textContent).toContain('Explore Skills');
+    expect(container.textContent).toContain('Skill Channels');
     expect(container.textContent).toContain('Most Downloaded');
+    expect(container.textContent).toContain('AI');
+    expect(container.textContent).toContain('Documentation');
     expect(container.textContent).not.toContain('Skill Library');
   });
 });

@@ -1,4 +1,5 @@
 // Tests for the control panel HTTP server and API endpoint responses.
+import { readFileSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { startServer } from '../server.js';
@@ -6,6 +7,7 @@ import { startServer } from '../server.js';
 let server: http.Server;
 const PORT = 4190;
 const BASE = `http://127.0.0.1:${PORT}`;
+const SPA_INDEX_URL = new URL('../dist/spa/index.html', import.meta.url);
 let sessionCookie = '';
 const originalFetch = globalThis.fetch;
 
@@ -140,6 +142,21 @@ describe('Control Panel API', () => {
 
     expect(res).toContain('<div id="root"></div>');
     expect(res).toContain('type="module"');
+  });
+
+  it('serves the current SPA shell after rebuilds without restarting server', async () => {
+    const originalIndex = readFileSync(SPA_INDEX_URL, 'utf-8');
+    const marker = `<!-- rebuilt-spa-${Date.now()} -->`;
+
+    try {
+      writeFileSync(SPA_INDEX_URL, originalIndex.replace('</body>', `${marker}</body>`));
+
+      const res = await requestText('/explore');
+
+      expect(res.text).toContain(marker);
+    } finally {
+      writeFileSync(SPA_INDEX_URL, originalIndex);
+    }
   });
 
   it('returns status at POST /api/status', async () => {

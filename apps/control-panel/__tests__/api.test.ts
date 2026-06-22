@@ -20,13 +20,18 @@ afterEach(() => {
 
 describe('frontend API adapters', () => {
   it('web adapter posts remote skill requests to local API routes', async () => {
-    const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const calls: Array<{
+      url: string;
+      body: Record<string, unknown>;
+      credentials?: RequestCredentials;
+    }> = [];
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       calls.push({
         url: String(input),
         body: JSON.parse(String(init?.body || '{}')) as Record<string, unknown>,
+        credentials: init?.credentials,
       });
-      return { json: async () => ({ ok: true }) } as Response;
+      return { ok: true, json: async () => ({ ok: true }) } as Response;
     }) as typeof fetch;
 
     await webApi.searchRemoteSkills('typescript', 10);
@@ -34,10 +39,35 @@ describe('frontend API adapters', () => {
     await webApi.installRemoteSkill('github/example/example-skill');
 
     expect(calls).toEqual([
-      { url: '/api/remote/search', body: { query: 'typescript', limit: 10 } },
-      { url: '/api/remote/preview', body: { remoteId: 'github/example/example-skill' } },
-      { url: '/api/remote/install', body: { remoteId: 'github/example/example-skill' } },
+      {
+        url: '/api/remote/search',
+        body: { query: 'typescript', limit: 10 },
+        credentials: 'same-origin',
+      },
+      {
+        url: '/api/remote/preview',
+        body: { remoteId: 'github/example/example-skill' },
+        credentials: 'same-origin',
+      },
+      {
+        url: '/api/remote/install',
+        body: { remoteId: 'github/example/example-skill' },
+        credentials: 'same-origin',
+      },
     ]);
+  });
+
+  it('web adapter throws local API error responses with a readable message', async () => {
+    globalThis.fetch = (async () =>
+      ({
+        ok: false,
+        status: 403,
+        json: async () => ({ error: 'Missing or invalid local session cookie.' }),
+      }) as Response) as typeof fetch;
+
+    await expect(webApi.searchRemoteSkills('typescript', 10)).rejects.toThrow(
+      'Missing or invalid local session cookie.',
+    );
   });
 
   it('desktop adapter invokes remote skill Tauri commands', async () => {

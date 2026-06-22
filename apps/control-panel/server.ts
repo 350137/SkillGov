@@ -36,11 +36,13 @@ import type { SkillDescriptionsRegistry } from '@skillgov/core';
 import { renderControlPanelPage } from './src/page.js';
 
 const SPA_ROOT = join(import.meta.dirname, 'dist', 'spa');
-let spaIndexHtml: string | null = null;
-try {
-  spaIndexHtml = readFileSync(join(SPA_ROOT, 'index.html'), 'utf-8');
-} catch {
-  // SPA not built yet — fall back to legacy page
+
+function readSpaIndexHtml(): string | null {
+  try {
+    return readFileSync(join(SPA_ROOT, 'index.html'), 'utf-8');
+  } catch {
+    return null;
+  }
 }
 
 const PORT = Number.parseInt(process.env.PORT || '4173', 10);
@@ -658,6 +660,7 @@ export function startServer(port: number = PORT, host: string = HOST): http.Serv
 
     // Serve SPA index.html for all non-API GET requests (supports client-side routing)
     if (req.method === 'GET' && !path.startsWith('/api/')) {
+      const spaIndexHtml = readSpaIndexHtml();
       setSessionCookie(res);
       // Try to serve static file from SPA build
       if (spaIndexHtml && path !== '/') {
